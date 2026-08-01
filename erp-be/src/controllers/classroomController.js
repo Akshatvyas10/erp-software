@@ -1,0 +1,314 @@
+'use strict';
+const { Op } = require('sequelize');
+const {
+    Classroom, ClassroomStudent, ClassroomSubject, ClassroomPeriod,
+    Timetable, Student, Teacher, User, Subject,
+} = require('../models');
+const { success, error } = require('../utils/apiResponse');
+
+const studentAccount = {
+    model: User, as: 'account',
+    attributes: ['id', 'userId', 'firstName', 'lastName', 'email', 'isActive'],
+};
+
+const teacherAccount = {
+    model: User, as: 'account',
+    attributes: ['id', 'userId', 'firstName', 'lastName'],
+};
+
+// ── GET /api/classrooms ──────────────────────────────────────────────────────
+const listClassrooms = async (req, res, next) => {
+    try {
+        const { search = '', status = '', academicYear = '' } = req.query;
+        const where = {};
+        if (status) where.status = status;
+        if (academicYear) where.academicYear = academicYear;
+        if (search) {
+            where[Op.or] = [
+                { name: { [Op.iLike]: `%${search}%` } },
+                { section: { [Op.iLike]: `%${search}%` } },
+            ];
+        }
+
+        const classrooms = await Classroom.findAll({
+            where,
+            include: [
+                {
+                    model: ClassroomStudent, as: 'enrollments', attributes: ['id'],
+                    required: false,
+                },
+                {
+                    model: ClassroomSubject, as: 'subjects',
+                    attributes: ['id', 'subjectId', 'teacherId'],
+                    required: false,
+                    include: [
+                        { model: Teacher, as: 'teacher', attributes: ['id'], include: [teacherAccount] },
+                        { model: Subject, as: 'subject', attributes: ['id', 'name', 'code', 'type'] }
+                    ],
+                },
+            ],
+            order: [['name', 'ASC'], ['section', 'ASC']],
+        });
+
+        // Attach student count to each classroom
+        const result = classrooms.map(c => {
+            const plain = c.toJSON();
+            plain.studentCount = plain.enrollments?.length ?? 0;
+            return plain;
+        });
+
+        return success(res, { classrooms: result });
+    } catch (err) { next(err); }
+};
+
+// ── GET /api/classrooms/:id ──────────────────────────────────────────────────
+const getClassroom = async (req, res, next) => {
+    try {
+        const classroom = await Classroom.findByPk(req.params.id, {
+            include: [
+                {
+                    model: ClassroomPeriod, as: 'periods',
+                    attributes: ['id', 'name', 'startTime', 'endTime', 'order'],
+                },
+                {
+                    model: ClassroomStudent, as: 'enrollments',
+                    include: [{
+                        model: Student, as: 'student',
+                        attributes: ['id', 'studentId', 'grade', 'section'],
+                        include: [studentAccount],
+                    }],
+                },
+                {
+                    model: ClassroomSubject, as: 'subjects',
+                    include: [
+                        { model: Teacher, as: 'teacher', attributes: ['id', 'teacherId'], include: [teacherAccount] },
+                        { model: Subject, as: 'subject' },
+                        { model: Timetable, as: 'schedule', order: [['dayOfWeek', 'ASC'], ['startTime', 'ASC']] },
+                    ],
+                },
+            ],
+        });
+        if (!classroom) return error(res, 'Classroom not found', 404);
+        return success(res, { classroom });
+    } catch (err) { next(err); }
+};
+
+// ── POST /api/classrooms ─────────────────────────────────────────────────────
+const createClassroom = async (req, res, next) => {
+    try {
+        const { name, section, academicYear, roomNumber, status = 'ACTIVE' } = req.body;
+
+        const existing = await Classroom.findOne({ where: { name, section, academicYear } });
+        if (existing) return error(res, 'Classroom already exists for this name/section/year', 409);
+
+        const classroom = await Classroom.create({ name, section, academicYear, roomNumber, status });
+        return success(res, { classroom }, 'Classroom created', 201);
+    } catch (err) { next(err); }
+};
+
+// ── PUT /api/classrooms/:id ──────────────────────────────────────────────────
+const updateClassroom = async (req, res, next) => {
+    try {
+        const classroom = await Classroom.findByPk(req.params.id);
+        if (!classroom) return error(res, 'Classroom not found', 404);
+        const { name, section, academicYear, roomNumber, status } = req.body;
+        await classroom.update({ name, section, academicYear, roomNumber, status });
+        return success(res, { classroom }, 'Classroom updated');
+    } catch (err) { next(err); }
+};
+
+// ── DELETE /api/classrooms/:id ───────────────────────────────────────────────
+const deleteClassroom = async (req, res, next) => {
+    try {
+        const classroom = await Classroom.findByPk(req.params.id);
+        if (!classroom) return error(res, 'Classroom not found', 404);
+        await classroom.destroy();
+        return success(res, null, 'Classroom deleted');
+    } catch (err) { next(err); }
+};
+
+// ── GET /api/classrooms/:id/students ────────────────────────────────────────
+const getRoster = async (req, res, next) => {
+    try {
+        const enrollments = await ClassroomStudent.findAll({
+            where: { classroomId: req.params.id },
+            include: [{
+                model: Student, as: 'student',
+                attributes: ['id', 'studentId', 'grade', 'section', 'status'],
+                include: [studentAccount],
+            }],
+            order: [[{ model: Student, as: 'student' }, { model: User, as: 'account' }, 'firstName', 'ASC']],
+        });
+        return success(res, { enrollments });
+    } catch (err) { next(err); }
+};
+
+// ── POST /api/classrooms/:id/students ────────────────────────────────────────
+// Body: { studentIds: UUID[] }
+const assignStudents = async (req, res, next) => {
+    try {
+        const { studentIds } = req.body;
+        if (!Array.isArray(studentIds) || studentIds.length === 0)
+            return error(res, 'studentIds array is required', 422);
+
+        const classroom = await Classroom.findByPk(req.params.id);
+        if (!classroom) return error(res, 'Classroom not found', 404);
+
+        // Enforce that students cannot be in multiple classrooms in the same academic year
+        const existingEnrollments = await ClassroomStudent.findAll({
+            where: { studentId: { [Op.in]: studentIds } },
+            include: [{
+                model: Classroom,
+                as: 'classroom',
+                where: { academicYear: classroom.academicYear }
+            }]
+        });
+
+        const conflicts = existingEnrollments.filter(e => e.classroomId !== classroom.id);
+        if (conflicts.length > 0) {
+            return error(res, 'One or more selected students are already enrolled in a different classroom for this academic year.', 422);
+        }
+
+        const rows = studentIds.map(sid => ({ classroomId: classroom.id, studentId: sid }));
+        const created = await ClassroomStudent.bulkCreate(rows, { ignoreDuplicates: true });
+
+        return success(res, { assigned: created.length }, `${created.length} student(s) assigned`);
+    } catch (err) { next(err); }
+};
+
+// ── DELETE /api/classrooms/:id/students/:studentId ──────────────────────────
+const removeStudent = async (req, res, next) => {
+    try {
+        const deleted = await ClassroomStudent.destroy({
+            where: { classroomId: req.params.id, studentId: req.params.studentId },
+        });
+        if (!deleted) return error(res, 'Enrollment not found', 404);
+        return success(res, null, 'Student removed from classroom');
+    } catch (err) { next(err); }
+};
+
+// ── GET /api/classrooms/:id/subjects ────────────────────────────────────────
+const getSubjects = async (req, res, next) => {
+    try {
+        const subjects = await ClassroomSubject.findAll({
+            where: { classroomId: req.params.id },
+            include: [
+                { model: Teacher, as: 'teacher', attributes: ['id', 'teacherId'], include: [teacherAccount] },
+                { model: Subject, as: 'subject' },
+                { model: Timetable, as: 'schedule', order: [['dayOfWeek', 'ASC'], ['startTime', 'ASC']] },
+            ],
+        });
+        return success(res, { subjects });
+    } catch (err) { next(err); }
+};
+
+// ── POST /api/classrooms/:id/subjects ────────────────────────────────────────
+const addSubject = async (req, res, next) => {
+    try {
+        const { subjectId, teacherId } = req.body;
+        const classroom = await Classroom.findByPk(req.params.id);
+        if (!classroom) return error(res, 'Classroom not found', 404);
+
+        const globalSubject = await Subject.findByPk(subjectId);
+        if (!globalSubject) return error(res, 'Subject not found', 404);
+
+        const [subject, created] = await ClassroomSubject.findOrCreate({
+            where: { classroomId: classroom.id, subjectId },
+            defaults: { classroomId: classroom.id, subjectId, teacherId },
+        });
+        if (!created && teacherId) await subject.update({ teacherId });
+
+        const result = await ClassroomSubject.findByPk(subject.id, {
+            include: [
+                { model: Teacher, as: 'teacher', attributes: ['id', 'teacherId'], include: [teacherAccount] },
+                { model: Subject, as: 'subject' }
+            ],
+        });
+        return success(res, { subject: result }, created ? 'Subject added' : 'Subject updated', 201);
+    } catch (err) { next(err); }
+};
+
+// ── DELETE /api/classrooms/:id/subjects/:subjectId ───────────────────────────
+const removeSubject = async (req, res, next) => {
+    try {
+        const deleted = await ClassroomSubject.destroy({
+            where: { id: req.params.subjectId, classroomId: req.params.id },
+        });
+        if (!deleted) return error(res, 'Subject not found', 404);
+        return success(res, null, 'Subject removed');
+    } catch (err) { next(err); }
+};
+
+// ── POST /api/classrooms/:id/subjects/:subjectId/timetable ──────────────────
+const upsertTimetableSlot = async (req, res, next) => {
+    try {
+        const { dayOfWeek, startTime, endTime } = req.body;
+        const subject = await ClassroomSubject.findOne({
+            where: { id: req.params.subjectId, classroomId: req.params.id },
+        });
+        if (!subject) return error(res, 'Subject not found in this classroom', 404);
+
+        // Check if ANY subject is already booked in this classroom at this exact time
+        const existingSlot = await Timetable.findOne({
+            include: [{
+                model: ClassroomSubject,
+                as: 'classroomSubject',
+                where: { classroomId: req.params.id }
+            }],
+            where: { dayOfWeek, startTime, endTime }
+        });
+
+        if (existingSlot) {
+            if (existingSlot.classroomSubjectId === subject.id) {
+                return success(res, { slot: existingSlot }, 'Slot already exists', 200);
+            }
+            return error(res, 'Another subject is already booked at this time in this classroom', 409);
+        }
+
+        const slot = await Timetable.create({
+            classroomSubjectId: subject.id, dayOfWeek, startTime, endTime
+        });
+        return success(res, { slot }, 'Slot added', 201);
+    } catch (err) { next(err); }
+};
+
+// ── DELETE /api/classrooms/:id/subjects/:subjectId/timetable/:slotId ─────────
+const deleteTimetableSlot = async (req, res, next) => {
+    try {
+        const deleted = await Timetable.destroy({ where: { id: req.params.slotId } });
+        if (!deleted) return error(res, 'Slot not found', 404);
+        return success(res, null, 'Slot deleted');
+    } catch (err) { next(err); }
+};
+
+// ── POST /api/classrooms/:id/periods ──────────────────────────────────────────
+const addPeriod = async (req, res, next) => {
+    try {
+        const { name, startTime, endTime, order = 1 } = req.body;
+        const classroom = await Classroom.findByPk(req.params.id);
+        if (!classroom) return error(res, 'Classroom not found', 404);
+
+        const period = await ClassroomPeriod.create({
+            classroomId: classroom.id,
+            name, startTime, endTime, order
+        });
+        return success(res, { period }, 'Period added', 201);
+    } catch (err) { next(err); }
+};
+
+// ── DELETE /api/classrooms/:id/periods/:periodId ──────────────────────────────
+const deletePeriod = async (req, res, next) => {
+    try {
+        const deleted = await ClassroomPeriod.destroy({ where: { id: req.params.periodId, classroomId: req.params.id } });
+        if (!deleted) return error(res, 'Period not found', 404);
+        return success(res, null, 'Period deleted');
+    } catch (err) { next(err); }
+};
+
+module.exports = {
+    listClassrooms, getClassroom, createClassroom, updateClassroom, deleteClassroom,
+    getRoster, assignStudents, removeStudent,
+    getSubjects, addSubject, removeSubject,
+    upsertTimetableSlot, deleteTimetableSlot,
+    addPeriod, deletePeriod,
+};

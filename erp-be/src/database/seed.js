@@ -1,0 +1,122 @@
+'use strict';
+
+require('dotenv').config();
+const { sequelize, Role, Permission, User } = require('../models');
+const logger = require('../utils/logger');
+
+// ─── All permissions ──────────────────────────────────────────────────────────
+const PERMISSIONS = [
+    { name: 'users:read', resource: 'users', action: 'read', description: 'View users' },
+    { name: 'users:create', resource: 'users', action: 'create', description: 'Create users' },
+    { name: 'users:update', resource: 'users', action: 'update', description: 'Update users' },
+    { name: 'users:delete', resource: 'users', action: 'delete', description: 'Delete users' },
+    { name: 'users:manage', resource: 'users', action: 'manage', description: 'Full user management' },
+    { name: 'students:read', resource: 'students', action: 'read', description: 'View students' },
+    { name: 'students:create', resource: 'students', action: 'create', description: 'Create students' },
+    { name: 'students:update', resource: 'students', action: 'update', description: 'Update students' },
+    { name: 'students:delete', resource: 'students', action: 'delete', description: 'Delete students' },
+    { name: 'students:manage', resource: 'students', action: 'manage', description: 'Full student management' },
+    { name: 'teachers:read', resource: 'teachers', action: 'read', description: 'View teachers' },
+    { name: 'teachers:create', resource: 'teachers', action: 'create', description: 'Create teachers' },
+    { name: 'teachers:update', resource: 'teachers', action: 'update', description: 'Update teachers' },
+    { name: 'teachers:delete', resource: 'teachers', action: 'delete', description: 'Delete teachers' },
+    { name: 'teachers:manage', resource: 'teachers', action: 'manage', description: 'Full teacher management' },
+    { name: 'roles:read', resource: 'roles', action: 'read', description: 'View roles' },
+    { name: 'roles:manage', resource: 'roles', action: 'manage', description: 'Manage roles' },
+    { name: 'permissions:read', resource: 'permissions', action: 'read', description: 'View permissions' },
+    { name: 'permissions:manage', resource: 'permissions', action: 'manage', description: 'Manage permissions' },
+    { name: 'all:manage', resource: 'all', action: 'manage', description: 'Full system access' },
+];
+
+// ─── Role → permission mapping ────────────────────────────────────────────────
+const ROLES = [
+    {
+        name: 'super_admin',
+        description: 'Full system access',
+        permissions: ['all:manage'],
+    },
+    {
+        name: 'admin',
+        description: 'Administrative access',
+        permissions: [
+            'users:manage', 'students:manage', 'teachers:manage',
+            'roles:manage', 'permissions:manage',
+        ],
+    },
+    {
+        name: 'teacher',
+        description: 'Teacher access',
+        permissions: ['students:read', 'teachers:read', 'users:read'],
+    },
+    {
+        name: 'student',
+        description: 'Student access',
+        permissions: ['students:read'],
+    },
+];
+
+// ─── Default super-admin account ─────────────────────────────────────────────
+const ADMIN_USER = {
+    userId: 'ERP-00001',
+    email: 'admin@erp.local',
+    password: 'Admin@1234!',
+    firstName: 'System',
+    lastName: 'Admin',
+    isActive: true,
+};
+
+// ─── Runner ───────────────────────────────────────────────────────────────────
+(async () => {
+    try {
+        await sequelize.authenticate();
+        logger.info('Connected to Neon DB.');
+
+        // 1. Upsert permissions
+        for (const p of PERMISSIONS) {
+            await Permission.findOrCreate({ where: { name: p.name }, defaults: p });
+        }
+        logger.info(`✓ ${PERMISSIONS.length} permissions seeded.`);
+
+        // 2. Upsert roles and assign permissions
+        for (const roleDef of ROLES) {
+            const [role] = await Role.findOrCreate({
+                where: { name: roleDef.name },
+                defaults: { name: roleDef.name, description: roleDef.description },
+            });
+
+            const perms = await Permission.findAll({ where: { name: roleDef.permissions } });
+            await role.setPermissions(perms);
+            logger.info(`  role "${roleDef.name}" → ${perms.length} permissions`);
+        }
+        logger.info(`✓ ${ROLES.length} roles seeded.`);
+
+        // 3. Upsert super-admin user
+        const [adminUser, created] = await User.findOrCreate({
+            where: { userId: ADMIN_USER.userId },
+            defaults: ADMIN_USER,
+        });
+
+        if (created) {
+            const superAdminRole = await Role.findOne({ where: { name: 'super_admin' } });
+            if (superAdminRole) await adminUser.addRole(superAdminRole);
+            logger.info(`✓ Admin user created — login: ${ADMIN_USER.userId} / ${ADMIN_USER.password}`);
+        } else {
+            // Ensure role is still attached even if user was created manually
+            const superAdminRole = await Role.findOne({ where: { name: 'super_admin' } });
+            if (superAdminRole) {
+                const roles = await adminUser.getRoles();
+                if (!roles.find((r) => r.name === 'super_admin')) {
+                    await adminUser.addRole(superAdminRole);
+                    logger.info('  super_admin role re-attached to existing admin user.');
+                }
+            }
+            logger.info(`✓ Admin user already exists: ${ADMIN_USER.userId}`);
+        }
+
+        logger.info('Seeding complete.');
+        process.exit(0);
+    } catch (err) {
+        logger.error('Seed failed:', err);
+        process.exit(1);
+    }
+})();
