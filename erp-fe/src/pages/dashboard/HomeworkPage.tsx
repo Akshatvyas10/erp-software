@@ -22,10 +22,10 @@ export default function HomeworkPage() {
 
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
-    
+
     // In a real app we might fetch subjects/classrooms to populate filters
     const [subjectFilter, setSubjectFilter] = useState("");
-    
+
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
     const { data: homeworks = [], isLoading } = useQuery<Homework[]>({
@@ -40,138 +40,174 @@ export default function HomeworkPage() {
         enabled: can("homework", "read")
     });
 
-    const filteredHomeworks = homeworks.filter(h => 
-        h.title.toLowerCase().includes(search.toLowerCase()) || 
+    const filteredHomeworks = homeworks.filter(h =>
+        h.title.toLowerCase().includes(search.toLowerCase()) ||
         h.subject?.name.toLowerCase().includes(search.toLowerCase())
     );
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'PUBLISHED': return 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20';
-            case 'DRAFT': return 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20';
+            case 'PUBLISHED': return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20';
+            case 'DRAFT': return 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20';
             case 'ARCHIVED': return 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-400 border-zinc-500/20';
-            default: return 'bg-muted text-muted-foreground';
+            default: return 'bg-muted text-muted-foreground border-border/50';
         }
     };
 
     return (
         <motion.div
-            className="mx-auto text-foreground transition-colors duration-200 space-y-5"
-            initial={{ opacity: 0, y: 10 }}
+            className="mx-auto text-foreground transition-colors duration-200 space-y-6 max-w-[1400px]"
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
         >
-            {/* Page Header */}
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between pb-4 border-b border-border/40">
-                <div>
-                    <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-[#5513a1] dark:text-[#8e44ad] flex items-center gap-3">
-                        <BookOpen className="h-6 w-6 md:h-8 md:w-8" />
-                        Homework Management
-                    </h1>
-                    <p className="text-muted-foreground text-xs md:text-sm mt-1.5 max-w-2xl">
-                        Assign, track, and grade student homework across all your classrooms.
-                    </p>
-                </div>
-                
-                <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                    <PermissionGate resource="homework" action="create">
-                        <Button
-                            variant="primary"
-                            className="w-full md:w-auto gap-2 h-10 px-5 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                            onClick={() => setCreateDialogOpen(true)}
-                        >
-                            <Plus className="h-4 w-4 stroke-[2.5]" /> Assign Homework
-                        </Button>
-                    </PermissionGate>
+            {/* Premium Header Section */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-purple-900 via-[#5513a1] to-purple-800 p-6 sm:p-10 text-white shadow-xl">
+                {/* Decorative background blobs */}
+                <div className="absolute top-0 right-0 -translate-y-1/4 translate-x-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+                <div className="absolute bottom-0 left-0 translate-y-1/4 -translate-x-1/4 w-48 h-48 bg-purple-500/20 rounded-full blur-2xl" />
+
+                <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold tracking-wide uppercase mb-2">
+                            <BookOpen className="h-3.5 w-3.5" /> Academics
+                        </div>
+                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight drop-shadow-sm">
+                            Homework Management
+                        </h1>
+                        <p className="text-purple-100/80 text-sm md:text-base max-w-xl font-medium">
+                            Assign, track, and grade student homework across all your classrooms in one unified dashboard.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center w-full md:w-auto">
+                        <PermissionGate resource="homework" action="create">
+                            <Button
+                                variant="secondary"
+                                className="w-full md:w-auto gap-2 h-12 px-6 rounded-xl font-bold bg-white text-purple-900 hover:bg-white/90 shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 active:translate-y-0"
+                                onClick={() => setCreateDialogOpen(true)}
+                            >
+                                <Plus className="h-5 w-5 stroke-[2.5]" /> Assign New Homework
+                            </Button>
+                        </PermissionGate>
+                    </div>
                 </div>
             </div>
 
-            {/* Toolbar */}
-            <Card className="p-3 lg:p-4 border-border/60 shadow-sm bg-card dark:bg-zinc-900/40 rounded-2xl">
-                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-                    <div className="relative flex-1 max-w-full sm:max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search assignments..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            className="pl-9 h-11 border-none shadow-none focus-visible:ring-1
-                                       focus-visible:ring-purple-500 bg-muted/60 dark:bg-zinc-950/60
-                                       rounded-xl text-sm"
-                        />
-                    </div>
-                    
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="h-11 w-full sm:w-40 border-none bg-muted/60 dark:bg-zinc-950/60 rounded-xl text-sm font-medium focus:ring-1 focus:ring-purple-500">
-                            <SelectValue placeholder="All Statuses" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="">All Statuses</SelectItem>
-                            <SelectItem value="PUBLISHED">Published</SelectItem>
-                            <SelectItem value="DRAFT">Draft</SelectItem>
-                            <SelectItem value="ARCHIVED">Archived</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </Card>
+            {/* Floating Toolbar */}
+            <div className="sticky top-4 z-20">
+                <Card className="p-2 sm:p-3 border-border/40 shadow-lg shadow-black/5 bg-background/80 backdrop-blur-xl rounded-2xl">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search by title or subject..."
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                className="pl-11 h-12 border-none shadow-none focus-visible:ring-2 focus-visible:ring-purple-500/50 bg-muted/40 hover:bg-muted/60 transition-colors rounded-xl text-sm font-medium"
+                            />
+                        </div>
 
-            {/* Grid */}
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                            <SelectTrigger className="h-12 w-full sm:w-48 border-none bg-muted/40 hover:bg-muted/60 transition-colors rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500/50">
+                                <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
+                                <SelectValue placeholder="All Statuses" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl font-medium">
+                                <SelectItem value="all_statuses">All Statuses</SelectItem>
+                                <SelectItem value="PUBLISHED">Published</SelectItem>
+                                <SelectItem value="DRAFT">Draft</SelectItem>
+                                <SelectItem value="ARCHIVED">Archived</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </Card>
+            </div>
+
+            {/* Grid Content */}
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {[1, 2, 3, 4, 5, 6].map(i => (
-                        <Card key={i} className="p-5 h-40 animate-pulse bg-muted/50 rounded-2xl border-none" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pt-2">
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                        <Card key={i} className="p-6 h-[220px] animate-pulse bg-muted/40 rounded-3xl border-border/30" />
                     ))}
                 </div>
             ) : filteredHomeworks.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
-                    <div className="h-16 w-16 rounded-2xl bg-purple-600/5 dark:bg-purple-500/10
-                                    border border-purple-100 dark:border-zinc-800 flex items-center justify-center">
-                        <BookOpen className="h-7 w-7 text-purple-400/60" />
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex flex-col items-center justify-center py-24 text-center px-4"
+                >
+                    <div className="h-24 w-24 rounded-3xl bg-gradient-to-br from-purple-100 to-purple-50 dark:from-purple-900/20 dark:to-purple-900/5 border border-purple-200 dark:border-purple-800/30 flex items-center justify-center mb-6 shadow-sm shadow-purple-500/10">
+                        <BookOpen className="h-10 w-10 text-purple-600 dark:text-purple-400" />
                     </div>
-                    <p className="text-sm font-bold text-purple-950/40 dark:text-zinc-500">No homework found</p>
-                    <p className="text-xs text-muted-foreground/60">No assignments match your current filters.</p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredHomeworks.map(hw => (
-                        <Card 
-                            key={hw.id} 
-                            className="p-5 rounded-2xl border-border/60 hover:shadow-md transition-shadow cursor-pointer bg-white dark:bg-zinc-900/60 flex flex-col justify-between"
-                            onClick={() => navigate(`/dashboard/homework/${hw.id}`)}
+                    <h3 className="text-xl font-bold text-foreground mb-2">No homework found</h3>
+                    <p className="text-muted-foreground max-w-sm mb-8">
+                        It looks like there are no assignments matching your current criteria. Try adjusting your filters or create a new one.
+                    </p>
+                    <PermissionGate resource="homework" action="create">
+                        <Button
+                            variant="outline"
+                            className="rounded-xl h-11 px-6 font-semibold border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                            onClick={() => setCreateDialogOpen(true)}
                         >
-                            <div>
-                                <div className="flex justify-between items-start mb-3">
-                                    <Badge variant="outline" className={`font-semibold ${getStatusColor(hw.status)}`}>
-                                        {hw.status}
-                                    </Badge>
-                                    <span className="text-xs text-muted-foreground font-medium bg-muted/50 px-2 py-1 rounded-md">
-                                        {hw.subject?.name}
-                                    </span>
+                            <Plus className="h-4 w-4 mr-2" /> Assign Homework
+                        </Button>
+                    </PermissionGate>
+                </motion.div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 pt-2">
+                    {filteredHomeworks.map((hw, idx) => (
+                        <motion.div
+                            key={hw.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                        >
+                            <Card
+                                className="group h-full p-5 rounded-3xl border-border/40 hover:border-purple-500/30 hover:shadow-xl hover:shadow-purple-500/5 transition-all duration-300 cursor-pointer bg-card hover:-translate-y-1 flex flex-col justify-between overflow-hidden relative"
+                                onClick={() => navigate(`/dashboard/homework/${hw.id}`)}
+                            >
+                                {/* Subtle background accent on hover */}
+                                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+
+                                <div className="relative z-10">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <Badge variant="outline" className={`font-bold tracking-wide text-[10px] px-2.5 py-0.5 rounded-full ${getStatusColor(hw.status)}`}>
+                                            {hw.status}
+                                        </Badge>
+                                        <div className="flex items-center gap-1 text-xs font-bold text-purple-700/80 dark:text-purple-300/80 bg-purple-50 dark:bg-purple-900/20 px-2.5 py-1 rounded-full border border-purple-100 dark:border-purple-800/30">
+                                            {hw.subject?.name}
+                                        </div>
+                                    </div>
+                                    <h3 className="font-extrabold text-lg text-foreground line-clamp-2 mb-2 group-hover:text-[#5513a1] dark:group-hover:text-[#b87ae0] transition-colors">
+                                        {hw.title}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground line-clamp-2 mb-6 leading-relaxed">
+                                        {hw.description}
+                                    </p>
                                 </div>
-                                <h3 className="font-bold text-lg text-foreground line-clamp-1 mb-1">{hw.title}</h3>
-                                <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                                    {hw.description}
-                                </p>
-                            </div>
-                            
-                            <div className="pt-4 border-t border-border/50 flex justify-between items-center text-xs text-muted-foreground">
-                                <div className="flex items-center gap-1.5 font-medium">
-                                    <CalendarIcon className="h-3.5 w-3.5" />
-                                    <span>Due: {format(new Date(hw.dueDate), 'MMM dd, yyyy')}</span>
+
+                                <div className="relative z-10 pt-4 border-t border-border/50 flex flex-col gap-3">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-muted-foreground font-medium flex items-center gap-1.5">
+                                            <CalendarIcon className="h-3.5 w-3.5 text-purple-500/70" />
+                                            Due {format(new Date(hw.dueDate), 'MMM dd')}
+                                        </span>
+                                        <span className="font-bold text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800/80 px-2.5 py-1 rounded-md border border-zinc-200 dark:border-zinc-700/50">
+                                            {hw.classroom?.name} <span className="opacity-60">{hw.classroom?.section}</span>
+                                        </span>
+                                    </div>
                                 </div>
-                                <span className="font-semibold text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 px-2 py-1 rounded-md">
-                                    {hw.classroom?.name} {hw.classroom?.section}
-                                </span>
-                            </div>
-                        </Card>
+                            </Card>
+                        </motion.div>
                     ))}
                 </div>
             )}
-            
-            <HomeworkFormDialog 
-                open={createDialogOpen} 
-                onOpenChange={setCreateDialogOpen} 
-                homeworkId={null} 
+
+            <HomeworkFormDialog
+                open={createDialogOpen}
+                onOpenChange={setCreateDialogOpen}
+                homeworkId={null}
             />
         </motion.div>
     );

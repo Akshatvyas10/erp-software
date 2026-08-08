@@ -12,6 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {
     Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
@@ -413,12 +418,43 @@ export default function AdmissionFormDialog({
                                         </div>
                                     )}
                                     <div className="grid grid-cols-2 gap-3">
-                                        <FField control={form.control} name="rollNumber" label="Roll Number">
+                                        <FField control={form.control} name="rollNumber" label="Admission Number (Roll Number)">
                                             <Input placeholder="e.g. 22" className={inputCls} />
                                         </FField>
-                                        <FField control={form.control} name="dateOfBirth" label="Date of Birth">
-                                            <Input type="date" className={inputCls} />
-                                        </FField>
+                                        <FormField
+                                            control={form.control}
+                                            name="dateOfBirth"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date of Birth</FormLabel>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <FormControl>
+                                                                <Button
+                                                                    variant={"outline"}
+                                                                    className={cn(
+                                                                        "w-full h-10 rounded-xl bg-muted/50 border-none justify-start text-left font-normal",
+                                                                        !field.value && "text-muted-foreground"
+                                                                    )}
+                                                                >
+                                                                    {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                                                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                                </Button>
+                                                            </FormControl>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-auto p-0" align="start">
+                                                            <Calendar
+                                                                mode="single"
+                                                                selected={field.value ? new Date(field.value) : undefined}
+                                                                onSelect={(date) => date && field.onChange(format(date, "yyyy-MM-dd"))}
+                                                                disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                                                            />
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                    <FormMessage className="text-[11px]" />
+                                                </FormItem>
+                                            )}
+                                        />
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <FField control={form.control} name="grade" label="Class / Grade">

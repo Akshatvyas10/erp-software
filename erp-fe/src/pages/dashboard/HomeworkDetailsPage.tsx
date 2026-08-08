@@ -4,8 +4,8 @@ import api from "@/lib/api";
 import type { Homework, HomeworkSubmission } from "@/types/erp";
 import { useAuth, usePermissions } from "@/store/hooks";
 import { format } from "date-fns";
-import { motion } from "framer-motion";
-import { ArrowLeft, Calendar, User, FileText, Edit, Trash2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, Calendar, User, FileText, Edit, Trash2, CheckCircle2, AlertCircle, Clock, BookOpen, Send, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -49,7 +49,7 @@ export default function HomeworkDetailsPage() {
         },
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["homework", id] });
-            toast.success("Homework marked as submitted!");
+            toast.success("Homework marked as submitted! Great job!");
         }
     });
 
@@ -59,115 +59,259 @@ export default function HomeworkDetailsPage() {
         },
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["homeworks"] });
-            toast.success("Homework deleted");
+            toast.success("Homework assignment deleted successfully");
             navigate("/dashboard/homework");
         }
     });
 
-    if (isLoading) return <div className="flex justify-center p-20"><span className="animate-spin h-8 w-8 rounded-full border-4 border-purple-500 border-t-transparent"></span></div>;
-    
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center h-[50vh]">
+                <div className="flex flex-col items-center gap-4">
+                    <span className="animate-spin h-10 w-10 rounded-full border-4 border-purple-500 border-t-transparent shadow-lg" />
+                    <p className="text-muted-foreground font-medium animate-pulse">Loading homework details...</p>
+                </div>
+            </div>
+        );
+    }
+
     const homework = details?.homework || (details as any)?.data?.homework;
     const submission = details?.submission || (details as any)?.data?.submission;
 
-    if (!homework) return <div className="p-20 text-center">Homework not found</div>;
+    if (!homework) {
+        return (
+            <div className="flex flex-col items-center justify-center p-20 text-center gap-4">
+                <AlertCircle className="h-12 w-12 text-destructive opacity-80" />
+                <h2 className="text-xl font-bold">Homework Not Found</h2>
+                <Button variant="outline" onClick={() => navigate("/dashboard/homework")}>Go Back</Button>
+            </div>
+        );
+    }
 
     return (
         <motion.div
-            className="max-w-5xl mx-auto space-y-6"
-            initial={{ opacity: 0, y: 10 }}
+            className="max-w-6xl mx-auto space-y-6 pb-20"
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
         >
-            <div className="flex items-center gap-4 border-b border-border/40 pb-4">
-                <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard/homework")}>
-                    <ArrowLeft className="h-5 w-5" />
-                </Button>
-                <div className="flex-1">
-                    <h1 className="text-xl md:text-2xl font-extrabold text-[#5513a1] dark:text-[#8e44ad]">
-                        {homework.title}
-                    </h1>
+            {/* Header Bar */}
+            <div className="border-b border-border/40 pb-4 pt-2 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="shrink-0 h-9 w-9 sm:h-10 sm:w-10 rounded-full hover:bg-muted/80 bg-background/50 border border-border/50 shadow-sm mt-0.5"
+                            onClick={() => navigate("/dashboard/homework")}
+                        >
+                            <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5 text-foreground/80" />
+                        </Button>
+                        
+                        <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5">
+                                <Badge variant="outline" className="bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/40 text-[9px] sm:text-[10px] uppercase font-bold tracking-wider">
+                                    {homework.subject?.name}
+                                </Badge>
+                                <span className="text-[10px] sm:text-xs text-muted-foreground font-medium px-2 py-0.5 bg-muted/40 rounded-full border border-border/50">
+                                    {homework.classroom?.name} {homework.classroom?.section}
+                                </span>
+                            </div>
+                            <h1 className="text-xl sm:text-3xl font-black tracking-tight text-foreground truncate drop-shadow-sm">
+                                {homework.title}
+                            </h1>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 pl-12 sm:pl-0">
+                        {!isStudent && can("homework", "update") && (
+                            <Button variant="outline" className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 transition-colors" onClick={() => setEditDialogOpen(true)}>
+                                <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" /> Edit
+                            </Button>
+                        )}
+                        {!isStudent && can("homework", "delete") && (
+                            <Button variant="outline" className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors" onClick={() => {
+                                if (confirm("Are you sure you want to delete this homework?")) deleteMutation.mutate();
+                            }}>
+                                <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" /> Delete
+                            </Button>
+                        )}
+                    </div>
                 </div>
-                {!isStudent && can("homework", "update") && (
-                    <Button variant="outline" onClick={() => setEditDialogOpen(true)}>
-                        <Edit className="h-4 w-4 mr-2" /> Edit
-                    </Button>
-                )}
-                {!isStudent && can("homework", "delete") && (
-                    <Button variant="destructive" onClick={() => deleteMutation.mutate()}>
-                        <Trash2 className="h-4 w-4 mr-2" /> Delete
-                    </Button>
-                )}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                    <Card className="p-6">
-                        <div className="flex items-center gap-3 mb-6">
-                            <Badge variant="outline">{homework.subject?.name}</Badge>
-                            <Badge variant="outline">{homework.classroom?.name} - {homework.classroom?.section}</Badge>
-                            <span className="text-sm text-muted-foreground flex items-center gap-1 ml-auto">
-                                <Calendar className="h-4 w-4" /> Due: {format(new Date(homework.dueDate), "MMM dd, yyyy")}
-                            </span>
-                        </div>
-                        <div className="prose dark:prose-invert max-w-none">
-                            <h3 className="text-lg font-semibold mb-2">Instructions</h3>
-                            <p className="whitespace-pre-wrap">{homework.description}</p>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+                {/* Main Content Column */}
+                <div className="lg:col-span-7 xl:col-span-8 space-y-6">
+                    {/* Instructions Card */}
+                    <Card className="rounded-3xl border-border/50 shadow-sm overflow-hidden bg-card">
+                        <div className="p-6 sm:p-8">
+                            <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-6 sm:mb-8 pb-5 sm:pb-6 border-b border-border/40">
+                                <div className="flex items-center gap-2.5 sm:gap-3 bg-muted/30 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl border border-border/50">
+                                    <div className="bg-amber-100 dark:bg-amber-900/30 p-1.5 sm:p-2 rounded-xl">
+                                        <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 dark:text-amber-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] sm:text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Due Date</p>
+                                        <p className="text-xs sm:text-sm font-bold">{format(new Date(homework.dueDate), "EEEE, MMM dd, yyyy")}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2.5 sm:gap-3 bg-muted/30 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl border border-border/50">
+                                    <div className="bg-purple-100 dark:bg-purple-900/30 p-1.5 sm:p-2 rounded-xl">
+                                        <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 dark:text-purple-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] sm:text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Status</p>
+                                        <p className="text-xs sm:text-sm font-bold capitalize">{homework.status.toLowerCase()}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="prose dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:font-bold prose-a:text-purple-600 hover:prose-a:text-purple-500 prose-img:rounded-xl">
+                                <h3 className="text-base sm:text-lg font-bold flex items-center gap-2 mb-3 sm:mb-4 text-foreground/90">
+                                    <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" /> Instructions
+                                </h3>
+                                <div className="text-sm sm:text-[15px] text-muted-foreground whitespace-pre-wrap bg-muted/10 p-4 sm:p-5 rounded-2xl border border-border/40">
+                                    {homework.description}
+                                </div>
+                            </div>
                         </div>
                     </Card>
 
+                    {/* Student View: Your Submission */}
                     {isStudent && submission && (
-                        <Card className="p-6 bg-purple-50 dark:bg-purple-950/20 border-purple-100 dark:border-purple-900/30">
-                            <h3 className="text-lg font-bold text-purple-900 dark:text-purple-300 mb-4 flex items-center gap-2">
-                                <FileText className="h-5 w-5" /> Your Submission
-                            </h3>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="font-medium">Status: <Badge>{submission.status}</Badge></p>
-                                    {submission.grade && <p className="mt-2">Grade: <span className="font-bold text-green-600">{submission.grade}</span></p>}
-                                    {submission.feedback && <p className="mt-2 text-sm">Feedback: {submission.feedback}</p>}
+                        <Card className={`relative overflow-hidden rounded-3xl p-6 sm:p-8 transition-colors duration-300 border ${submission.status === 'SUBMITTED' || submission.status === 'REVIEWED'
+                                ? 'bg-gradient-to-br from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/20 border-emerald-200 dark:border-emerald-800/40'
+                                : 'bg-gradient-to-br from-purple-50/80 to-indigo-50/80 dark:from-purple-950/30 dark:to-indigo-950/30 border-purple-200 dark:border-purple-800/40'
+                            }`}>
+
+                            <div className="absolute top-0 right-0 -translate-y-1/3 translate-x-1/3 opacity-10 pointer-events-none">
+                                <FileText className="h-48 w-48" />
+                            </div>
+
+                            <div className="relative z-10">
+                                <h3 className="text-xl font-extrabold mb-6 flex items-center gap-3">
+                                    <div className={`p-2.5 rounded-xl ${submission.status === 'SUBMITTED' || submission.status === 'REVIEWED'
+                                            ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400'
+                                            : 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400'
+                                        }`}>
+                                        <FileText className="h-6 w-6" />
+                                    </div>
+                                    Your Submission
+                                </h3>
+
+                                <div className="grid sm:grid-cols-2 gap-6 items-center">
+                                    <div className="space-y-4">
+                                        <div className="bg-background/60 backdrop-blur-md p-4 rounded-2xl border border-border/40 shadow-sm">
+                                            <p className="text-xs uppercase font-bold text-muted-foreground tracking-wider mb-1">Status</p>
+                                            <div className="flex items-center gap-2">
+                                                {submission.status === 'SUBMITTED' || submission.status === 'REVIEWED' ? (
+                                                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                                                ) : (
+                                                    <AlertCircle className="h-5 w-5 text-amber-500" />
+                                                )}
+                                                <span className="font-bold text-lg capitalize">{submission.status.toLowerCase()}</span>
+                                            </div>
+                                        </div>
+
+                                        {submission.grade && (
+                                            <div className="bg-background/60 backdrop-blur-md p-4 rounded-2xl border border-border/40 shadow-sm border-l-4 border-l-emerald-500">
+                                                <p className="text-xs uppercase font-bold text-muted-foreground tracking-wider mb-1">Grade</p>
+                                                <p className="font-extrabold text-2xl text-emerald-600 dark:text-emerald-400">{submission.grade}</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex flex-col justify-center h-full">
+                                        {submission.status === 'PENDING' ? (
+                                            <Button
+                                                size="lg"
+                                                className="w-full h-14 rounded-2xl font-bold text-base bg-[#5513a1] hover:bg-[#430f82] text-white shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                                onClick={() => studentSubmitMutation.mutate(submission.id)}
+                                                disabled={studentSubmitMutation.isPending}
+                                            >
+                                                <Send className="h-5 w-5 mr-2" /> Mark as Submitted
+                                            </Button>
+                                        ) : (
+                                            <div className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 p-4 rounded-2xl border border-emerald-500/20 text-center font-semibold flex flex-col items-center gap-2">
+                                                <CheckCircle2 className="h-8 w-8" />
+                                                Successfully Submitted
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                                {submission.status === 'PENDING' && (
-                                    <Button 
-                                        variant="primary" 
-                                        onClick={() => studentSubmitMutation.mutate(submission.id)}
-                                        disabled={studentSubmitMutation.isPending}
-                                    >
-                                        Mark as Submitted
-                                    </Button>
+
+                                {submission.feedback && (
+                                    <div className="mt-6 bg-amber-50/50 dark:bg-amber-950/20 p-5 rounded-2xl border border-amber-200/50 dark:border-amber-900/30">
+                                        <h4 className="text-xs uppercase font-bold text-amber-800 dark:text-amber-500 tracking-wider mb-2">Teacher Feedback</h4>
+                                        <p className="text-sm font-medium text-amber-900/80 dark:text-amber-200/80 leading-relaxed italic">
+                                            "{submission.feedback}"
+                                        </p>
+                                    </div>
                                 )}
                             </div>
                         </Card>
                     )}
                 </div>
 
+                {/* Teacher View: Sidebar */}
                 {!isStudent && (
-                    <div className="lg:col-span-1">
-                        <Card className="p-5">
-                            <h3 className="font-bold mb-4 flex items-center gap-2">
-                                <User className="h-5 w-5" /> Students ({submissions.length})
-                            </h3>
-                            <div className="space-y-4">
+                    <div className="lg:col-span-5 xl:col-span-4">
+                        <Card className="rounded-3xl border-border/50 shadow-sm bg-card sticky top-24">
+                            <div className="p-5 border-b border-border/40 bg-muted/10 rounded-t-3xl">
+                                <h3 className="font-extrabold text-lg flex items-center gap-2">
+                                    <User className="h-5 w-5 text-purple-600" />
+                                    Student Submissions
+                                    <Badge variant="secondary" className="ml-auto rounded-full font-bold">
+                                        {submissions.length} Enrolled
+                                    </Badge>
+                                </h3>
+                            </div>
+                            <div className="p-2 space-y-1 max-h-[calc(100vh-250px)] overflow-y-auto custom-scrollbar">
                                 {submissions.map(sub => (
-                                    <div key={sub.id} className="p-3 border border-border/50 rounded-xl bg-muted/20">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="font-medium text-sm">{sub.student?.firstName} {sub.student?.lastName}</span>
-                                            <Badge variant="outline" className="text-[10px]">{sub.status}</Badge>
+                                    <div key={sub.id} className="p-3 hover:bg-muted/30 transition-colors rounded-2xl border border-transparent hover:border-border/50 group">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-100 to-indigo-100 dark:from-purple-900/40 dark:to-indigo-900/40 flex items-center justify-center font-bold text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/30 shadow-sm shrink-0">
+                                                {sub.student?.firstName?.[0]}{sub.student?.lastName?.[0]}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-bold text-sm truncate">{sub.student?.firstName} {sub.student?.lastName}</h4>
+                                                <p className="text-xs text-muted-foreground font-medium">Admission No: {sub.student?.admissionNumber || 'N/A'}</p>
+                                            </div>
+                                            <Badge variant="outline" className={`shrink-0 text-[9px] uppercase tracking-wider font-bold rounded-full ${sub.status === 'SUBMITTED' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
+                                                    sub.status === 'REVIEWED' ? 'bg-blue-500/10 text-blue-600 border-blue-500/20' :
+                                                        sub.status === 'OVERDUE' ? 'bg-destructive/10 text-destructive border-destructive/20' :
+                                                            'bg-muted text-muted-foreground'
+                                                }`}>
+                                                {sub.status}
+                                            </Badge>
                                         </div>
-                                        {(sub.status === 'SUBMITTED' || sub.status === 'REVIEWED') && (
+
+                                        {(sub.status === 'SUBMITTED' || sub.status === 'REVIEWED') ? (
                                             <GradeForm submission={sub} />
+                                        ) : (
+                                            <div className="mt-2 text-xs text-center p-2 rounded-xl bg-muted/30 text-muted-foreground/70 font-medium">
+                                                Waiting for student submission
+                                            </div>
                                         )}
                                     </div>
                                 ))}
-                                {submissions.length === 0 && <p className="text-sm text-muted-foreground">No students enrolled.</p>}
+                                {submissions.length === 0 && (
+                                    <div className="text-center p-8 text-muted-foreground">
+                                        <User className="h-10 w-10 mx-auto opacity-20 mb-3" />
+                                        <p className="text-sm font-bold">No students enrolled</p>
+                                    </div>
+                                )}
                             </div>
                         </Card>
                     </div>
                 )}
             </div>
-            
-            <HomeworkFormDialog 
-                open={editDialogOpen} 
-                onOpenChange={setEditDialogOpen} 
-                homeworkId={id} 
+
+            <HomeworkFormDialog
+                open={editDialogOpen}
+                onOpenChange={setEditDialogOpen}
+                homeworkId={id}
             />
         </motion.div>
     );
@@ -178,6 +322,7 @@ function GradeForm({ submission }: { submission: HomeworkSubmission }) {
     const [grade, setGrade] = useState(submission.grade || "");
     const [feedback, setFeedback] = useState(submission.feedback || "");
     const [status, setStatus] = useState(submission.status);
+    const [isExpanded, setIsExpanded] = useState(submission.status === 'SUBMITTED'); // Auto expand if needs review
 
     const updateMutation = useMutation({
         mutationFn: async () => {
@@ -185,27 +330,75 @@ function GradeForm({ submission }: { submission: HomeworkSubmission }) {
         },
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["homework-submissions", submission.homeworkId] });
-            toast.success("Grade updated");
+            toast.success("Review saved successfully!");
+            setIsExpanded(false);
         }
     });
 
-    return (
-        <div className="mt-3 space-y-2 pt-3 border-t border-border/50">
-            <div className="flex gap-2">
-                <Select value={status} onValueChange={(v: "PENDING" | "SUBMITTED" | "REVIEWED" | "OVERDUE") => setStatus(v)}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="SUBMITTED">Submitted</SelectItem>
-                        <SelectItem value="REVIEWED">Reviewed</SelectItem>
-                        <SelectItem value="OVERDUE">Overdue</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Input placeholder="Grade" className="h-8 text-xs" value={grade} onChange={e => setGrade(e.target.value)} />
+    if (!isExpanded) {
+        return (
+            <div className="mt-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-8 rounded-xl text-xs font-semibold bg-background border-border shadow-sm hover:bg-muted"
+                    onClick={() => setIsExpanded(true)}
+                >
+                    {submission.status === 'REVIEWED' ? 'Edit Review & Grade' : 'Grade Submission'}
+                </Button>
             </div>
-            <Textarea placeholder="Feedback..." className="text-xs min-h-[60px]" value={feedback} onChange={e => setFeedback(e.target.value)} />
-            <Button size="sm" className="w-full h-8 text-xs" onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
-                Save Review
-            </Button>
+        );
+    }
+
+    return (
+        <div className="mt-3 p-3 bg-background rounded-2xl border border-border/60 shadow-inner">
+            <div className="flex items-center justify-between mb-2 pb-2 border-b border-border/40">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Evaluation</span>
+                <button onClick={() => setIsExpanded(false)} className="text-[10px] font-bold text-muted-foreground hover:text-foreground underline underline-offset-2">Cancel</button>
+            </div>
+            <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-muted-foreground pl-1">Status</label>
+                        <Select value={status} onValueChange={(v: "PENDING" | "SUBMITTED" | "REVIEWED" | "OVERDUE") => setStatus(v)}>
+                            <SelectTrigger className="h-9 rounded-xl text-xs font-medium border-border/60 bg-muted/20 focus:ring-1 focus:ring-purple-500/30">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                                <SelectItem value="SUBMITTED">Submitted</SelectItem>
+                                <SelectItem value="REVIEWED">Reviewed</SelectItem>
+                                <SelectItem value="OVERDUE">Overdue</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-muted-foreground pl-1">Grade</label>
+                        <Input
+                            placeholder="e.g. A+, 95/100"
+                            className="h-9 rounded-xl text-xs font-medium border-border/60 bg-muted/20 focus-visible:ring-1 focus-visible:ring-purple-500/30"
+                            value={grade}
+                            onChange={e => setGrade(e.target.value)}
+                        />
+                    </div>
+                </div>
+                <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground pl-1">Feedback</label>
+                    <Textarea
+                        placeholder="Great work on the conclusion..."
+                        className="text-xs min-h-[70px] rounded-xl border-border/60 bg-muted/20 resize-none focus-visible:ring-1 focus-visible:ring-purple-500/30 p-3"
+                        value={feedback}
+                        onChange={e => setFeedback(e.target.value)}
+                    />
+                </div>
+                <Button
+                    size="sm"
+                    className="w-full h-9 rounded-xl text-xs font-bold bg-[#5513a1] hover:bg-[#430f82] text-white transition-all shadow-sm shadow-purple-500/20"
+                    onClick={() => updateMutation.mutate()}
+                    disabled={updateMutation.isPending}
+                >
+                    {updateMutation.isPending ? "Saving..." : "Save Review"}
+                </Button>
+            </div>
         </div>
     );
 }

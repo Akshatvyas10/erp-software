@@ -13,7 +13,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Save, Send } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { CalendarIcon, Loader2, Save, Send } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const homeworkSchema = z.object({
     title: z.string().min(3, "Title must be at least 3 characters").max(150),
@@ -217,9 +221,30 @@ export default function HomeworkFormDialog({ open, onOpenChange, homeworkId }: H
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel className="font-semibold text-purple-950 dark:text-purple-300">Due Date</FormLabel>
-                                            <FormControl>
-                                                <Input type="date" className="h-10 rounded-xl bg-muted/50 border-none" {...field} />
-                                            </FormControl>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <FormControl>
+                                                        <Button
+                                                            variant={"outline"}
+                                                            className={cn(
+                                                                "w-full h-10 rounded-xl bg-muted/50 border-none justify-start text-left font-normal",
+                                                                !field.value && "text-muted-foreground"
+                                                            )}
+                                                        >
+                                                            {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                        </Button>
+                                                    </FormControl>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={field.value ? new Date(field.value) : undefined}
+                                                        onSelect={(date) => date && field.onChange(format(date, "yyyy-MM-dd"))}
+                                                        disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
                                             <FormMessage />
                                         </FormItem>
                                     )}
