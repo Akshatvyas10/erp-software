@@ -225,6 +225,7 @@ export default function HomeworkFormDialog({ open, onOpenChange, homeworkId }: H
                                                 <PopoverTrigger asChild>
                                                     <FormControl>
                                                         <Button
+                                                            type="button"
                                                             variant={"outline"}
                                                             className={cn(
                                                                 "w-full h-10 rounded-xl bg-muted/50 border-none justify-start text-left font-normal",

@@ -4,14 +4,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     ArrowLeft, BookOpen, Mail, Phone, Calendar,
     Clock, Briefcase, GraduationCap, Loader2,
-    Edit2, CheckCircle2, UserCheck, UserX,
-    Hash,
+    Edit2, UserCheck, UserX, Hash
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { motion } from "framer-motion";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -22,6 +21,7 @@ import PermissionGate from "@/components/auth/PermissionGate";
 import AccessDenied from "@/components/auth/AccessDenied";
 import type { Teacher } from "@/types/erp";
 import { TeacherForm } from "@/components/teachers/TeacherForm";
+import { SectionCard, DetailRow } from "@/components/shared/DetailCards";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const fetchTeacher = async (id: string): Promise<Teacher> => {
@@ -68,11 +68,17 @@ export default function TeacherDetailPage() {
     if (!can("teachers", "read")) return <AccessDenied />;
     if (isLoading) return (
         <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-[#5513a1] dark:text-[#8e44ad]" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
     );
     if (!teacher) return (
-        <div className="text-center py-20 text-muted-foreground">Teacher not found</div>
+        <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+            <Briefcase className="h-10 w-10 text-muted-foreground/40" />
+            <p className="font-semibold text-sm text-foreground">Teacher not found</p>
+            <Button variant="outline" size="sm" className="rounded-xl hover:bg-accent hover:text-accent-foreground" onClick={() => navigate(-1)}>
+                <ArrowLeft className="h-4 w-4 mr-2" /> Go Back
+            </Button>
+        </div>
     );
 
     const { account } = teacher;
@@ -80,190 +86,184 @@ export default function TeacherDetailPage() {
     const initials = `${account.firstName[0]}${account.lastName[0]}`.toUpperCase();
 
     return (
-        <div className="max-w-5xl mx-auto space-y-6 text-foreground transition-colors duration-200">
-            {/* Header */}
-            <div className="flex items-start gap-3">
-                <Button variant="outline" size="icon" className="h-10 w-10 border-border/80 bg-background hover:bg-muted dark:hover:bg-purple-950/20 dark:hover:text-purple-400 transition-all rounded-xl mt-0.5"
-                    onClick={() => navigate("/dashboard/teachers")}>
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div className="flex-1 min-w-0">
-                    <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-[#5513a1] dark:text-[#8e44ad] flex items-center gap-3 truncate">{fullName}</h1>
-                    <p className="text-muted-foreground text-sm mt-0.5">
-                        {teacher.designation ?? "Teacher"} · {teacher.department ?? "No Department"}
-                    </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                    <PermissionGate resource="teachers" action="update">
-                        <Button size="sm" variant="outline" className="gap-2 h-9"
-                            onClick={() => setEditOpen(true)}>
-                            <Edit2 className="h-3.5 w-3.5" /> Edit
-                        </Button>
-                    </PermissionGate>
-                    <PermissionGate resource="teachers" action="update">
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className={`gap-2 h-9 ${account.isActive
-                                ? "text-destructive border-destructive/30 hover:bg-destructive/10"
-                                : "text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-50 dark:bg-emerald-950/30"}`}
-                            onClick={() => toggleActive.mutate(!account.isActive)}
-                            disabled={toggleActive.isPending}
-                        >
-                            {toggleActive.isPending
-                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                : account.isActive
-                                    ? <><UserX className="h-3.5 w-3.5" /> Deactivate</>
-                                    : <><UserCheck className="h-3.5 w-3.5" /> Activate</>}
-                        </Button>
-                    </PermissionGate>
-                </div>
-            </div>
+        <motion.div
+            className="max-w-5xl mx-auto space-y-6 text-foreground transition-colors duration-200"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+        >
 
-            <div className="grid gap-5 lg:grid-cols-3">
-                {/* ── Left: Profile card ─────────────────────────────────────────── */}
-                <Card className="border-border/60 shadow-md bg-card dark:bg-zinc-900/20 rounded-2xl lg:col-span-1">
-                    <CardContent className="pt-6 lg:pt-8 flex flex-col items-center text-center gap-4">
-                        <Avatar className="h-20 w-20">
-                            <AvatarFallback className="bg-gradient-to-br from-[#5513a1] to-[#3a0d6e] text-[#ffffff] dark:text-[#8e44ad]-foreground text-2xl ring-2 ring-orange-600 font-bold">
-                                {initials}
-                            </AvatarFallback>
-                        </Avatar>
 
-                        <div>
-                            <h2 className="text-lg font-bold">{fullName}</h2>
-                            <p className="text-sm text-muted-foreground">{account.email}</p>
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* HEADER PANEL                                                    */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <Card className="border border-border/60 rounded-2xl overflow-hidden shadow-md bg-card">
+                {/* Top gradient ribbon */}
+                <div className="h-2 w-full bg-primary" />
+
+                <CardContent className="p-6 relative backdrop-blur-sm bg-card/50">
+                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+
+                        {/* ── Profile photo ── */}
+                        <div className="relative shrink-0">
+                            <div className="h-28 w-28 rounded-full border-4 border-background shadow-sm overflow-hidden
+                                            bg-primary/10 flex items-center justify-center">
+                                <Avatar className="h-full w-full">
+                                    <AvatarFallback className="bg-transparent text-primary text-3xl font-black">
+                                        {initials}
+                                    </AvatarFallback>
+                                </Avatar>
+                            </div>
+                            {/* Online-style status dot */}
+                            <span className={`absolute bottom-1.5 right-1.5 h-4 w-4 rounded-full border-2 border-background
+                                             ${account.isActive ? "bg-emerald-500" : "bg-muted-foreground"}`}
+                            />
                         </div>
 
-                        <Badge
-                            className={account.isActive
-                                ? "bg-emerald-500/10 dark:bg-emerald-400/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                : "text-muted-foreground"}
-                            variant={account.isActive ? "default" : "outline"}
-                        >
-                            {account.isActive
-                                ? <><CheckCircle2 className="h-3 w-3 mr-1" />Active</>
-                                : <>Inactive</>}
-                        </Badge>
+                        {/* ── Name / meta ── */}
+                        <div className="flex flex-col items-center sm:items-start gap-2 flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
+                                    {fullName}
+                                </h1>
+                                <Badge
+                                    variant="outline"
+                                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg 
+                                        ${account.isActive ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" : "text-muted-foreground border-border"}`}
+                                >
+                                    {account.isActive ? "Active" : "Inactive"}
+                                </Badge>
+                                {(account.Roles ?? []).map(r => (
+                                    <Badge key={r.id} variant="outline" className="text-[10px] uppercase tracking-wider bg-primary/10 text-primary border-primary/20 px-2 py-0.5 rounded-lg">
+                                        {r.name.replace(/_/g, " ")}
+                                    </Badge>
+                                ))}
+                            </div>
 
-                        <Separator className="w-full" />
+                            {/* ERP User ID chip */}
+                            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
+                                <Hash className="h-3 w-3 text-primary" />
+                                <span className="text-xs font-mono font-bold text-primary">
+                                    {teacher.teacherId}
+                                </span>
+                            </div>
 
-                        <div className="w-full space-y-3 text-left">
-                            <InfoRow icon={Hash} label="Teacher ID" value={<code className="font-mono text-xs bg-secondary px-1.5 py-0.5 rounded">{teacher.teacherId}</code>} />
-                            <InfoRow icon={Hash} label="ERP User ID" value={<code className="font-mono text-xs bg-secondary px-1.5 py-0.5 rounded">{account.userId}</code>} />
-                            <InfoRow icon={Mail} label="Email" value={account.email} />
-                            <InfoRow icon={Phone} label="Phone" value={teacher.phone ?? "—"} />
-                            <InfoRow icon={Clock} label="Last Login" value={account.lastLoginAt ? new Date(account.lastLoginAt).toLocaleDateString() : "Never"} />
-                            <InfoRow icon={Calendar} label="Joined" value={teacher.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : "—"} />
-                            <InfoRow icon={Calendar} label="Added On" value={new Date(teacher.createdAt).toLocaleDateString()} />
+                            {/* Secondary meta row */}
+                            <div className="flex flex-wrap items-center gap-3 mt-0.5">
+                                <span className="text-xs text-muted-foreground font-semibold flex items-center gap-1">
+                                    <Mail className="h-3 w-3" />
+                                    {account.email}
+                                </span>
+                                {teacher.phone && (
+                                    <span className="text-xs text-muted-foreground font-semibold flex items-center gap-1">
+                                        <Phone className="h-3 w-3" />
+                                        {teacher.phone}
+                                    </span>
+                                )}
+                                <span className="text-xs text-muted-foreground font-semibold flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    Last Login: {account.lastLoginAt ? new Date(account.lastLoginAt).toLocaleString() : "Never"}
+                                </span>
+                            </div>
                         </div>
 
-                        {/* Roles */}
-                        {(account.Roles ?? []).length > 0 && (
-                            <>
-                                <Separator className="w-full" />
-                                <div className="w-full">
-                                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Roles</p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {(account.Roles ?? []).map(r => (
-                                            <Badge key={r.id} variant="outline" className="text-[11px] capitalize bg-[#5513a1]/5 dark:bg-[#5513a1]/10 text-[#5513a1] dark:text-[#8e44ad] border-[#5513a1]/20 dark:border-[#8e44ad]/20">
-                                                {r.name.replace(/_/g, " ")}
-                                            </Badge>
-                                        ))}
-                                    </div>
-                                </div>
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
+                        {/* ── Action buttons ── */}
+                        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+                            <PermissionGate resource="teachers" action="update">
+                                <Button
+                                    onClick={() => toggleActive.mutate(!account.isActive)}
+                                    disabled={toggleActive.isPending}
+                                    variant="outline"
+                                    className={`gap-2 h-10 px-4 rounded-xl font-semibold shadow-sm w-full sm:w-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none
+                                            ${account.isActive ? "text-destructive border-destructive/30 hover:bg-destructive/10" : "text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10"}`}
+                                >
+                                    {toggleActive.isPending
+                                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                                        : account.isActive
+                                            ? <><UserX className="h-4 w-4" /> Deactivate</>
+                                            : <><UserCheck className="h-4 w-4" /> Activate</>}
+                                </Button>
+                            </PermissionGate>
+                            <PermissionGate resource="teachers" action="update">
+                                <Button
+                                    onClick={() => setEditOpen(true)}
+                                    className="gap-2 h-10 px-5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold shadow-md
+                                            w-full sm:w-auto hover:scale-[1.02] active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                >
+                                    <Edit2 className="h-4 w-4" />
+                                    Edit Profile
+                                </Button>
+                            </PermissionGate>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
-                {/* ── Right: Detail cards ────────────────────────────────────────── */}
-                <div className="lg:col-span-2 space-y-5">
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* GRID LAYOUT                                                     */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
 
-                    {/* Professional details */}
-                    <Card className="border-border/60 shadow-md bg-card dark:bg-zinc-900/20 rounded-2xl">
-                        <CardHeader className="py-4 lg:py-5 px-6 border-b border-border/60 bg-muted/20 dark:bg-zinc-900/40">
-                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <Briefcase className="h-4 w-4 text-[#5513a1] dark:text-[#8e44ad]" /> Professional Details
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-6 pt-5 grid grid-cols-2 gap-4">
-                            <InfoRow icon={Briefcase} label="Department" value={teacher.department ?? "—"} />
-                            <InfoRow icon={Briefcase} label="Designation" value={teacher.designation ?? "—"} />
-                            <InfoRow icon={Hash} label="Employee No." value={teacher.employeeNumber ?? "—"} />
-                            <InfoRow icon={GraduationCap} label="Qualification" value={teacher.qualification ?? "—"} />
-                        </CardContent>
-                    </Card>
+                {/* ── 1. Professional Details ──────────────────────────────── */}
+                <div className="lg:col-span-2">
+                    <SectionCard title="Professional Details" icon={Briefcase} accent="primary">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
+                            <DetailRow icon={Briefcase} label="Department" value={teacher.departmentName || teacher.department} />
+                            <DetailRow icon={Briefcase} label="Designation" value={teacher.designationName || teacher.designation} />
+                            <DetailRow icon={Hash} label="Employee No." value={teacher.employeeNumber} />
+                            <DetailRow icon={GraduationCap} label="Qualification" value={teacher.qualification} />
+                            <DetailRow icon={Calendar} label="Joining Date" value={teacher.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : undefined} />
+                            <DetailRow icon={Calendar} label="Added On" value={new Date(teacher.createdAt).toLocaleDateString()} />
+                        </div>
+                    </SectionCard>
+                </div>
+
+                {/* ── 2. Subjects & Stats ──────────────────────────────────── */}
+                <div className="lg:col-span-1 space-y-5">
 
                     {/* Subjects */}
-                    <Card className="border-border/60 shadow-md bg-card dark:bg-zinc-900/20 rounded-2xl">
-                        <CardHeader className="py-4 lg:py-5 px-6 border-b border-border/60 bg-muted/20 dark:bg-zinc-900/40">
-                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <BookOpen className="h-4 w-4 text-[#5513a1] dark:text-[#8e44ad]" />
-                                Subjects
-                                <Badge variant="secondary" className="ml-auto text-xs">{teacher.subjects.length}</Badge>
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-6 pt-5">
-                            {teacher.subjects.length === 0 ? (
-                                <p className="text-sm text-muted-foreground">No subjects assigned</p>
-                            ) : (
-                                <div className="flex flex-wrap gap-2">
-                                    {teacher.subjects.map(s => (
-                                        <Badge key={s} variant="secondary" className="text-sm px-3 py-1">
-                                            {s}
-                                        </Badge>
-                                    ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    {/* Quick stats */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {[
-                            { label: "Department", value: teacher.department ?? "—", icon: Briefcase },
-                            { label: "Designation", value: teacher.designation ?? "—", icon: Briefcase },
-                            { label: "Subjects", value: teacher.subjects.length, icon: BookOpen },
-                        ].map(({ label, value, icon: Icon }) => (
-                            <div key={label} className="p-4 rounded-xl border border-border bg-card">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Icon className="h-3.5 w-3.5 text-[#5513a1] dark:text-[#8e44ad]" />
-                                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
-                                </div>
-                                <p className="text-sm font-semibold truncate">{value}</p>
+                    <SectionCard title="Subjects Taught" icon={BookOpen} accent="primary">
+                        <div className="flex justify-end mb-2 -mt-10 relative z-10">
+                            <Badge variant="secondary" className="text-xs bg-muted/60">{teacher.subjects.length}</Badge>
+                        </div>
+                        {teacher.subjects.length === 0 ? (
+                            <p className="text-sm text-muted-foreground py-2">No subjects assigned</p>
+                        ) : (
+                            <div className="flex flex-wrap gap-2 pt-2">
+                                {teacher.subjects.map(s => (
+                                    <Badge key={s} variant="secondary" className="text-xs bg-accent text-accent-foreground border-transparent px-2.5 py-0.5 rounded-md">
+                                        {s}
+                                    </Badge>
+                                ))}
                             </div>
-                        ))}
-                    </div>
+                        )}
+                    </SectionCard>
 
-                    {/* User account link */}
-                    <Card className="border-border/60 shadow-md bg-card dark:bg-zinc-900/20 rounded-2xl border-dashed">
-                        <CardContent className="py-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="h-9 w-9 rounded-lg bg-[#5513a1]/10 dark:bg-purple-500/20 flex items-center justify-center">
-                                    <BookOpen className="h-4 w-4 text-[#5513a1] dark:text-[#8e44ad]" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-semibold">Linked User Account</p>
-                                    <p className="text-xs text-muted-foreground">{account.userId} · {account.email}</p>
-                                </div>
-                            </div>
-                            <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
+                    {/* Linked Account */}
+                    <SectionCard title="System Account" icon={Mail} accent="primary">
+                        <div className="flex justify-end mb-2 -mt-10 relative z-10">
+                            <Button size="sm" variant="ghost" className="h-8 gap-1 focus-visible:ring-2 focus-visible:ring-ring hover:bg-accent"
                                 onClick={() => navigate(`/dashboard/users/${account.id}`)}>
-                                View Account
+                                <ArrowLeft className="h-3 w-3 rotate-180" /> View
                             </Button>
-                        </CardContent>
-                    </Card>
+                        </div>
+                        <div className="pt-2">
+                            <DetailRow icon={Hash} label="ERP User ID" value={account.userId} mono />
+                            <DetailRow icon={Mail} label="Email Address" value={account.email} />
+                        </div>
+                    </SectionCard>
                 </div>
             </div>
 
-            {/* Edit dialog */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* EDIT DIALOG                                                     */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
             {editOpen && (
                 <Dialog open onOpenChange={setEditOpen}>
                     <DialogContent className="max-w-2xl md:max-w-3xl flex flex-col p-0 overflow-hidden shadow-2xl rounded-2xl">
-                        <DialogHeader className="px-6 py-5 bg-muted/40 dark:bg-purple-950/10 border-b border-border">
+                        <DialogHeader className="px-6 py-5 bg-muted/40 border-b border-border">
                             <DialogTitle className="flex items-center gap-2 text-lg md:text-xl font-bold tracking-tight">
-                                <Edit2 className="h-5 w-5 text-[#5513a1] dark:text-[#8e44ad]" />
+                                <Edit2 className="h-5 w-5 text-primary" />
                                 Edit Teacher — {fullName}
                             </DialogTitle>
                         </DialogHeader>
@@ -294,21 +294,6 @@ export default function TeacherDetailPage() {
                     </DialogContent>
                 </Dialog>
             )}
-        </div>
-    );
-}
-
-// ─── Info row helper ──────────────────────────────────────────────────────────
-function InfoRow({ icon: Icon, label, value }: {
-    icon: React.ElementType; label: string; value: React.ReactNode;
-}) {
-    return (
-        <div className="flex items-start gap-2">
-            <Icon className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-            <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
-                <div className="text-sm font-medium text-foreground break-words">{value}</div>
-            </div>
-        </div>
+        </motion.div>
     );
 }

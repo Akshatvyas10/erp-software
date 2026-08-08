@@ -11,6 +11,10 @@ export interface User {
     email: string;
     firstName: string;
     lastName: string;
+    gender?: 'MALE' | 'FEMALE' | 'OTHER' | null;
+    dob?: string | null;
+    phone?: string | null;
+    mfaEnabled?: boolean;
     isActive: boolean;
     lastLoginAt: string | null;
     createdAt: string;
@@ -26,6 +30,8 @@ export interface TeacherProfile {
     employeeNumber: string | null;
     department: string | null;
     designation: string | null;
+    departmentName?: string | null;
+    designationName?: string | null;
     qualification: string | null;
     joiningDate: string | null;
     phone: string | null;

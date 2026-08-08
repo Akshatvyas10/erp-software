@@ -202,7 +202,7 @@ export default function AdmissionFormDialog({
     const handleNext = async () => {
         const fields = fieldsByTab[activeTab];
         const isValid = await form.trigger(fields);
-        
+
         if (activeTab === "account" && !isEdit) {
             const pwd = form.getValues("password");
             if (!pwd || pwd.length < 8) {
@@ -328,10 +328,10 @@ export default function AdmissionFormDialog({
                                         <div key={tab} className="flex items-center flex-1 last:flex-initial">
                                             <div className="flex items-center gap-2">
                                                 <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-200
-                                                    ${isCompleted 
-                                                        ? "bg-purple-600 text-white" 
-                                                        : isActive 
-                                                            ? "bg-purple-600 text-white ring-4 ring-purple-100 dark:ring-purple-950/50" 
+                                                    ${isCompleted
+                                                        ? "bg-purple-600 text-white"
+                                                        : isActive
+                                                            ? "bg-purple-600 text-white ring-4 ring-purple-100 dark:ring-purple-950/50"
                                                             : "bg-zinc-100 dark:bg-zinc-900 text-zinc-400 dark:text-zinc-600"
                                                     }`}
                                                 >
@@ -431,6 +431,7 @@ export default function AdmissionFormDialog({
                                                         <PopoverTrigger asChild>
                                                             <FormControl>
                                                                 <Button
+                                                                    type="button"
                                                                     variant={"outline"}
                                                                     className={cn(
                                                                         "w-full h-10 rounded-xl bg-muted/50 border-none justify-start text-left font-normal",

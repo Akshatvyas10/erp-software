@@ -38,6 +38,23 @@ const User = sequelize.define(
             type: DataTypes.STRING(100),
             allowNull: false,
         },
+        gender: {
+            type: DataTypes.ENUM('MALE', 'FEMALE', 'OTHER'),
+            allowNull: true,
+        },
+        dob: {
+            type: DataTypes.DATEONLY,
+            allowNull: true,
+        },
+        phone: {
+            type: DataTypes.STRING(20),
+            allowNull: true,
+        },
+        mfaEnabled: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+        },
         isActive: {
             type: DataTypes.BOOLEAN,
             allowNull: false,

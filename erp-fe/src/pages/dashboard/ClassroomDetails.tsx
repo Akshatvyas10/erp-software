@@ -51,12 +51,12 @@ import type {
 const WEEKDAYS: DayOfWeek[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 const SUBJECT_COLORS = [
-    "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-200/60 dark:border-violet-500/20",
-    "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200/60 dark:border-sky-500/20",
-    "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200/60 dark:border-amber-500/20",
-    "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200/60 dark:border-emerald-500/20",
-    "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200/60 dark:border-rose-500/20",
-    "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-200/60 dark:border-indigo-500/20",
+    "bg-primary/10 text-primary border-primary/20",
+    "bg-accent/40 text-accent-foreground border-accent/50",
+    "bg-muted/80 text-foreground border-border/80",
+    "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+    "bg-destructive/10 text-destructive border-destructive/20",
 ];
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -102,6 +102,7 @@ interface RosterTabProps {
 }
 
 function RosterTab({ classroomId, enrollments, canEdit, onRefresh }: RosterTabProps) {
+    const navigate = useNavigate();
     const [rosterSearch, setRosterSearch] = useState("");
     const [assignOpen, setAssignOpen] = useState(false);
     const [studentSearch, setStudentSearch] = useState("");
@@ -189,8 +190,7 @@ function RosterTab({ classroomId, enrollments, canEdit, onRefresh }: RosterTabPr
                     <Button
                         size="sm"
                         onClick={() => setAssignOpen(true)}
-                        className="gap-2 h-10 px-4 bg-purple-700 hover:bg-purple-800 dark:bg-purple-600
-                                   dark:hover:bg-purple-500 text-white rounded-xl font-semibold shadow-md"
+                        className="gap-2 h-10 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold shadow-md transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                     >
                         <UserCheck className="h-4 w-4" /> Assign Students
                     </Button>
@@ -213,17 +213,16 @@ function RosterTab({ classroomId, enrollments, canEdit, onRefresh }: RosterTabPr
             {/* Student table */}
             {filteredEnrollments.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-14 text-muted-foreground gap-3">
-                    <div className="h-14 w-14 rounded-2xl bg-purple-600/5 dark:bg-purple-500/10
-                                    border border-purple-100 dark:border-zinc-800 flex items-center justify-center">
-                        <Users className="h-6 w-6 text-purple-400/60" />
+                    <div className="h-14 w-14 rounded-2xl bg-primary/5 border border-primary/10 flex items-center justify-center">
+                        <Users className="h-6 w-6 text-primary/40" />
                     </div>
-                    <p className="text-sm font-bold text-purple-950/40 dark:text-zinc-500">No students enrolled</p>
+                    <p className="text-sm font-bold text-muted-foreground">No students enrolled</p>
                 </div>
             ) : (
-                <div className="rounded-xl border border-purple-100 dark:border-zinc-800 overflow-hidden">
+                <div className="rounded-xl border border-border overflow-hidden">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="bg-muted/40 dark:bg-zinc-900/60 border-b border-border/60">
+                            <tr className="bg-muted/40 border-b border-border/60">
                                 <th className="pl-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Student</th>
                                 <th className="py-3 text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Student ID</th>
                                 <th className="py-3 text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground hidden md:table-cell">Grade</th>
@@ -239,23 +238,23 @@ function RosterTab({ classroomId, enrollments, canEdit, onRefresh }: RosterTabPr
                                 return (
                                     <tr key={enr.id}
                                         className={cn(
-                                            "border-b border-border/40 last:border-0 hover:bg-purple-500/[0.02] dark:hover:bg-purple-500/[0.04] transition-colors",
-                                            i % 2 === 0 ? "" : "bg-muted/20 dark:bg-zinc-900/20"
+                                            "border-b border-border/40 last:border-0 hover:bg-muted/50 transition-colors",
+                                            i % 2 === 0 ? "" : "bg-muted/20"
                                         )}>
                                         <td className="pl-5 py-3.5">
-                                            <div className="flex items-center gap-3">
-                                                <Avatar className="h-8 w-8 border border-purple-500/20 shadow-sm shrink-0">
-                                                    <AvatarFallback className="bg-purple-600/10 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-xs font-bold">
+                                            <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate(`/dashboard/students/${enr.student.id}`)}>
+                                                <Avatar className="h-8 w-8 border border-primary/20 shadow-sm shrink-0 transition-transform group-hover:scale-105">
+                                                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
                                                         {initials}
                                                     </AvatarFallback>
                                                 </Avatar>
-                                                <span className="font-semibold text-purple-950 dark:text-zinc-200 text-[13px]">
+                                                <span className="font-semibold text-foreground text-[13px] group-hover:text-primary transition-colors">
                                                     {firstName} {lastName}
                                                 </span>
                                             </div>
                                         </td>
                                         <td className="py-3.5">
-                                            <Badge variant="outline" className="font-mono text-[11px] bg-muted/60 dark:bg-zinc-950 border-border/60 px-2">
+                                            <Badge variant="outline" className="font-mono text-[11px] bg-muted/60 border-border/60 px-2">
                                                 {enr.student.studentId}
                                             </Badge>
                                         </td>
@@ -286,14 +285,14 @@ function RosterTab({ classroomId, enrollments, canEdit, onRefresh }: RosterTabPr
 
             {/* Assign Students Dialog */}
             <Dialog open={assignOpen} onOpenChange={v => { setAssignOpen(v); if (!v) { setSelected(new Set()); setStudentSearch(""); } }}>
-                <DialogContent className="sm:max-w-lg p-0 rounded-2xl border border-border/80 shadow-2xl bg-white dark:bg-zinc-950">
-                    <DialogHeader className="px-6 py-5 bg-muted/40 dark:bg-purple-950/10 border-b border-border">
+                <DialogContent className="sm:max-w-lg p-0 rounded-2xl border border-border/80 shadow-2xl bg-background">
+                    <DialogHeader className="px-6 py-5 bg-muted/40 border-b border-border">
                         <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
                             Assign Students
                         </DialogTitle>
                     </DialogHeader>
                     <div className="p-5 space-y-3">
-                        <Command className="rounded-xl border border-purple-100 dark:border-zinc-800 bg-transparent">
+                        <Command className="rounded-xl border border-border bg-transparent">
                             <CommandInput
                                 placeholder="Search by name or student ID…"
                                 value={studentSearch}
@@ -304,7 +303,7 @@ function RosterTab({ classroomId, enrollments, canEdit, onRefresh }: RosterTabPr
                                 <CommandEmpty>
                                     {studentsLoading ? (
                                         <div className="flex justify-center py-4">
-                                            <Loader2 className="h-5 w-5 animate-spin text-purple-500" />
+                                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
                                         </div>
                                     ) : "No students found"}
                                 </CommandEmpty>
@@ -318,18 +317,18 @@ function RosterTab({ classroomId, enrollments, canEdit, onRefresh }: RosterTabPr
                                                     key={student.id}
                                                     value={`${name} ${student.studentId}`}
                                                     onSelect={() => toggleStudent(student.id)}
-                                                    className="gap-3 cursor-pointer rounded-lg aria-selected:bg-purple-600/10 dark:aria-selected:bg-purple-500/15"
+                                                    className="gap-3 cursor-pointer rounded-lg aria-selected:bg-accent"
                                                 >
                                                     <Checkbox
                                                         checked={isChecked}
-                                                        className="data-[state=checked]:bg-purple-700 data-[state=checked]:border-purple-700"
+                                                        className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                                                         onCheckedChange={() => toggleStudent(student.id)}
                                                     />
                                                     <div className="flex flex-col flex-1 min-w-0">
                                                         <span className="font-semibold text-[13px] text-foreground truncate">{name}</span>
                                                         <span className="text-[11px] text-muted-foreground font-mono">{student.studentId}</span>
                                                     </div>
-                                                    {isChecked && <CheckCircle2 className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />}
+                                                    {isChecked && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
                                                 </CommandItem>
                                             );
                                         })}
@@ -338,20 +337,18 @@ function RosterTab({ classroomId, enrollments, canEdit, onRefresh }: RosterTabPr
                             </CommandList>
                         </Command>
                         {selected.size > 0 && (
-                            <p className="text-xs font-semibold text-purple-700 dark:text-purple-400
-                                          bg-purple-600/10 dark:bg-purple-500/10 px-3 py-2 rounded-lg">
+                            <p className="text-xs font-semibold text-primary bg-primary/10 px-3 py-2 rounded-lg">
                                 {selected.size} student{selected.size !== 1 ? "s" : ""} selected
                             </p>
                         )}
                     </div>
-                    <div className="px-6 py-4 bg-muted/40 dark:bg-purple-950/10 border-t border-border flex justify-end gap-3">
-                        <Button variant="outline" className="rounded-xl font-medium border-border/80"
+                    <div className="px-6 py-4 bg-muted/40 border-t border-border flex justify-end gap-3">
+                        <Button variant="outline" className="rounded-xl font-medium border-border/80 transition-colors"
                             onClick={() => setAssignOpen(false)}>Cancel</Button>
                         <Button
                             disabled={selected.size === 0 || assignMutation.isPending}
                             onClick={() => assignMutation.mutate(Array.from(selected))}
-                            className="gap-2 bg-purple-700 hover:bg-purple-800 dark:bg-purple-600
-                                       dark:hover:bg-purple-500 text-white rounded-xl font-semibold"
+                            className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                         >
                             {assignMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (
                                 <><UserCheck className="h-4 w-4" /> Assign {selected.size > 0 ? selected.size : ""}</>
@@ -363,15 +360,15 @@ function RosterTab({ classroomId, enrollments, canEdit, onRefresh }: RosterTabPr
 
             {/* Remove confirm */}
             <AlertDialog open={!!removeId} onOpenChange={v => !v && setRemoveId(null)}>
-                <AlertDialogContent className="rounded-xl border border-purple-100 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-2xl">
+                <AlertDialogContent className="w-[95vw] sm:max-w-lg mx-auto rounded-3xl p-6 border-border shadow-2xl bg-background">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="text-purple-950 dark:text-zinc-50 font-bold">Remove Student?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-purple-900/70 dark:text-zinc-400">
+                        <AlertDialogTitle className="text-xl font-bold text-foreground">Remove Student?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-muted-foreground mt-2">
                             The student will be unenrolled from this classroom. Their account will not be affected.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="mt-4 gap-2">
-                        <AlertDialogCancel className="bg-purple-100/50 dark:bg-zinc-900 text-purple-950 dark:text-zinc-300 hover:bg-purple-100 dark:hover:bg-zinc-800 border-none h-10 px-4 rounded-lg font-semibold">Cancel</AlertDialogCancel>
+                    <AlertDialogFooter className="mt-6 gap-3">
+                        <AlertDialogCancel className="h-11 rounded-xl font-semibold border-border/50 bg-background hover:bg-accent text-foreground transition-colors">Cancel</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => removeId && removeMutation.mutate(removeId)}
                             className="bg-destructive hover:bg-destructive/90 text-white h-10 px-4 rounded-lg font-semibold"
@@ -460,7 +457,7 @@ function AddSubjectDialog({ open, onOpenChange, classroomId, onSuccess }: AddSub
         }
     };
 
-    const inputCls = "h-9 bg-zinc-100 dark:bg-zinc-900/50 border-none focus-visible:ring-1 focus-visible:ring-purple-500/50";
+    const inputCls = "h-9 bg-muted/50 border-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
     const labelCls = "text-[10px] font-bold uppercase tracking-wider text-muted-foreground";
 
     return (
@@ -528,11 +525,11 @@ function AddSubjectDialog({ open, onOpenChange, classroomId, onSuccess }: AddSub
                         </form>
                     </Form>
                 </div>
-                <div className="px-6 py-4 bg-muted/40 dark:bg-purple-950/10 border-t border-border flex justify-end gap-3">
-                    <Button variant="outline" className="rounded-xl font-medium border-border/80"
+                <div className="px-6 py-4 bg-muted/40 border-t border-border flex justify-end gap-3">
+                    <Button variant="outline" className="rounded-xl font-medium border-border/80 transition-colors"
                         onClick={() => onOpenChange(false)}>Cancel</Button>
                     <Button type="submit" form="subject-form"
-                        className="gap-2 bg-purple-700 hover:bg-purple-800 dark:bg-purple-600 dark:hover:bg-purple-500 text-white rounded-xl font-semibold">
+                        className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                         {form.formState.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Subject"}
                     </Button>
                 </div>
@@ -588,7 +585,7 @@ function ManagePeriodsDialog({ open, onOpenChange, classroomId, periods, onSucce
 
 
 
-    const inputCls = "h-9 bg-zinc-100 dark:bg-zinc-900/50 border-none focus-visible:ring-1 focus-visible:ring-purple-500/50";
+    const inputCls = "h-9 bg-muted/50 border-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
     const labelCls = "text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1 block";
 
     const PERIOD_NAMES = [
@@ -669,7 +666,7 @@ function ManagePeriodsDialog({ open, onOpenChange, classroomId, periods, onSucce
                             />
                         </div>
                         <div className="col-span-2">
-                            <Button className="w-full h-9 bg-purple-700 hover:bg-purple-800 text-white" disabled={!name || addMutation.isPending}
+                            <Button className="w-full h-9 bg-primary hover:bg-primary/90 text-primary-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" disabled={!name || addMutation.isPending}
                                 onClick={handleAdd}>
                                 Add
                             </Button>
@@ -763,8 +760,8 @@ function BookSlotDialog({ open, onOpenChange, classroomId, dayOfWeek, period, on
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-sm p-0 rounded-2xl border border-border/80 shadow-2xl bg-white dark:bg-zinc-950">
-                <DialogHeader className="px-6 py-5 bg-muted/40 dark:bg-purple-950/10 border-b border-border">
+            <DialogContent className="sm:max-w-sm p-0 rounded-2xl border border-border/80 shadow-2xl bg-background">
+                <DialogHeader className="px-6 py-5 bg-muted/40 border-b border-border">
                     <DialogTitle className="text-base font-bold tracking-tight text-foreground">
                         Book Slot - {dayOfWeek} {period.name}
                     </DialogTitle>
@@ -776,7 +773,7 @@ function BookSlotDialog({ open, onOpenChange, classroomId, dayOfWeek, period, on
                             setGlobalSubjectId(val);
                             setTeacherId(""); // Reset teacher when subject changes
                         }}>
-                            <SelectTrigger className="h-9 w-full bg-zinc-100 dark:bg-zinc-900/50">
+                            <SelectTrigger className="h-9 w-full bg-muted/50 border-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                                 <SelectValue placeholder="Choose a subject..." />
                             </SelectTrigger>
                             <SelectContent>
@@ -792,7 +789,7 @@ function BookSlotDialog({ open, onOpenChange, classroomId, dayOfWeek, period, on
                     <div>
                         <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Assign Teacher</label>
                         <Select value={teacherId} onValueChange={setTeacherId} disabled={!globalSubjectId}>
-                            <SelectTrigger className="h-9 w-full bg-zinc-100 dark:bg-zinc-900/50">
+                            <SelectTrigger className="h-9 w-full bg-muted/50 border-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                                 <SelectValue placeholder={globalSubjectId ? (filteredTeachers.length > 0 ? "Select Teacher" : "No matching teachers") : "Select subject first"} />
                             </SelectTrigger>
                             <SelectContent>
@@ -806,9 +803,9 @@ function BookSlotDialog({ open, onOpenChange, classroomId, dayOfWeek, period, on
                         </Select>
                     </div>
                 </div>
-                <div className="px-6 py-4 bg-muted/40 dark:bg-purple-950/10 border-t border-border flex justify-end gap-3">
-                    <Button variant="outline" className="rounded-xl font-medium" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button className="bg-purple-700 hover:bg-purple-800 text-white rounded-xl font-semibold" disabled={!globalSubjectId || mutation.isPending} onClick={() => mutation.mutate()}>
+                <div className="px-6 py-4 bg-muted/40 border-t border-border flex justify-end gap-3">
+                    <Button variant="outline" className="rounded-xl font-medium transition-colors" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" disabled={!globalSubjectId || mutation.isPending} onClick={() => mutation.mutate()}>
                         {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Book Slot"}
                     </Button>
                 </div>
@@ -883,13 +880,11 @@ function TimetableTab({ classroomId, subjects, periods, canEdit, onRefresh }: Ti
                 {canEdit && (
                     <div className="flex gap-2">
                         <Button size="sm" onClick={() => setAddSubjectOpen(true)}
-                            className="gap-2 h-9 px-4 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30
-                                       dark:hover:bg-purple-900/50 dark:text-purple-300 rounded-xl font-semibold shadow-sm border border-purple-200 dark:border-purple-800">
+                            className="gap-2 h-9 px-4 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-semibold shadow-sm border border-primary/20 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                             <BookOpen className="h-3.5 w-3.5" /> Add Subject
                         </Button>
                         <Button size="sm" onClick={() => setManagePeriodsOpen(true)}
-                            className="gap-2 h-9 px-4 bg-purple-700 hover:bg-purple-800 dark:bg-purple-600
-                                       dark:hover:bg-purple-500 text-white rounded-xl font-semibold shadow-md">
+                            className="gap-2 h-9 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold shadow-md transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                             <Clock className="h-3.5 w-3.5" /> Manage Lectures
                         </Button>
                     </div>
@@ -898,26 +893,24 @@ function TimetableTab({ classroomId, subjects, periods, canEdit, onRefresh }: Ti
 
             {periods.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-14 text-muted-foreground gap-3">
-                    <div className="h-14 w-14 rounded-2xl bg-purple-600/5 dark:bg-purple-500/10
-                                    border border-purple-100 dark:border-zinc-800 flex items-center justify-center">
-                        <LayoutGrid className="h-6 w-6 text-purple-400/60" />
+                    <div className="h-14 w-14 rounded-2xl bg-primary/5 border border-primary/10 flex items-center justify-center">
+                        <LayoutGrid className="h-6 w-6 text-primary/40" />
                     </div>
-                    <p className="text-sm font-bold text-purple-950/40 dark:text-zinc-500">No lectures defined</p>
+                    <p className="text-sm font-bold text-muted-foreground">No lectures defined</p>
                     <p className="text-xs text-muted-foreground/60">Add lectures to construct the timetable grid.</p>
                 </div>
             ) : (
-                <div className="rounded-2xl border border-purple-100 dark:border-zinc-800 overflow-hidden
-                                shadow-[0_6px_24px_-4px_rgba(0,0,0,0.06)] dark:shadow-[0_6px_24px_-4px_rgba(0,0,0,0.3)]">
+                <div className="rounded-2xl border border-border overflow-hidden shadow-sm">
                     <div className="overflow-x-auto custom-scrollbar">
                         <table className="w-full min-w-[800px] text-sm border-collapse">
                             <thead>
-                                <tr className="bg-purple-50/80 dark:bg-zinc-900/60 border-b border-purple-100 dark:border-zinc-800">
-                                    <th className="pl-5 py-3.5 text-left min-w-[120px] text-[11px] font-bold uppercase tracking-wider text-muted-foreground sticky left-0 bg-purple-50/80 dark:bg-zinc-900/90 z-10">
+                                <tr className="bg-muted/40 border-b border-border/60">
+                                    <th className="pl-5 py-3.5 text-left min-w-[120px] text-[11px] font-bold uppercase tracking-wider text-muted-foreground sticky left-0 bg-background/95 z-10 backdrop-blur-sm">
                                         Day
                                     </th>
                                     {sortedPeriods.map(p => (
-                                        <th key={p.id} className="py-3.5 px-3 text-center min-w-[140px] border-l border-purple-100/50 dark:border-zinc-800/50">
-                                            <div className="text-[11px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">{p.name}</div>
+                                        <th key={p.id} className="py-3.5 px-3 text-center min-w-[140px] border-l border-border/50">
+                                            <div className="text-[11px] font-bold uppercase tracking-wider text-primary">{p.name}</div>
                                             <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">{p.startTime.substring(0, 5)} - {p.endTime.substring(0, 5)}</div>
                                         </th>
                                     ))}
@@ -925,8 +918,8 @@ function TimetableTab({ classroomId, subjects, periods, canEdit, onRefresh }: Ti
                             </thead>
                             <tbody>
                                 {WEEKDAYS.map((day) => (
-                                    <tr key={day} className="border-b border-purple-100/60 dark:border-zinc-800/60 last:border-0 hover:bg-purple-500/[0.02] dark:hover:bg-purple-500/[0.03] transition-colors">
-                                        <td className="pl-5 py-4 font-bold text-[12px] text-foreground sticky left-0 bg-white/95 dark:bg-zinc-950/95 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] dark:shadow-[1px_0_0_0_rgba(255,255,255,0.05)]">
+                                    <tr key={day} className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors">
+                                        <td className="pl-5 py-4 font-bold text-[12px] text-foreground sticky left-0 bg-background/95 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] backdrop-blur-sm">
                                             {day}
                                         </td>
                                         {sortedPeriods.map(p => {
@@ -935,10 +928,10 @@ function TimetableTab({ classroomId, subjects, periods, canEdit, onRefresh }: Ti
                                             const isBreak = p.name.toLowerCase().includes('lunch') || p.name.toLowerCase().includes('break');
 
                                             return (
-                                                <td key={p.id} className="py-2 px-2 border-l border-purple-100/50 dark:border-zinc-800/50 align-middle">
+                                                <td key={p.id} className="py-2 px-2 border-l border-border/50 align-middle">
                                                     {isBreak ? (
-                                                        <div className="h-16 rounded-xl flex items-center justify-center bg-zinc-100/50 dark:bg-zinc-900/30 border border-zinc-200/50 dark:border-zinc-800/50">
-                                                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
+                                                        <div className="h-16 rounded-xl flex items-center justify-center bg-muted/40 border border-border/50">
+                                                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
                                                                 {p.name}
                                                             </span>
                                                         </div>
@@ -949,7 +942,7 @@ function TimetableTab({ classroomId, subjects, periods, canEdit, onRefresh }: Ti
                                                                 "h-16 rounded-xl flex flex-col items-center justify-center text-center p-2 transition-all cursor-pointer border",
                                                                 existing
                                                                     ? `${colorCls} group relative`
-                                                                    : "border-dashed border-purple-200 dark:border-zinc-700 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/10 text-transparent hover:text-purple-400"
+                                                                    : "border-dashed border-border hover:border-primary/50 hover:bg-primary/5 text-transparent hover:text-primary/70"
                                                             )}
                                                         >
                                                             {existing ? (
@@ -1006,20 +999,20 @@ function TimetableTab({ classroomId, subjects, periods, canEdit, onRefresh }: Ti
             />
 
             <AlertDialog open={!!removeSlotId} onOpenChange={v => !v && setRemoveSlotId(null)}>
-                <AlertDialogContent className="rounded-xl border border-purple-100 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-2xl">
+                <AlertDialogContent className="w-[95vw] sm:max-w-lg mx-auto rounded-3xl p-6 border-border shadow-2xl bg-background">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="text-purple-950 dark:text-zinc-50 font-bold">Remove Subject from Slot?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-purple-900/70 dark:text-zinc-400">This will empty the period for this day.</AlertDialogDescription>
+                        <AlertDialogTitle className="text-xl font-bold text-foreground">Remove Subject from Slot?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-muted-foreground mt-2">This will empty the period for this day.</AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="mt-4 gap-2">
-                        <AlertDialogCancel className="bg-purple-100/50 dark:bg-zinc-900 text-purple-950 dark:text-zinc-300 hover:bg-purple-100 dark:hover:bg-zinc-800 border-none h-10 px-4 rounded-lg font-semibold">Cancel</AlertDialogCancel>
+                    <AlertDialogFooter className="mt-6 gap-3">
+                        <AlertDialogCancel className="h-11 rounded-xl font-semibold border-border/50 bg-background hover:bg-accent text-foreground transition-colors">Cancel</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => {
                                 if (!removeSlotId) return;
                                 const [subjectId, slotId] = removeSlotId.split("::");
                                 removeSlotMutation.mutate({ subjectId, slotId });
                             }}
-                            className="bg-destructive hover:bg-destructive/90 text-white h-10 px-4 rounded-lg font-semibold"
+                            className="h-11 rounded-xl font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
                         >
                             {removeSlotMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Remove"}
                         </AlertDialogAction>
@@ -1070,10 +1063,10 @@ export default function ClassroomDetails() {
     if (!classroom) {
         return (
             <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-                <School className="h-10 w-10 text-purple-400/40" />
-                <p className="font-bold text-sm">Classroom not found</p>
+                <School className="h-10 w-10 text-primary/40" />
+                <p className="font-bold text-sm text-foreground">Classroom not found</p>
                 <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard/classrooms")}
-                    className="gap-2 text-purple-700 dark:text-purple-400">
+                    className="gap-2 text-primary hover:bg-primary/10 hover:text-primary transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                     <ArrowLeft className="h-4 w-4" /> Back to Classrooms
                 </Button>
             </div>
@@ -1098,18 +1091,12 @@ export default function ClassroomDetails() {
         >
             {/* Back + Header */}
             <div>
-                <button
-                    onClick={() => navigate("/dashboard/classrooms")}
-                    className="flex items-center gap-1.5 text-xs font-bold text-purple-700/70 dark:text-purple-400/70
-                               hover:text-purple-700 dark:hover:text-purple-300 transition-colors mb-3"
-                >
-                    <ArrowLeft className="h-3.5 w-3.5" /> Back to Classrooms
-                </button>
+
                 <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
                     <div>
                         <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-3">
                             {classroom.name}
-                            <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                            <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">
                                 {classroom.section}
                             </Badge>
                         </h1>
@@ -1132,8 +1119,8 @@ export default function ClassroomDetails() {
                             className={cn(
                                 "flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-t-xl transition-all relative -mb-px",
                                 isActive
-                                    ? "bg-white dark:bg-zinc-950 text-purple-800 dark:text-purple-300 shadow-sm border border-purple-100 dark:border-zinc-800"
-                                    : "text-purple-900/60 dark:text-zinc-400 hover:text-purple-900 dark:hover:text-zinc-200 hover:bg-purple-600/5 dark:hover:bg-zinc-900"
+                                    ? "bg-background text-primary shadow-sm border border-border"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                             )}
                         >
                             <Icon className="h-4 w-4 shrink-0" />
@@ -1142,7 +1129,7 @@ export default function ClassroomDetails() {
                                 <span className={cn(
                                     "ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full",
                                     isActive
-                                        ? "bg-purple-600/10 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400"
+                                        ? "bg-primary/10 text-primary"
                                         : "bg-muted text-muted-foreground"
                                 )}>
                                     {tab.count}
@@ -1154,15 +1141,13 @@ export default function ClassroomDetails() {
             </div>
 
             {/* Tab content */}
-            <Card className="border border-purple-100 dark:border-zinc-800
-                             shadow-[0_6px_24px_-4px_rgba(0,0,0,0.08)] dark:shadow-[0_6px_24px_-4px_rgba(0,0,0,0.35)]
-                             rounded-2xl bg-white dark:bg-zinc-900/40 overflow-hidden">
-                <CardHeader className="py-4 px-6 border-b border-border/60 bg-muted/20 dark:bg-zinc-900/50">
+            <Card className="border border-border shadow-sm rounded-2xl bg-card overflow-hidden">
+                <CardHeader className="py-4 px-6 border-b border-border/60 bg-muted/20">
                     <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
                         {activeTab === "roster" ? (
-                            <><Users className="h-4 w-4 text-purple-600 dark:text-purple-400" /> Student Roster</>
+                            <><Users className="h-4 w-4 text-primary" /> Student Roster</>
                         ) : (
-                            <><LayoutGrid className="h-4 w-4 text-purple-600 dark:text-purple-400" /> Weekly Timetable</>
+                            <><LayoutGrid className="h-4 w-4 text-primary" /> Weekly Timetable</>
                         )}
                     </CardTitle>
                 </CardHeader>

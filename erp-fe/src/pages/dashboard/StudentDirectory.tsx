@@ -99,27 +99,26 @@ function StudentRow({ student, classroomMap, canEdit, canDelete, onEdit, onDelet
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="border-b border-border/40 last:border-0 hover:bg-purple-500/[0.025]
-                       dark:hover:bg-purple-500/[0.04] transition-colors group cursor-pointer"
+            className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors group cursor-pointer"
             onClick={() => onView(student.id)}
         >
             {/* Name + Avatar */}
             <td className="pl-5 py-3.5">
                 <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9 border border-purple-500/20 shadow-sm shrink-0">
+                    <Avatar className="h-9 w-9 border border-primary/20 shadow-sm shrink-0">
                         {account && student.profilePhotoUrl
                             ? <img src={student.profilePhotoUrl} alt={account.firstName} className="h-full w-full object-cover rounded-full" />
                             : null
                         }
-                        <AvatarFallback className="bg-purple-600/10 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-xs font-bold">
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
                             {initials}
                         </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col min-w-0">
-                        <span className="font-semibold text-[13px] text-purple-950 dark:text-zinc-100 truncate">
+                        <span className="font-semibold text-[13px] text-foreground truncate">
                             {account.firstName} {account.lastName}
                         </span>
-                        <span className="text-[11px] text-purple-900/50 dark:text-zinc-500 truncate">
+                        <span className="text-[11px] text-muted-foreground truncate">
                             {account.email}
                         </span>
                     </div>
@@ -128,7 +127,7 @@ function StudentRow({ student, classroomMap, canEdit, canDelete, onEdit, onDelet
 
             {/* Admission Number */}
             <td className="py-3.5 hidden md:table-cell">
-                <Badge variant="outline" className="font-mono text-[11px] bg-muted/60 dark:bg-zinc-950 border-border/60 px-2">
+                <Badge variant="outline" className="font-mono text-[11px] bg-muted/60 text-foreground border-border/60 px-2">
                     {student.admissionNumber ?? student.studentId}
                 </Badge>
             </td>
@@ -145,7 +144,7 @@ function StudentRow({ student, classroomMap, canEdit, canDelete, onEdit, onDelet
 
             {/* Class / Section */}
             <td className="py-3.5 hidden lg:table-cell">
-                <span className="text-[12px] font-semibold text-purple-950/70 dark:text-zinc-400">
+                <span className="text-[12px] font-semibold text-muted-foreground">
                     {classLabel}
                 </span>
             </td>
@@ -154,18 +153,18 @@ function StudentRow({ student, classroomMap, canEdit, canDelete, onEdit, onDelet
             <td className="py-3.5 hidden xl:table-cell">
                 {student.guardianName ? (
                     <div className="flex flex-col">
-                        <span className="text-[12px] font-semibold text-purple-950/80 dark:text-zinc-300 truncate max-w-[160px]">
+                        <span className="text-[12px] font-semibold text-foreground truncate max-w-[160px]">
                             {student.guardianName}
                         </span>
                         {student.guardianPhone && (
-                            <span className="text-[11px] text-purple-900/50 dark:text-zinc-500 flex items-center gap-1">
+                            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
                                 <Phone className="h-2.5 w-2.5" />
                                 {student.guardianPhone}
                             </span>
                         )}
                     </div>
                 ) : (
-                    <span className="text-[12px] text-purple-900/30 dark:text-zinc-600">—</span>
+                    <span className="text-[12px] text-muted-foreground">—</span>
                 )}
             </td>
 
@@ -175,44 +174,38 @@ function StudentRow({ student, classroomMap, canEdit, canDelete, onEdit, onDelet
                     <DropdownMenuTrigger asChild>
                         <Button
                             variant="ghost" size="icon"
-                            className="h-8 w-8 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity
-                                       text-purple-900/50 dark:text-zinc-400 hover:bg-purple-600/10
-                                       dark:hover:bg-purple-500/10 hover:text-purple-700"
+                            className="h-8 w-8 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                         >
                             <MoreHorizontal className="h-4 w-4" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                         align="end"
-                        className="w-44 rounded-xl border border-purple-100 dark:border-zinc-800
-                                   bg-white dark:bg-zinc-950 shadow-xl"
+                        className="w-44 rounded-xl border border-border bg-background shadow-xl"
                     >
                         {canEdit && (
                             <DropdownMenuItem
-                                className="gap-2 cursor-pointer text-purple-950 dark:text-zinc-300
-                                           focus:bg-purple-600/10 dark:focus:bg-purple-500/10 font-medium rounded-lg"
+                                className="gap-2 cursor-pointer text-foreground focus:bg-accent font-medium rounded-lg"
                                 onClick={() => onView(student.id)}
                             >
-                                <ExternalLink className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                                <ExternalLink className="h-4 w-4 text-primary" />
                                 View Profile
                             </DropdownMenuItem>
                         )}
                         {canEdit && (
                             <DropdownMenuItem
-                                className="gap-2 cursor-pointer text-purple-950 dark:text-zinc-300
-                                           focus:bg-purple-600/10 dark:focus:bg-purple-500/10 font-medium rounded-lg"
+                                className="gap-2 cursor-pointer text-foreground focus:bg-accent font-medium rounded-lg"
                                 onClick={() => onEdit(student)}
                             >
-                                <Pencil className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                                <Pencil className="h-4 w-4 text-primary" />
                                 Edit Profile
                             </DropdownMenuItem>
                         )}
                         {canDelete && (
                             <>
-                                {canEdit && <DropdownMenuSeparator className="bg-purple-100 dark:bg-zinc-800" />}
+                                {canEdit && <DropdownMenuSeparator className="bg-border" />}
                                 <DropdownMenuItem
-                                    className="gap-2 cursor-pointer text-destructive dark:text-red-400
-                                               focus:bg-destructive/10 font-medium rounded-lg"
+                                    className="gap-2 cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive font-medium rounded-lg"
                                     onClick={() => onDelete(student.id)}
                                 >
                                     <Trash2 className="h-4 w-4" />
@@ -305,8 +298,8 @@ export default function StudentDirectory() {
                             pb-4 border-b border-border/40">
                 <div>
                     <h1 className="text-xl md:text-2xl font-extrabold tracking-tight
-                                   text-[#5513a1] dark:text-[#8e44ad] flex items-center gap-3">
-                        <GraduationCap className="h-6 w-6 md:h-8 md:w-8" />
+                                   text-primary flex items-center gap-3">
+                        <GraduationCap className="h-6 w-6 md:h-8 md:w-8 text-primary" />
                         Student Directory
                     </h1>
                     <p className="text-muted-foreground text-xs md:text-sm mt-1.5 max-w-2xl">
@@ -316,18 +309,16 @@ export default function StudentDirectory() {
                 <div className="flex items-center gap-3 w-full md:w-auto justify-end">
                     <Button
                         variant="outline" size="icon"
-                        className="h-10 w-10 border-border/80 bg-background hover:bg-muted
-                                   dark:hover:bg-purple-950/20 dark:hover:text-purple-400 rounded-xl"
+                        className="h-10 w-10 border-border/80 bg-background hover:bg-accent hover:text-accent-foreground rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                         onClick={() => refetch()}
                         disabled={isFetching}
                     >
-                        <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetching ? "animate-spin text-[#7f39c2]" : ""}`} />
+                        <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetching ? "animate-spin text-primary" : ""}`} />
                     </Button>
                     <PermissionGate resource="students" action="create">
                         <Button
-                            variant="primary"
                             onClick={handleCreate}
-                            className="w-full md:w-auto gap-2 h-10 px-5 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                            className="w-full md:w-auto gap-2 h-10 px-5 bg-primary text-primary-foreground hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none rounded-xl"
                         >
                             <Plus className="h-4 w-4 stroke-[2.5]" /> Enroll Student
                         </Button>
@@ -346,9 +337,7 @@ export default function StudentDirectory() {
                                 placeholder="Search by name, email, or admission no…"
                                 value={search}
                                 onChange={e => { setSearch(e.target.value); setPage(1); }}
-                                className="pl-9 h-11 border-none shadow-none focus-visible:ring-1
-                                           focus-visible:ring-purple-500 bg-muted/60 dark:bg-zinc-950/60
-                                           rounded-xl text-sm"
+                                className="pl-9 h-11 border-none shadow-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none bg-muted/60 rounded-xl text-sm"
                             />
                         </div>
 
@@ -357,13 +346,13 @@ export default function StudentDirectory() {
                             variant="outline"
                             size="sm"
                             onClick={() => setShowFilters(v => !v)}
-                            className={`h-11 gap-2 rounded-xl border-border/80 font-semibold text-sm
-                                        ${hasFilters ? "border-purple-400 text-purple-700 dark:text-purple-400 bg-purple-600/5" : ""}`}
+                            className={`h-11 gap-2 rounded-xl border-border/80 font-semibold text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none
+                                        ${hasFilters ? "border-primary/50 text-primary bg-primary/10" : ""}`}
                         >
                             <Filter className="h-4 w-4" />
                             Filters
                             {hasFilters && (
-                                <span className="h-4 w-4 rounded-full bg-purple-600 text-white text-[9px] flex items-center justify-center font-bold">
+                                <span className="h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-bold">
                                     {[statusFilter, classFilter].filter(Boolean).length}
                                 </span>
                             )}
@@ -372,9 +361,7 @@ export default function StudentDirectory() {
                         {/* Count badge */}
                         <div className="hidden sm:flex items-center gap-2 ml-auto">
                             {pagination && (
-                                <span className="text-xs font-semibold text-[#5513a1] dark:text-purple-400
-                                                 bg-[#5513a1]/10 dark:bg-purple-400/10 px-2.5 py-1 rounded-full
-                                                 border border-purple-500/10">
+                                <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20">
                                     {pagination.total} student{pagination.total !== 1 ? "s" : ""}
                                 </span>
                             )}
@@ -394,7 +381,7 @@ export default function StudentDirectory() {
                                 <div className="flex flex-wrap gap-3 pt-1">
                                     {/* Status filter */}
                                     <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1); }}>
-                                        <SelectTrigger className="h-10 w-44 border-none bg-muted/60 dark:bg-zinc-950/60 rounded-xl text-sm font-medium focus:ring-1 focus:ring-purple-500">
+                                        <SelectTrigger className="h-10 w-44 border-none bg-muted/60 rounded-xl text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                                             <SelectValue placeholder="All Statuses" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -408,7 +395,7 @@ export default function StudentDirectory() {
 
                                     {/* Classroom filter */}
                                     <Select value={classFilter} onValueChange={v => { setClassFilter(v); setPage(1); }}>
-                                        <SelectTrigger className="h-10 w-52 border-none bg-muted/60 dark:bg-zinc-950/60 rounded-xl text-sm font-medium focus:ring-1 focus:ring-purple-500">
+                                        <SelectTrigger className="h-10 w-52 border-none bg-muted/60 rounded-xl text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                                             <SelectValue placeholder="All Classrooms" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -439,27 +426,24 @@ export default function StudentDirectory() {
             </Card>
 
             {/* ── Data Table ───────────────────────────────────────────────── */}
-            <Card className="border border-purple-100 dark:border-zinc-800
-                             shadow-[0_6px_24px_-4px_rgba(0,0,0,0.08)] dark:shadow-[0_6px_24px_-4px_rgba(0,0,0,0.4)]
-                             rounded-2xl overflow-hidden bg-white dark:bg-zinc-900/60">
+            <Card className="border border-border/60 shadow-md rounded-2xl overflow-hidden bg-card">
                 {isLoading ? (
                     <div className="flex justify-center py-20">
-                        <Loader2 className="h-7 w-7 animate-spin text-[#7f39c2]" />
+                        <Loader2 className="h-7 w-7 animate-spin text-primary" />
                     </div>
                 ) : students.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
-                        <div className="h-16 w-16 rounded-2xl bg-purple-600/5 dark:bg-purple-500/10
-                                        border border-purple-100 dark:border-zinc-800 flex items-center justify-center">
-                            <GraduationCap className="h-7 w-7 text-purple-400/60" />
+                        <div className="h-16 w-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                            <GraduationCap className="h-7 w-7 text-primary/60" />
                         </div>
-                        <p className="text-sm font-bold text-purple-950/40 dark:text-zinc-500">No students found</p>
+                        <p className="text-sm font-bold text-foreground">No students found</p>
                         <p className="text-xs text-muted-foreground/60">Try adjusting filters or enroll a new student.</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="bg-muted/40 dark:bg-zinc-900/60 border-b border-border/60">
+                                <tr className="bg-muted/40 border-b border-border/60">
                                     <th className="pl-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                         Student
                                     </th>
@@ -502,8 +486,7 @@ export default function StudentDirectory() {
 
                 {/* Pagination */}
                 {pagination && pagination.pages > 1 && (
-                    <div className="flex items-center justify-between px-5 py-3 border-t border-border/40
-                                    bg-muted/20 dark:bg-zinc-900/30">
+                    <div className="flex items-center justify-between px-5 py-3 border-t border-border/40 bg-muted/20">
                         <p className="text-xs text-muted-foreground font-semibold">
                             Page {pagination.page} of {pagination.pages}
                             &nbsp;·&nbsp; {pagination.total} total
@@ -539,26 +522,23 @@ export default function StudentDirectory() {
             />
 
             <AlertDialog open={!!deleteId} onOpenChange={v => !v && setDeleteId(null)}>
-                <AlertDialogContent className="rounded-xl border border-purple-100 dark:border-zinc-800
-                                               bg-white dark:bg-zinc-950 shadow-2xl">
+                <AlertDialogContent className="w-[95vw] sm:max-w-lg mx-auto rounded-3xl p-6 border-border shadow-2xl bg-background overflow-hidden">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="text-purple-950 dark:text-zinc-50 font-bold">
+                        <AlertDialogTitle className="text-foreground font-bold text-xl">
                             Delete Student?
                         </AlertDialogTitle>
-                        <AlertDialogDescription className="text-purple-900/70 dark:text-zinc-400">
+                        <AlertDialogDescription className="text-muted-foreground">
                             This will permanently delete the student's account and all associated data.
                             This action cannot be undone.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="mt-4 gap-2">
-                        <AlertDialogCancel className="bg-purple-100/50 dark:bg-zinc-900 text-purple-950
-                                                       dark:text-zinc-300 hover:bg-purple-100 dark:hover:bg-zinc-800
-                                                       border-none h-10 px-4 rounded-lg font-semibold">
+                    <AlertDialogFooter className="mt-6 gap-3 sm:justify-end">
+                        <AlertDialogCancel className="h-11 rounded-xl font-semibold border-border/50 bg-background hover:bg-accent text-foreground transition-colors mt-0">
                             Cancel
                         </AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => deleteId && deleteMutation.mutate(deleteId)}
-                            className="bg-destructive hover:bg-destructive/90 text-white h-10 px-4 rounded-lg font-semibold"
+                            className="h-11 rounded-xl font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
                         >
                             {deleteMutation.isPending
                                 ? <Loader2 className="h-4 w-4 animate-spin" />

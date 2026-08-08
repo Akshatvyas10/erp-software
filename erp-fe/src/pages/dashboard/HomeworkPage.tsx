@@ -62,10 +62,10 @@ export default function HomeworkPage() {
             transition={{ duration: 0.4, ease: "easeOut" }}
         >
             {/* Premium Header Section */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-purple-900 via-[#5513a1] to-purple-800 p-6 sm:p-10 text-white shadow-xl">
+            <div className="relative overflow-hidden rounded-3xl bg-primary p-6 sm:p-10 text-primary-foreground shadow-xl">
                 {/* Decorative background blobs */}
                 <div className="absolute top-0 right-0 -translate-y-1/4 translate-x-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
-                <div className="absolute bottom-0 left-0 translate-y-1/4 -translate-x-1/4 w-48 h-48 bg-purple-500/20 rounded-full blur-2xl" />
+                <div className="absolute bottom-0 left-0 translate-y-1/4 -translate-x-1/4 w-48 h-48 bg-black/10 rounded-full blur-2xl" />
 
                 <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
                     <div className="space-y-2">
@@ -75,7 +75,7 @@ export default function HomeworkPage() {
                         <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight drop-shadow-sm">
                             Homework Management
                         </h1>
-                        <p className="text-purple-100/80 text-sm md:text-base max-w-xl font-medium">
+                        <p className="text-primary-foreground/80 text-sm md:text-base max-w-xl font-medium">
                             Assign, track, and grade student homework across all your classrooms in one unified dashboard.
                         </p>
                     </div>
@@ -84,7 +84,7 @@ export default function HomeworkPage() {
                         <PermissionGate resource="homework" action="create">
                             <Button
                                 variant="secondary"
-                                className="w-full md:w-auto gap-2 h-12 px-6 rounded-xl font-bold bg-white text-purple-900 hover:bg-white/90 shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 active:translate-y-0"
+                                className="w-full md:w-auto gap-2 h-12 px-6 rounded-xl font-bold bg-background text-foreground hover:bg-background/90 shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 active:translate-y-0 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                                 onClick={() => setCreateDialogOpen(true)}
                             >
                                 <Plus className="h-5 w-5 stroke-[2.5]" /> Assign New Homework
@@ -104,12 +104,12 @@ export default function HomeworkPage() {
                                 placeholder="Search by title or subject..."
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                className="pl-11 h-12 border-none shadow-none focus-visible:ring-2 focus-visible:ring-purple-500/50 bg-muted/40 hover:bg-muted/60 transition-colors rounded-xl text-sm font-medium"
+                                className="pl-11 h-12 border-none shadow-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none bg-muted/40 hover:bg-muted/60 transition-colors rounded-xl text-sm font-medium"
                             />
                         </div>
 
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
-                            <SelectTrigger className="h-12 w-full sm:w-48 border-none bg-muted/40 hover:bg-muted/60 transition-colors rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500/50">
+                            <SelectTrigger className="h-12 w-full sm:w-48 border-none bg-muted/40 hover:bg-muted/60 transition-colors rounded-xl text-sm font-semibold focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                                 <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
                                 <SelectValue placeholder="All Statuses" />
                             </SelectTrigger>
@@ -137,8 +137,8 @@ export default function HomeworkPage() {
                     animate={{ opacity: 1, scale: 1 }}
                     className="flex flex-col items-center justify-center py-24 text-center px-4"
                 >
-                    <div className="h-24 w-24 rounded-3xl bg-gradient-to-br from-purple-100 to-purple-50 dark:from-purple-900/20 dark:to-purple-900/5 border border-purple-200 dark:border-purple-800/30 flex items-center justify-center mb-6 shadow-sm shadow-purple-500/10">
-                        <BookOpen className="h-10 w-10 text-purple-600 dark:text-purple-400" />
+                    <div className="h-24 w-24 rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-6 shadow-sm">
+                        <BookOpen className="h-10 w-10 text-primary" />
                     </div>
                     <h3 className="text-xl font-bold text-foreground mb-2">No homework found</h3>
                     <p className="text-muted-foreground max-w-sm mb-8">
@@ -147,7 +147,7 @@ export default function HomeworkPage() {
                     <PermissionGate resource="homework" action="create">
                         <Button
                             variant="outline"
-                            className="rounded-xl h-11 px-6 font-semibold border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                            className="rounded-xl h-11 px-6 font-semibold border-border text-primary hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none transition-colors"
                             onClick={() => setCreateDialogOpen(true)}
                         >
                             <Plus className="h-4 w-4 mr-2" /> Assign Homework
@@ -164,22 +164,22 @@ export default function HomeworkPage() {
                             transition={{ delay: idx * 0.05 }}
                         >
                             <Card
-                                className="group h-full p-5 rounded-3xl border-border/40 hover:border-purple-500/30 hover:shadow-xl hover:shadow-purple-500/5 transition-all duration-300 cursor-pointer bg-card hover:-translate-y-1 flex flex-col justify-between overflow-hidden relative"
+                                className="group h-full p-5 rounded-3xl border-border/60 hover:border-primary/30 hover:shadow-xl transition-all duration-300 cursor-pointer bg-card hover:-translate-y-1 flex flex-col justify-between overflow-hidden relative"
                                 onClick={() => navigate(`/dashboard/homework/${hw.id}`)}
                             >
                                 {/* Subtle background accent on hover */}
-                                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                                <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
                                 <div className="relative z-10">
                                     <div className="flex justify-between items-start mb-4">
                                         <Badge variant="outline" className={`font-bold tracking-wide text-[10px] px-2.5 py-0.5 rounded-full ${getStatusColor(hw.status)}`}>
                                             {hw.status}
                                         </Badge>
-                                        <div className="flex items-center gap-1 text-xs font-bold text-purple-700/80 dark:text-purple-300/80 bg-purple-50 dark:bg-purple-900/20 px-2.5 py-1 rounded-full border border-purple-100 dark:border-purple-800/30">
+                                        <div className="flex items-center gap-1 text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20">
                                             {hw.subject?.name}
                                         </div>
                                     </div>
-                                    <h3 className="font-extrabold text-lg text-foreground line-clamp-2 mb-2 group-hover:text-[#5513a1] dark:group-hover:text-[#b87ae0] transition-colors">
+                                    <h3 className="font-extrabold text-lg text-foreground line-clamp-2 mb-2 group-hover:text-primary transition-colors">
                                         {hw.title}
                                     </h3>
                                     <p className="text-sm text-muted-foreground line-clamp-2 mb-6 leading-relaxed">
@@ -190,10 +190,10 @@ export default function HomeworkPage() {
                                 <div className="relative z-10 pt-4 border-t border-border/50 flex flex-col gap-3">
                                     <div className="flex justify-between items-center text-xs">
                                         <span className="text-muted-foreground font-medium flex items-center gap-1.5">
-                                            <CalendarIcon className="h-3.5 w-3.5 text-purple-500/70" />
+                                            <CalendarIcon className="h-3.5 w-3.5 text-primary/70" />
                                             Due {format(new Date(hw.dueDate), 'MMM dd')}
                                         </span>
-                                        <span className="font-bold text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800/80 px-2.5 py-1 rounded-md border border-zinc-200 dark:border-zinc-700/50">
+                                        <span className="font-bold text-foreground bg-muted px-2.5 py-1 rounded-md border border-border/50">
                                             {hw.classroom?.name} <span className="opacity-60">{hw.classroom?.section}</span>
                                         </span>
                                     </div>

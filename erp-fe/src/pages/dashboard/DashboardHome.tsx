@@ -56,10 +56,10 @@ const useServerPermissions = (enabled: boolean) => {
 
 // --- Mock Data for UI Redesign ---
 const METRICS = [
-    { label: "Total Students", value: "1,248", change: "+12%", icon: GraduationCap, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { label: "Total Teachers", value: "84", change: "+2%", icon: BookOpen, color: "text-indigo-500", bg: "bg-indigo-500/10" },
-    { label: "Active Users", value: "342", change: "+5%", icon: Users, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-    { label: "Pending Tasks", value: "12", change: "-2", icon: Activity, color: "text-amber-500", bg: "bg-amber-500/10" },
+    { label: "Total Students", value: "1,248", change: "+12%", icon: GraduationCap, color: "text-primary", bg: "bg-primary/10" },
+    { label: "Total Teachers", value: "84", change: "+2%", icon: BookOpen, color: "text-primary", bg: "bg-primary/10" },
+    { label: "Active Users", value: "342", change: "+5%", icon: Users, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10" },
+    { label: "Pending Tasks", value: "12", change: "-2", icon: Activity, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10" },
 ];
 
 const RECENT_ACTIVITY = [
@@ -122,11 +122,11 @@ export default function DashboardHome() {
                 </div>
                 
                 <div className="flex items-center gap-3">
-                    <Button variant="outline" className="gap-2 bg-white hover-lift">
+                    <Button variant="outline" className="gap-2 bg-background hover-lift focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none transition-colors duration-200 hover:bg-accent hover:text-accent-foreground">
                         <Calendar className="h-4 w-4" />
                         View Schedule
                     </Button>
-                    <Button className="gap-2 hover-lift">
+                    <Button className="gap-2 hover-lift focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none transition-colors duration-200">
                         <Plus className="h-4 w-4" />
                         Quick Create
                     </Button>
@@ -164,7 +164,7 @@ export default function DashboardHome() {
                                 <div className={`p-3 rounded-xl ${metric.bg}`}>
                                     <metric.icon className={`h-5 w-5 ${metric.color}`} />
                                 </div>
-                                <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full flex items-center gap-1">
+                                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full flex items-center gap-1 border border-emerald-500/20">
                                     <TrendingUp className="h-3 w-3" />
                                     {metric.change}
                                 </span>
@@ -206,8 +206,8 @@ export default function DashboardHome() {
                         <CardContent className="flex-1 space-y-6">
                             {RECENT_ACTIVITY.map((activity, i) => (
                                 <div key={i} className="flex items-start gap-4 group cursor-pointer">
-                                    <div className="p-2 rounded-full bg-secondary/10 group-hover:bg-primary/10 transition-colors">
-                                        <activity.icon className="h-4 w-4 text-secondary group-hover:text-primary transition-colors" />
+                                    <div className="p-2 rounded-full bg-accent group-hover:bg-primary/10 transition-colors">
+                                        <activity.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                                     </div>
                                     <div className="space-y-1 flex-1">
                                         <p className="text-sm font-medium leading-none">{activity.title}</p>
@@ -215,7 +215,7 @@ export default function DashboardHome() {
                                     </div>
                                 </div>
                             ))}
-                            <Button variant="outline" className="w-full mt-4 text-xs font-medium">View All Activity</Button>
+                            <Button variant="outline" className="w-full mt-4 text-xs font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none transition-colors duration-200 hover:bg-accent hover:text-accent-foreground">View All Activity</Button>
                         </CardContent>
                     </Card>
                 </motion.div>
@@ -237,7 +237,7 @@ export default function DashboardHome() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="h-7 gap-1 text-xs"
+                                    className="h-7 gap-1 text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none transition-colors duration-200 hover:bg-accent hover:text-accent-foreground"
                                     onClick={() => serverPerms.refetch()}
                                     disabled={serverPerms.isFetching}
                                 >
@@ -306,7 +306,7 @@ export default function DashboardHome() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="h-7 gap-1 text-xs"
+                                    className="h-7 gap-1 text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none transition-colors duration-200 hover:bg-accent hover:text-accent-foreground"
                                     onClick={() => bulkCheck.refetch()}
                                     disabled={bulkCheck.isFetching}
                                 >
@@ -348,9 +348,9 @@ export default function DashboardHome() {
                                                                 <span className="text-xs font-medium text-foreground">{label}</span>
                                                             </div>
                                                             {finalAllowed ? (
-                                                                <CheckCircle2 className="h-4 w-4 text-emerald-500 drop-shadow-sm" />
+                                                                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 drop-shadow-sm" />
                                                             ) : (
-                                                                <XCircle className="h-4 w-4 text-destructive/60 drop-shadow-sm" />
+                                                                <XCircle className="h-4 w-4 text-destructive drop-shadow-sm" />
                                                             )}
                                                         </div>
                                                     );

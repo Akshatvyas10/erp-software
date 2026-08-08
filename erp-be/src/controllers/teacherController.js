@@ -97,7 +97,25 @@ const getTeacher = async (req, res, next) => {
     try {
         const teacher = await Teacher.findByPk(req.params.id, teacherWithAccount);
         if (!teacher) return error(res, 'Teacher not found', 404);
-        return success(res, { teacher });
+        
+        const data = teacher.toJSON();
+        const designationLabels = {
+            'CLASS_TEACHER': 'Class Teacher',
+            'SUBJECT_TEACHER': 'Subject Teacher',
+            'HEAD_OF_DEPARTMENT': 'Head of Department',
+            'ASSISTANT_TEACHER': 'Assistant Teacher',
+            'LAB_ASSISTANT': 'Lab Assistant',
+            'SPECIAL_EDUCATOR': 'Special Educator',
+            'PHYSICAL_EDUCATION_TEACHER': 'Physical Education Teacher',
+            'SUBSTITUTE_TEACHER': 'Substitute Teacher'
+        };
+        data.designationName = designationLabels[data.designation] || data.designation;
+        if (data.department) {
+            const dept = await Department.findByPk(data.department);
+            data.departmentName = dept ? dept.name : data.department;
+        }
+
+        return success(res, { teacher: data });
     } catch (err) { next(err); }
 };
 

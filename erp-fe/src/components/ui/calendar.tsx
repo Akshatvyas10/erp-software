@@ -9,12 +9,15 @@ import {
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 function Calendar({
   className,
   classNames,
   showOutsideDays = true,
-  captionLayout = "label",
+  captionLayout = "dropdown",
+  startMonth = new Date(1900, 0),
+  endMonth = new Date(2100, 11),
   buttonVariant = "ghost",
   locale,
   formatters,
@@ -35,6 +38,8 @@ function Calendar({
         className
       )}
       captionLayout={captionLayout}
+      startMonth={startMonth}
+      endMonth={endMonth}
       locale={locale}
       formatters={{
         formatMonthDropdown: (date) =>
@@ -142,6 +147,35 @@ function Calendar({
             />
           )
         },
+        Dropdown: ({ value, onChange, children, ...props }: any) => {
+          const options = props.options
+          if (!options) return null
+          const selectedOption = options.find((O: any) => O.value.toString() === value?.toString())
+
+          return (
+            <Select
+              value={value?.toString()}
+              onValueChange={(val) => {
+                setTimeout(() => {
+                  onChange?.({
+                    target: { value: val },
+                  } as React.ChangeEvent<HTMLSelectElement>)
+                }, 10)
+              }}
+            >
+              <SelectTrigger className="h-7 w-fit border-0 shadow-none focus:ring-0 py-0 pl-2 pr-1 font-medium bg-transparent">
+                <SelectValue>{selectedOption?.label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent position="popper">
+                {options.map((option: any) => (
+                  <SelectItem key={option.value} value={option.value?.toString()} disabled={option.disabled}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )
+        },
         Chevron: ({ className, orientation, ...props }) => {
           if (orientation === "left") {
             return (
@@ -195,6 +229,7 @@ function CalendarDayButton({
   return (
     <Button
       ref={ref}
+      type="button"
       variant="ghost"
       size="icon"
       data-day={day.date.toLocaleDateString(locale?.code)}

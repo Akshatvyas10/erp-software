@@ -2,7 +2,7 @@
 
 import { Op } from 'sequelize';
 import db from '../models/index.js';
-const { User, Role, Student, Teacher } = db;
+const { User, Role, Student, Teacher, Department } = db;
 import { success, error } from '../utils/apiResponse.js';
 
 const safeAttrs = { exclude: ['password', 'refreshTokenHash', 'loginAttempts', 'lockedUntil'] };
@@ -64,21 +64,51 @@ const getUser = async (req, res, next) => {
             attributes: safeAttrs,
         });
         if (!user) return error(res, 'User not found', 404);
-        return success(res, { user });
+
+        const data = user.toJSON();
+        if (data.teacherProfile) {
+            const designationLabels = {
+                'CLASS_TEACHER': 'Class Teacher',
+                'SUBJECT_TEACHER': 'Subject Teacher',
+                'HEAD_OF_DEPARTMENT': 'Head of Department',
+                'ASSISTANT_TEACHER': 'Assistant Teacher',
+                'LAB_ASSISTANT': 'Lab Assistant',
+                'SPECIAL_EDUCATOR': 'Special Educator',
+                'PHYSICAL_EDUCATION_TEACHER': 'Physical Education Teacher',
+                'SUBSTITUTE_TEACHER': 'Substitute Teacher'
+            };
+            data.teacherProfile.designationName = designationLabels[data.teacherProfile.designation] || data.teacherProfile.designation;
+            if (data.teacherProfile.department) {
+                const dept = await Department.findByPk(data.teacherProfile.department);
+                data.teacherProfile.departmentName = dept ? dept.name : data.teacherProfile.department;
+            }
+        }
+
+        return success(res, { user: data });
     } catch (err) { next(err); }
 };
 
 // ─── POST /api/users ──────────────────────────────────────────────────────────
 const createUser = async (req, res, next) => {
     try {
-        const { userId, email, password, firstName, lastName, roleIds } = req.body;
+        const { email, password, firstName, lastName, roleIds, gender, dob, phone, mfaEnabled } = req.body;
 
-        const existing = await User.findOne({ where: { [Op.or]: [{ userId }, { email }] } });
+        const existing = await User.findOne({ where: { email } });
         if (existing) {
-            return error(res, existing.userId === userId ? 'User ID already exists' : 'Email already exists', 409);
+            return error(res, 'Email already exists', 409);
         }
 
-        const user = await User.create({ userId, email, password, firstName, lastName });
+        let generatedUserId = req.body.userId;
+        if (!generatedUserId) {
+            const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+            const rand = Math.floor(1000 + Math.random() * 9000).toString();
+            generatedUserId = `ERP-${dateStr}-${rand}`;
+        }
+
+        const user = await User.create({ 
+            userId: generatedUserId, email, password, firstName, lastName,
+            gender, dob, phone, mfaEnabled 
+        });
 
         if (roleIds?.length) {
             const roles = await Role.findAll({ where: { id: roleIds } });
@@ -96,7 +126,7 @@ const updateUser = async (req, res, next) => {
         const user = await User.findByPk(req.params.id);
         if (!user) return error(res, 'User not found', 404);
 
-        const allowed = ['firstName', 'lastName', 'email', 'phone'];
+        const allowed = ['firstName', 'lastName', 'email', 'phone', 'gender', 'dob', 'mfaEnabled'];
         const updates = {};
         for (const k of allowed) { if (req.body[k] !== undefined) updates[k] = req.body[k]; }
         if (req.body.password) updates.password = req.body.password;

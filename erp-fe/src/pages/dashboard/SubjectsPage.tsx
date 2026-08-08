@@ -96,13 +96,13 @@ function SubjectFormDialog({ open, onOpenChange, editTarget, onSuccess }: Subjec
         }
     };
 
-    const inputCls = "h-9 bg-zinc-100 dark:bg-zinc-900/50 border-none focus-visible:ring-1 focus-visible:ring-purple-500/50";
+    const inputCls = "h-9 bg-muted/50 border-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
     const labelCls = "text-[10px] font-bold uppercase tracking-wider text-muted-foreground";
 
     return (
         <Dialog open={open} onOpenChange={(val) => { if (!val) form.reset(); onOpenChange(val); }}>
-            <DialogContent className="sm:max-w-md p-0 rounded-2xl border border-border/80 shadow-2xl bg-white dark:bg-zinc-950 overflow-hidden">
-                <DialogHeader className="px-6 py-5 bg-muted/40 dark:bg-purple-950/10 border-b border-border">
+            <DialogContent className="sm:max-w-md p-0 rounded-2xl border border-border/80 shadow-2xl bg-background overflow-hidden">
+                <DialogHeader className="px-6 py-5 bg-muted/40 border-b border-border">
                     <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
                         {isEdit ? "Edit Subject" : "Create Subject"}
                     </DialogTitle>
@@ -146,7 +146,7 @@ function SubjectFormDialog({ open, onOpenChange, editTarget, onSuccess }: Subjec
                                 </FormItem>
                             )} />
                             <FormField control={form.control} name="isActive" render={({ field }) => (
-                                <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4 shadow-sm bg-zinc-50 dark:bg-zinc-900/50">
+                                <FormItem className="flex flex-row items-center justify-between rounded-xl border border-border p-4 shadow-sm bg-muted/20">
                                     <div className="space-y-0.5">
                                         <FormLabel className="text-sm font-semibold">Active Subject</FormLabel>
                                         <div className="text-[11px] text-muted-foreground">Subject is available for classrooms</div>
@@ -159,11 +159,11 @@ function SubjectFormDialog({ open, onOpenChange, editTarget, onSuccess }: Subjec
                         </form>
                     </Form>
                 </div>
-                <div className="px-6 py-4 bg-muted/40 dark:bg-purple-950/10 border-t border-border flex justify-end gap-3">
-                    <Button variant="outline" className="rounded-xl font-medium border-border/80"
+                <div className="px-6 py-4 bg-muted/40 border-t border-border flex justify-end gap-3">
+                    <Button variant="outline" className="rounded-xl font-medium border-border/80 transition-colors"
                         onClick={() => onOpenChange(false)}>Cancel</Button>
                     <Button type="submit" form="subject-form"
-                        className="gap-2 bg-purple-700 hover:bg-purple-800 dark:bg-purple-600 dark:hover:bg-purple-500 text-white rounded-xl font-semibold">
+                        className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                         {form.formState.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isEdit ? "Save Changes" : "Create"}
                     </Button>
                 </div>
@@ -213,10 +213,10 @@ export default function SubjectsPage() {
     if (!can("classrooms", "read")) return <AccessDenied />;
 
     const typeColor: Record<string, string> = {
-        THEORY: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800",
-        PRACTICAL: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
-        LAB: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800",
-        ELECTIVE: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200 dark:border-purple-800",
+        THEORY: "bg-primary/10 text-primary border-primary/20",
+        PRACTICAL: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+        LAB: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+        ELECTIVE: "bg-accent/20 text-accent-foreground border-accent/20",
     };
 
     return (
@@ -228,8 +228,8 @@ export default function SubjectsPage() {
         >
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between pb-4 border-b border-border/40">
                 <div>
-                    <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-[#5513a1] dark:text-[#8e44ad] flex items-center gap-3">
-                        <BookText className="h-6 w-6 md:h-8 md:w-8" />
+                    <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-primary flex items-center gap-3">
+                        <BookText className="h-6 w-6 md:h-8 md:w-8 text-primary" />
                         Subjects
                     </h1>
                     <p className="text-muted-foreground text-xs md:text-sm mt-1.5 max-w-2xl">
@@ -237,11 +237,11 @@ export default function SubjectsPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                    <Button variant="outline" size="icon" className="h-10 w-10 border-border/80 rounded-xl" onClick={() => refetch()} disabled={isFetching}>
-                        <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetching ? "animate-spin text-[#7f39c2]" : ""}`} />
+                    <Button variant="outline" size="icon" className="h-10 w-10 border-border/80 rounded-xl hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" onClick={() => refetch()} disabled={isFetching}>
+                        <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetching ? "animate-spin text-primary" : ""}`} />
                     </Button>
                     <PermissionGate resource="subjects" action="create">
-                        <Button onClick={handleCreate} className="gap-2 h-10 px-5 bg-purple-700 hover:bg-purple-800 dark:bg-purple-600 dark:hover:bg-purple-500 text-white rounded-xl shadow-md transition-transform">
+                        <Button onClick={handleCreate} className="gap-2 h-10 px-5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-md transition-transform focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                             <Plus className="h-4 w-4 stroke-[2.5]" /> New Subject
                         </Button>
                     </PermissionGate>
@@ -255,19 +255,19 @@ export default function SubjectsPage() {
                         placeholder="Search subjects..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        className="pl-9 h-10 bg-white dark:bg-zinc-900/50 border-purple-100 dark:border-zinc-800 rounded-xl"
+                        className="pl-9 h-10 bg-muted/50 border-border rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                     />
                 </div>
             </div>
 
-            <Card className="rounded-2xl border-purple-100 dark:border-zinc-800 bg-white dark:bg-zinc-950/40 shadow-sm overflow-hidden">
+            <Card className="rounded-2xl border-border bg-card shadow-sm overflow-hidden">
                 {isLoading ? (
                     <div className="flex justify-center items-center py-24 text-muted-foreground">
-                        <Loader2 className="h-8 w-8 animate-spin text-purple-500/50" />
+                        <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
                     </div>
                 ) : subjects.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-24 text-center">
-                        <div className="h-16 w-16 bg-purple-100 dark:bg-purple-900/20 rounded-full flex items-center justify-center mb-4 text-purple-600 dark:text-purple-400">
+                        <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mb-4 text-primary">
                             <BookText className="h-8 w-8" />
                         </div>
                         <h3 className="font-semibold text-lg">No subjects found</h3>
@@ -277,7 +277,7 @@ export default function SubjectsPage() {
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="bg-purple-50/50 dark:bg-zinc-900/50 border-b border-purple-100 dark:border-zinc-800">
+                                <tr className="bg-muted/40 border-b border-border/60">
                                     <th className="pl-6 py-4 text-left font-bold text-xs uppercase tracking-wider text-muted-foreground">Code</th>
                                     <th className="py-4 text-left font-bold text-xs uppercase tracking-wider text-muted-foreground">Name</th>
                                     <th className="py-4 text-left font-bold text-xs uppercase tracking-wider text-muted-foreground hidden sm:table-cell">Type</th>
@@ -290,7 +290,7 @@ export default function SubjectsPage() {
                                 <AnimatePresence>
                                     {subjects.map(s => (
                                         <motion.tr key={s.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                            className="border-b border-purple-100/50 dark:border-zinc-800/50 hover:bg-purple-50/30 dark:hover:bg-white/[0.02] transition-colors">
+                                            className="border-b border-border/40 hover:bg-muted/30 transition-colors">
                                             <td className="pl-6 py-4 font-mono font-medium text-[13px]">{s.code}</td>
                                             <td className="py-4 font-semibold text-foreground">{s.name}</td>
                                             <td className="py-4 hidden sm:table-cell">
@@ -303,8 +303,8 @@ export default function SubjectsPage() {
                                             </td>
                                             <td className="py-4">
                                                 <Badge variant="outline" className={cn("text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md",
-                                                    s.isActive ? "border-emerald-200 text-emerald-700 bg-emerald-50 dark:border-emerald-900 dark:text-emerald-400 dark:bg-emerald-900/20"
-                                                        : "border-zinc-200 text-zinc-500 bg-zinc-50 dark:border-zinc-800 dark:text-zinc-500 dark:bg-zinc-900/20"
+                                                    s.isActive ? "border-emerald-500/20 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                                                        : "border-border text-muted-foreground bg-muted/40"
                                                 )}>
                                                     {s.isActive ? "Active" : "Inactive"}
                                                 </Badge>
@@ -316,14 +316,14 @@ export default function SubjectsPage() {
                                                             <MoreVertical className="h-4 w-4" />
                                                         </Button>
                                                     </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end" className="w-40 rounded-xl border-purple-100 dark:border-zinc-800 shadow-lg">
+                                                    <DropdownMenuContent align="end" className="w-40 rounded-xl border-border shadow-lg">
                                                         <PermissionGate resource="subjects" action="update">
                                                             <DropdownMenuItem className="gap-2 text-[13px] font-medium cursor-pointer" onClick={() => handleEdit(s)}>
                                                                 <Edit2 className="h-3.5 w-3.5" /> Edit
                                                             </DropdownMenuItem>
                                                         </PermissionGate>
                                                         <PermissionGate resource="subjects" action="delete">
-                                                            <DropdownMenuSeparator className="bg-purple-100 dark:bg-zinc-800" />
+                                                            <DropdownMenuSeparator className="bg-border" />
                                                             <DropdownMenuItem className="gap-2 text-[13px] font-medium text-destructive cursor-pointer focus:bg-destructive/10" onClick={() => setDeleteId(s.id)}>
                                                                 <Trash2 className="h-3.5 w-3.5" /> Delete
                                                             </DropdownMenuItem>
@@ -345,14 +345,14 @@ export default function SubjectsPage() {
             )}
 
             <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-                <AlertDialogContent className="rounded-2xl border-purple-100 dark:border-zinc-800">
+                <AlertDialogContent className="w-[95vw] sm:max-w-lg mx-auto rounded-3xl p-6 border-border shadow-2xl bg-background">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Subject?</AlertDialogTitle>
-                        <AlertDialogDescription>This action cannot be undone. Removing a subject may affect classrooms that have assigned this subject.</AlertDialogDescription>
+                        <AlertDialogTitle className="text-xl font-bold text-foreground">Delete Subject?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-muted-foreground mt-2">This action cannot be undone. Removing a subject may affect classrooms that have assigned this subject.</AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => deleteId && deleteMutation.mutate(deleteId)} className="rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                    <AlertDialogFooter className="mt-6 gap-3">
+                        <AlertDialogCancel className="h-11 rounded-xl font-semibold border-border/50 bg-background hover:bg-accent text-foreground transition-colors">Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteId && deleteMutation.mutate(deleteId)} className="h-11 rounded-xl font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors">
                             {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
                         </AlertDialogAction>
                     </AlertDialogFooter>

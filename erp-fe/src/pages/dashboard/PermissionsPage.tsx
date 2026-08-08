@@ -29,7 +29,7 @@ const ACTION_COLOR: Record<string, string> = {
     create: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-transparent",
     update: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-transparent",
     delete: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-transparent",
-    manage: "bg-purple-600/10 text-[#5513a1] dark:text-purple-400 border-transparent",
+    manage: "bg-primary/10 text-primary border-transparent",
 };
 
 const fetchPermissions = async (): Promise<Permission[]> => {
@@ -67,9 +67,9 @@ export default function PermissionsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <KeyRound className="h-6 w-6 text-[#5513a1] dark:text-purple-400" />
+                        <KeyRound className="h-6 w-6 text-primary" />
                         Permissions
-                        {data && <Badge variant="secondary" className="text-xs bg-purple-600/10 text-[#5513a1] dark:text-purple-400">{data.length}</Badge>}
+                        {data && <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">{data.length}</Badge>}
                     </h1>
                     <p className="text-muted-foreground text-sm mt-1">All system permissions grouped by resource.</p>
                 </div>
@@ -91,7 +91,7 @@ export default function PermissionsPage() {
                 placeholder="Search permissions..."
                 value={searchInput}
                 onChange={e => setSearchInput(e.target.value)}
-                className="max-w-sm h-9 border-border bg-background shadow-sm focus-visible:ring-purple-500"
+                className="max-w-sm h-9 border-border bg-background shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             />
 
             {isLoading ? (
@@ -111,14 +111,14 @@ export default function PermissionsPage() {
             ) : (
                 <Accordion type="multiple" className="w-full space-y-4">
                     {Object.entries(grouped).map(([resource, perms]) => (
-                        <AccordionItem value={resource} key={resource} className="border border-border/60 rounded-xl px-1 sm:px-4 bg-card shadow-sm data-[state=open]:border-purple-600/40 transition-colors">
+                        <AccordionItem value={resource} key={resource} className="border border-border/60 rounded-xl px-1 sm:px-4 bg-card shadow-sm data-[state=open]:border-primary/40 transition-colors">
                             <AccordionTrigger className="hover:no-underline py-4">
                                 <div className="flex items-center justify-between w-full pr-4">
                                     <span className="capitalize flex items-center gap-2 font-bold text-sm md:text-base text-foreground">
-                                        <Lock className="h-4 w-4 text-[#5513a1] dark:text-purple-400" />
+                                        <Lock className="h-4 w-4 text-primary" />
                                         {resource}
                                     </span>
-                                    <Badge variant="secondary" className="text-[10px] md:text-xs normal-case font-bold text-white bg-purple-600 dark:bg-purple-700/90 border-transparent">
+                                    <Badge variant="secondary" className="text-[10px] md:text-xs normal-case font-bold text-primary-foreground bg-primary border-transparent">
                                         {perms.length} Permissions
                                     </Badge>
                                 </div>
@@ -131,7 +131,7 @@ export default function PermissionsPage() {
                                             className="flex items-start justify-between py-3 px-3.5 rounded-lg bg-muted/20 border border-border/40 hover:bg-muted/50 transition-colors group"
                                         >
                                             <div className="min-w-0 flex-1 pr-3">
-                                                <p className="text-xs font-bold font-mono text-foreground truncate group-hover:text-[#5513a1] dark:group-hover:text-purple-400 transition-colors">{p.name}</p>
+                                                <p className="text-xs font-bold font-mono text-foreground truncate group-hover:text-primary transition-colors">{p.name}</p>
                                                 {p.description && (
                                                     <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
                                                 )}
@@ -190,9 +190,9 @@ function CreatePermissionDialog({ open, onClose, onSaved }: {
     return (
         <Dialog open={open} onOpenChange={onClose}>
             <DialogContent className="max-w-md p-0 overflow-hidden border-border/80 shadow-2xl rounded-2xl bg-background dark:bg-zinc-950">
-                <DialogHeader className="px-6 py-5 bg-muted/40 dark:bg-purple-950/10 border-b border-border shrink-0">
+                <DialogHeader className="px-6 py-5 bg-muted/40 dark:bg-primary/5 border-b border-border shrink-0">
                     <DialogTitle className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground">
-                        <KeyRound className="h-5 w-5 text-[#5513a1] dark:text-purple-400" />
+                        <KeyRound className="h-5 w-5 text-primary" />
                         New Permission
                     </DialogTitle>
                 </DialogHeader>
@@ -216,7 +216,7 @@ function CreatePermissionDialog({ open, onClose, onSaved }: {
                                         key={a}
                                         variant="outline"
                                         onClick={() => setAction(a)}
-                                        className={`cursor-pointer capitalize text-xs transition-all font-bold tracking-tight ${action === a ? "bg-purple-600 text-white border-transparent" : ACTION_COLOR[a]}`}
+                                        className={`cursor-pointer capitalize text-xs transition-all font-bold tracking-tight focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${action === a ? "bg-primary text-primary-foreground border-transparent" : ACTION_COLOR[a]}`}
                                     >
                                         {a}
                                     </Badge>
@@ -230,9 +230,9 @@ function CreatePermissionDialog({ open, onClose, onSaved }: {
                     </div>
                 </div>
 
-                <DialogFooter className="px-6 py-5 bg-muted/40 dark:bg-purple-950/10 border-t border-border mt-6">
+                <DialogFooter className="px-6 py-5 bg-muted/40 dark:bg-primary/5 border-t border-border mt-6">
                     <Button variant="outline" onClick={onClose} disabled={saving} className="h-10 px-6 font-semibold border-border/80 hover:bg-muted rounded-xl">Cancel</Button>
-                    <Button onClick={handleSave} disabled={saving} className="h-10 px-8 gap-2 font-semibold bg-purple-700 hover:bg-purple-800 dark:bg-purple-600 dark:hover:bg-purple-500 text-white rounded-xl shadow-md transition-transform active:scale-[0.98]">
+                    <Button onClick={handleSave} disabled={saving} className="h-10 px-8 gap-2 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-md transition-transform active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                         Create
                     </Button>

@@ -13,7 +13,6 @@ import validate from '../middlewares/validate.js';
 router.use(authenticate);
 
 const createValidation = [
-    body('userId').trim().notEmpty().withMessage('userId is required'),
     body('email').isEmail().withMessage('Valid email is required'),
     body('password').isLength({ min: 8 }).withMessage('Password min 8 characters'),
     body('firstName').trim().notEmpty(),

@@ -106,7 +106,7 @@ export default function RolesPage() {
             {/* Header Section */}
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between pb-4 border-b border-border/40 bg-transparent">
                 <div>
-                    <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-[#5513a1] dark:text-[#8e44ad] flex items-center gap-3">
+                    <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-primary flex items-center gap-3">
                         <ShieldCheck className="h-6 w-6 md:h-8 md:w-8" />
                         Roles & Access Control
                     </h1>
@@ -306,7 +306,7 @@ export function RoleCard({
                     <div>
                         {role.Permissions.length > 0 && (
                             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                                <KeyRound className="h-3 w-3 text-[#5513a1] dark:text-purple-400/70" />
+                                <KeyRound className="h-3 w-3 text-primary" />
                                 {role.Permissions.length} Authorized Capabilities
                             </p>
                         )}
@@ -329,7 +329,7 @@ export function RoleCard({
                                 </div>
                             ))}
                             {Object.keys(grouped).length > 2 && (
-                                <p className="text-[10px] text-[#5513a1] dark:text-purple-400 font-medium pt-0.5 pl-0.5">
+                                <p className="text-[10px] text-primary font-medium pt-0.5 pl-0.5">
                                     +{Object.keys(grouped).length - 2} more resource domains
                                 </p>
                             )}
@@ -370,7 +370,7 @@ export function RoleCard({
                     <div className="p-6 pb-4 border-b border-border/50">
                         <DialogHeader className="space-y-1">
                             <DialogTitle className="text-lg md:text-xl font-bold flex items-center gap-2 capitalize">
-                                <Info className="h-4 w-4 md:h-5 md:w-5 text-[#5513a1] dark:text-purple-400" /> {role.name.replace(/_/g, " ")} Details
+                                <Info className="h-4 w-4 md:h-5 md:w-5 text-primary" /> {role.name.replace(/_/g, " ")} Details
                             </DialogTitle>
                             <DialogDescription className="text-xs md:text-sm leading-relaxed">
                                 Full capability mapping overview and account matrices boundaries.
@@ -433,8 +433,8 @@ export function RoleCard({
                                         return (
                                             <div key={u.id} className="flex items-center gap-2.5 py-1.5 px-2.5 rounded-lg bg-secondary/30 border border-border/40">
                                                 <Avatar key={u.id}
-                                                    variant={variantColor} className="h-8 w-8 border border-purple-600/30/10 shadow-sm">
-                                                    <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-white text-xs font-bold">
+                                                    variant={variantColor} className="h-8 w-8 border border-primary/20 shadow-sm">
+                                                    <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
                                                         {u.firstName[0]}{u.lastName[0]}
                                                     </AvatarFallback>
                                                 </Avatar>
@@ -509,7 +509,7 @@ function AssignUsersDialog({ role, onClose, onSaved }: {
             <DialogContent className="max-w-lg shadow-xl border-border">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-xl">
-                        <UserPlus className="h-5 w-5 text-[#5513a1] dark:text-purple-400" />
+                        <UserPlus className="h-5 w-5 text-primary" />
                         <span>Manage Member Assignments</span>
                     </DialogTitle>
                     <DialogDescription>
@@ -534,8 +534,8 @@ function AssignUsersDialog({ role, onClose, onSaved }: {
                                             <div key={u.id} className="flex items-center justify-between gap-3 py-1.5 px-3 rounded-lg bg-card border border-border/40 group">
                                                 <div className="flex items-center gap-2.5 min-w-0">
                                                     <Avatar key={u.id}
-                                                        variant={variantColor} className="h-8 w-8 border border-purple-600/30/10 shadow-sm">
-                                                        <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-white text-xs font-bold">
+                                                        variant={variantColor} className="h-8 w-8 border border-primary/20 shadow-sm">
+                                                        <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
                                                             {u.firstName[0]}{u.lastName[0]}
                                                         </AvatarFallback>
                                                     </Avatar>
@@ -585,7 +585,7 @@ function AssignUsersDialog({ role, onClose, onSaved }: {
                         </div>
 
                         {searching && (
-                            <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-[#5513a1] dark:text-purple-400" /></div>
+                            <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
                         )}
 
                         {!searching && results.length > 0 && (
@@ -600,8 +600,8 @@ function AssignUsersDialog({ role, onClose, onSaved }: {
                                             <div key={u.id} className="flex items-center justify-between gap-3 py-2 px-2.5 rounded-lg bg-card border border-border/40 hover:border-border transition-all">
                                                 <div className="flex items-center gap-2.5 min-w-0">
                                                     <Avatar key={u.id}
-                                                        variant={variantColor} className="h-8 w-8 border border-purple-600/30/10 shadow-sm">
-                                                        <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-white text-xs font-bold">
+                                                        variant={variantColor} className="h-8 w-8 border border-primary/20 shadow-sm">
+                                                        <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
                                                             {u.firstName[0]}{u.lastName[0]}
                                                         </AvatarFallback>
                                                     </Avatar>
@@ -611,7 +611,7 @@ function AssignUsersDialog({ role, onClose, onSaved }: {
                                                         <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                                                             <span className="text-[10px] font-mono text-muted-foreground">{u.userId}</span>
                                                             {userRoles.map(r => (
-                                                                <Badge key={r.id} variant="outline" className="text-[9px] capitalize py-0 px-1 bg-purple-600 dark:bg-purple-700 text-white border-purple-600/30/20">
+                                                                <Badge key={r.id} variant="outline" className="text-[9px] capitalize py-0 px-1 bg-primary text-primary-foreground border-primary/20">
                                                                     {r.name.replace(/_/g, " ")}
                                                                 </Badge>
                                                             ))}

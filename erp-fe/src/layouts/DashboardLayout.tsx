@@ -5,11 +5,15 @@ import Topbar from "@/components/dashboard/Topbar";
 import { useMyPermissions } from "@/hooks/useMyPermissions";
 import { Loader2 } from "lucide-react";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { GlobalBreadcrumb } from "@/components/shared/GlobalBreadcrumb";
 
 export default function DashboardLayout() {
     const [mobileOpen, setMobileOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const location = useLocation();
+
+    const [showBreadcrumb, setShowBreadcrumb] = useState(true);
+    const [lastScrollY, setLastScrollY] = useState(0);
 
     // Close mobile sidebar on route change
     useEffect(() => {
@@ -18,6 +22,16 @@ export default function DashboardLayout() {
 
     // Fetch encrypted permissions from backend → decrypt → store in Redux
     const { isLoading, isError } = useMyPermissions();
+
+    const handleScroll = (e: React.UIEvent<HTMLElement>) => {
+        const currentScrollY = e.currentTarget.scrollTop;
+        if (currentScrollY > lastScrollY && currentScrollY > 50) {
+            setShowBreadcrumb(false); // scrolling down, hide
+        } else if (currentScrollY < lastScrollY) {
+            setShowBreadcrumb(true); // scrolling up, show
+        }
+        setLastScrollY(currentScrollY);
+    };
 
     // Show a full-screen spinner while permissions are being fetched & decrypted
     if (isLoading) {
@@ -36,27 +50,37 @@ export default function DashboardLayout() {
     return (
         <TooltipProvider delayDuration={300}>
             <div className="flex h-screen overflow-hidden bg-background">
-                <Sidebar 
-                    mobileOpen={mobileOpen} 
-                    onMobileClose={() => setMobileOpen(false)} 
+                <Sidebar
+                    mobileOpen={mobileOpen}
+                    onMobileClose={() => setMobileOpen(false)}
                     isCollapsed={isCollapsed}
                 />
 
                 <div className="flex flex-col flex-1 min-w-0 overflow-hidden relative transition-all duration-300">
-                    <Topbar 
-                        onMobileMenuClick={() => setMobileOpen(true)} 
+                    <Topbar
+                        onMobileMenuClick={() => setMobileOpen(true)}
                         isCollapsed={isCollapsed}
                         onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
                     />
-                    
-                    <main className="flex-1 overflow-y-auto p-4 lg:p-8 bg-muted/40">
-                        {isError && (
-                            <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center shadow-sm">
-                                <span className="font-semibold mr-2">Error:</span> Failed to load permissions. Some features may be restricted.
+
+
+                    <main className="flex-1 overflow-y-auto bg-muted/40 relative" onScroll={handleScroll}>
+                        {/* Sticky container for Breadcrumb */}
+                        <div className={`sticky top-2 z-[40] px-2 sm:px-6 transition-transform duration-300 pointer-events-none ${showBreadcrumb ? "translate-y-0" : "-translate-y-[150%]"}`}>
+                            <div className="pointer-events-auto w-full max-w-7xl mx-auto">
+                                <GlobalBreadcrumb />
                             </div>
-                        )}
-                        <div className="max-w-7xl mx-auto">
-                            <Outlet />
+                        </div>
+
+                        <div className="px-2 sm:px-6  pb-10">
+                            {isError && (
+                                <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center shadow-sm">
+                                    <span className="font-semibold mr-2">Error:</span> Failed to load permissions. Some features may be restricted.
+                                </div>
+                            )}
+                            <div className="max-w-7xl mx-auto">
+                                <Outlet />
+                            </div>
                         </div>
                     </main>
                 </div>

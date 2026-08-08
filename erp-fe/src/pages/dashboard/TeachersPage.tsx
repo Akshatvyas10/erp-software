@@ -98,8 +98,8 @@ export default function TeachersPage() {
         >
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between pb-4 border-b border-border/40 bg-transparent">
                 <div>
-                    <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-[#5513a1] dark:text-[#8e44ad] flex items-center gap-3">
-                        <BookOpen className="h-6 w-6 md:h-8 md:w-8" />
+                    <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-primary flex items-center gap-3">
+                        <BookOpen className="h-6 w-6 md:h-8 md:w-8 text-primary" />
                         Teachers Management
                     </h1>
                     <p className="text-muted-foreground text-xs md:text-sm lg:text-base mt-1.5 max-w-2xl">
@@ -110,21 +110,21 @@ export default function TeachersPage() {
                     <Button
                         variant="outline"
                         size="icon"
-                        className="h-10 w-10 border-border/80 bg-background hover:bg-muted dark:hover:bg-purple-950/20 dark:hover:text-purple-400 transition-all rounded-xl"
+                        className="h-10 w-10 border-border/80 bg-background hover:bg-accent hover:text-accent-foreground transition-all rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                         onClick={() => refetch()}
                         disabled={isFetching}
                     >
-                        <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetching ? "animate-spin text-[#7f39c2]" : ""}`} />
+                        <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetching ? "animate-spin text-primary" : ""}`} />
                     </Button>
                     <PermissionGate resource="teachers" action="create">
                         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                             <DialogTrigger asChild>
-                                <Button variant="primary" className="w-full md:w-auto gap-2 h-10 px-5 transition-all hover:scale-[1.02] active:scale-[0.98] ">
+                                <Button className="w-full md:w-auto gap-2 h-10 px-5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-md transition-transform focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                                     <Plus className="h-4 w-4 stroke-[2.5]" /> New Teacher
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-2xl md:max-w-3xl flex flex-col p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl bg-background dark:bg-zinc-950 bg-white">
-                                <DialogHeader className="px-6 py-5 bg-muted/40 dark:bg-purple-950/10 border-b border-border">
+                            <DialogContent className="sm:max-w-2xl md:max-w-3xl flex flex-col p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl bg-background">
+                                <DialogHeader className="px-6 py-5 bg-muted/40 border-b border-border">
                                     <DialogTitle className="text-lg md:text-xl font-bold tracking-tight text-foreground">Add New Teacher</DialogTitle>
                                 </DialogHeader>
                                 <TeacherForm 
@@ -141,15 +141,15 @@ export default function TeachersPage() {
             <Card className="mt-6 border-none shadow-none bg-transparent">
                 <CardHeader className="px-0 pt-0 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <CardTitle className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
-                        Directory <Badge variant="secondary" className="bg-[#5513a1]/10 text-[#5513a1] dark:bg-purple-500/20 dark:text-purple-300 border-none px-2 rounded-full font-bold">{pagination.total}</Badge>
+                        Directory <Badge variant="secondary" className="bg-primary/10 text-primary border-none px-2 rounded-full font-bold">{pagination.total}</Badge>
                     </CardTitle>
                     <div className="relative w-full md:max-w-sm group">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-[#5513a1] dark:group-focus-within:text-purple-400 transition-colors" />
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                         <Input
                             placeholder="Search by name, ID, or email..."
                             value={searchInput}
                             onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
-                            className="pl-10 h-10 bg-white dark:bg-zinc-900/50 border-border/50 focus-visible:ring-1 focus-visible:ring-purple-500/50 transition-all rounded-xl shadow-sm w-full"
+                            className="pl-10 h-10 bg-muted/50 border-border/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none transition-all rounded-xl shadow-sm w-full"
                         />
                     </div>
                 </CardHeader>
@@ -157,7 +157,7 @@ export default function TeachersPage() {
                     {isLoading ? (
                         <TeacherSkeleton />
                     ) : teachersList.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-20 px-4 border border-dashed border-border/80 rounded-2xl bg-zinc-50/50 dark:bg-zinc-900/20">
+                        <div className="flex flex-col items-center justify-center py-20 px-4 border border-dashed border-border/80 rounded-2xl bg-muted/20">
                             <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mb-4"><Search className="h-8 w-8 text-muted-foreground/50" /></div>
                             <h3 className="text-lg font-bold text-foreground">No teachers found</h3>
                             <p className="text-sm text-muted-foreground max-w-sm text-center mt-2">Adjust your search or add a new teacher to get started.</p>
@@ -170,20 +170,20 @@ export default function TeachersPage() {
                                     const name = `${teacher.account.firstName} ${teacher.account.lastName}`;
                                     const initials = `${teacher.account.firstName[0]}${teacher.account.lastName[0]}`.toUpperCase();
                                     return (
-                                        <Card key={teacher.id} className="border-border/50 hover:border-purple-500/30 transition-colors shadow-sm overflow-hidden group">
+                                        <Card key={teacher.id} className="border-border/50 hover:border-primary/30 transition-colors shadow-sm overflow-hidden group">
                                             <CardContent className="p-4 space-y-4">
                                                 <div className="flex justify-between items-start">
-                                                    <div className="flex items-center gap-3">
-                                                        <Avatar className="h-12 w-12 border border-purple-500/20 shadow-sm transition-transform group-hover:scale-105 duration-200">
-                                                            <AvatarFallback className="bg-[#5513a1]/10 text-[#5513a1] dark:bg-purple-400/20 dark:text-purple-300 text-sm font-bold">
+                                                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/dashboard/teachers/${teacher.id}`)}>
+                                                        <Avatar className="h-12 w-12 border border-primary/20 shadow-sm transition-transform group-hover:scale-105 duration-200">
+                                                            <AvatarFallback className="bg-primary/10 text-primary text-sm font-bold">
                                                                 {initials}
                                                             </AvatarFallback>
                                                         </Avatar>
                                                         <div>
-                                                            <p className="font-bold text-[15px] tracking-tight text-foreground group-hover:text-[#5513a1] dark:group-hover:text-purple-400 transition-colors">
+                                                            <p className="font-bold text-[15px] tracking-tight text-foreground group-hover:text-primary transition-colors">
                                                                 {name}
                                                             </p>
-                                                            <Badge variant="outline" className="font-mono bg-muted/60 dark:bg-zinc-950 text-foreground border-border/60 px-1.5 py-0 rounded-md text-[10px] tracking-wide mt-1">
+                                                            <Badge variant="outline" className="font-mono bg-muted/60 text-foreground border-border/60 px-1.5 py-0 rounded-md text-[10px] tracking-wide mt-1">
                                                                 {teacher.teacherId}
                                                             </Badge>
                                                         </div>
@@ -191,8 +191,8 @@ export default function TeachersPage() {
                                                     <Badge variant="outline"
                                                         className={`text-[9px] uppercase font-bold tracking-wider px-1.5 py-0 border-none rounded-sm
                                                             ${teacher.account.isActive
-                                                                ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400"
-                                                                : "bg-muted dark:bg-zinc-950 text-muted-foreground"}`}>
+                                                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                                                : "bg-muted text-muted-foreground"}`}>
                                                         {teacher.account.isActive ? "Active" : "Inactive"}
                                                     </Badge>
                                                 </div>
@@ -205,7 +205,7 @@ export default function TeachersPage() {
                                                 </div>
                                                 <div className="flex flex-wrap gap-1">
                                                     {(teacher.subjects ?? []).map(s => (
-                                                        <Badge key={s} variant="secondary" className="text-[9px] font-bold uppercase tracking-wider bg-purple-500/5 text-[#5513a1] border border-purple-500/10 dark:bg-purple-400/10 dark:text-purple-300 px-1.5 py-0 rounded-md">
+                                                        <Badge key={s} variant="secondary" className="text-[9px] font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20 px-1.5 py-0 rounded-md">
                                                             {s}
                                                         </Badge>
                                                     ))}
@@ -227,9 +227,9 @@ export default function TeachersPage() {
                             </div>
 
                             {/* Desktop View */}
-                            <div className="hidden md:block overflow-x-auto custom-scrollbar rounded-xl border border-border/50 bg-white dark:bg-zinc-900/50 shadow-sm">
+                            <div className="hidden md:block overflow-x-auto custom-scrollbar rounded-xl border border-border/50 bg-card shadow-sm">
                                 <Table className="w-full min-w-[950px]">
-                                    <TableHeader className="bg-zinc-50/50 dark:bg-zinc-900/50">
+                                    <TableHeader className="bg-muted/40 border-b border-border/60">
                                         <TableRow className="border-border/50 hover:bg-transparent">
                                             <TableHead className="pl-6 text-[11px] font-bold uppercase tracking-wider text-muted-foreground h-12">Teacher Profile</TableHead>
                                             <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground h-12">Teacher ID</TableHead>
@@ -245,16 +245,16 @@ export default function TeachersPage() {
                                             const name = `${teacher.account.firstName} ${teacher.account.lastName}`;
                                             const initials = `${teacher.account.firstName[0]}${teacher.account.lastName[0]}`.toUpperCase();
                                             return (
-                                                <TableRow key={teacher.id} className="hover:bg-purple-500/[0.02] dark:hover:bg-purple-500/[0.04] transition-colors border-border/40 group">
+                                                <TableRow key={teacher.id} className="hover:bg-muted/30 transition-colors border-border/40 group">
                                                     <TableCell className="pl-6 py-4.5">
-                                                        <div className="flex items-center gap-3">
-                                                            <Avatar className="h-9 w-9 border border-purple-500/20 shadow-sm transition-transform group-hover:scale-105 duration-200">
-                                                                <AvatarFallback className="bg-[#5513a1]/10 text-[#5513a1] dark:bg-purple-400/20 dark:text-purple-300 text-xs font-bold">
+                                                        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/dashboard/teachers/${teacher.id}`)}>
+                                                            <Avatar className="h-9 w-9 border border-primary/20 shadow-sm transition-transform group-hover:scale-105 duration-200">
+                                                                <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
                                                                     {initials}
                                                                 </AvatarFallback>
                                                             </Avatar>
                                                             <div>
-                                                                <p className="font-bold text-sm tracking-tight text-foreground group-hover:text-[#5513a1] dark:group-hover:text-purple-400 transition-colors">
+                                                                <p className="font-bold text-sm tracking-tight text-foreground group-hover:text-primary transition-colors">
                                                                     {name}
                                                                 </p>
                                                                 <p className="text-xs text-muted-foreground truncate max-w-[220px]">
@@ -264,7 +264,7 @@ export default function TeachersPage() {
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="py-4.5">
-                                                        <Badge variant="outline" className="font-mono bg-muted/60 dark:bg-zinc-950 text-foreground border-border/60 px-2.5 py-0.5 rounded-md text-xs tracking-wide">
+                                                        <Badge variant="outline" className="font-mono bg-muted/60 text-foreground border-border/60 px-2.5 py-0.5 rounded-md text-xs tracking-wide">
                                                             {teacher.teacherId}
                                                         </Badge>
                                                     </TableCell>
@@ -277,7 +277,7 @@ export default function TeachersPage() {
                                                     <TableCell className="py-4.5">
                                                         <div className="flex flex-wrap gap-1.5 max-w-[260px]">
                                                             {(teacher.subjects ?? []).slice(0, 2).map(s => (
-                                                                <Badge key={s} variant="secondary" className="text-[10px] font-bold uppercase tracking-wider bg-purple-500/5 text-[#5513a1] border border-purple-500/10 dark:bg-purple-400/10 dark:text-purple-300 px-2 py-0.5 rounded-md">
+                                                                <Badge key={s} variant="secondary" className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-md">
                                                                     {s}
                                                                 </Badge>
                                                             ))}
@@ -293,8 +293,8 @@ export default function TeachersPage() {
                                                         <Badge variant="outline"
                                                             className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 border-none rounded-md
                                                                 ${teacher.account.isActive
-                                                                    ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400"
-                                                                    : "bg-muted dark:bg-zinc-950 text-muted-foreground"}`}>
+                                                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                                                    : "bg-muted text-muted-foreground"}`}>
                                                             {teacher.account.isActive ? "Active" : "Inactive"}
                                                         </Badge>
                                                     </TableCell>
@@ -306,7 +306,7 @@ export default function TeachersPage() {
                                                                     <MoreHorizontal className="h-4 w-4" />
                                                                 </Button>
                                                             </DropdownMenuTrigger>
-                                                            <DropdownMenuContent align="end" className="w-[160px]">
+                                                            <DropdownMenuContent align="end" className="w-[160px] rounded-xl border-border">
                                                                 <DropdownMenuItem className="cursor-pointer font-medium text-xs" onClick={() => navigate(`/dashboard/teachers/${teacher.id}`)}>
                                                                     <Eye className="mr-2 h-3.5 w-3.5" /> View Details
                                                                 </DropdownMenuItem>
@@ -364,7 +364,7 @@ export default function TeachersPage() {
 
             {/* Delete Confirmation Dialog */}
             <AlertDialog open={!!teacherToDelete} onOpenChange={(open) => !open && setTeacherToDelete(null)}>
-                <AlertDialogContent className="rounded-2xl border border-border/80 shadow-2xl p-0 overflow-hidden sm:max-w-md">
+                <AlertDialogContent className="w-[95vw] sm:max-w-lg mx-auto rounded-3xl p-6 border-border shadow-2xl bg-background overflow-hidden">
                     <div className="p-6 pb-4">
                         <div className="flex items-center justify-center w-12 h-12 rounded-full bg-destructive/10 text-destructive mb-4">
                             <Trash2 className="h-6 w-6" />
@@ -376,11 +376,11 @@ export default function TeachersPage() {
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                     </div>
-                    <AlertDialogFooter className="bg-muted/40 px-6 py-4 border-t border-border/60 sm:justify-end gap-2">
-                        <AlertDialogCancel className="mt-0 rounded-xl font-medium border-border/80 hover:bg-background">Cancel</AlertDialogCancel>
+                    <AlertDialogFooter className="mt-6 gap-3 sm:justify-end">
+                        <AlertDialogCancel className="h-11 rounded-xl font-semibold border-border/50 bg-background hover:bg-accent text-foreground transition-colors">Cancel</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={(e) => { e.preventDefault(); teacherToDelete && deleteTeacher.mutate(teacherToDelete); }}
-                            className="rounded-xl bg-destructive hover:bg-destructive/90 text-white font-semibold"
+                            className="h-11 rounded-xl font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
                         >
                             {deleteTeacher.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete Teacher"}
                         </AlertDialogAction>
