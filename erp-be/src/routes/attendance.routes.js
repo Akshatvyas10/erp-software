@@ -1,13 +1,13 @@
 'use strict';
 
-const router = require('express').Router();
-const { body, param } = require('express-validator');
-const {
-    getTeacherAttendance, markAttendance, biometricEntry, getTodayAttendance,
-} = require('../controllers/attendanceController');
-const authenticate = require('../middlewares/authenticate');
-const { requirePermission } = require('../middlewares/authorize');
-const validate = require('../middlewares/validate');
+import express from 'express';
+const router = express.Router();
+import { body, param } from 'express-validator';
+import * as attendanceController from '../controllers/attendanceController.js';
+const { getTeacherAttendance, markAttendance, biometricEntry, getTodayAttendance, } = attendanceController;
+import authenticate from '../middlewares/authenticate.js';
+import { requirePermission } from '../middlewares/authorize.js';
+import validate from '../middlewares/validate.js';
 
 // Biometric device webhook — no JWT (secured by device API key in future)
 // For now kept open for testing; add IP allowlist in production
@@ -38,4 +38,4 @@ router.post('/teacher',
     markAttendance
 );
 
-module.exports = router;
+export default router;

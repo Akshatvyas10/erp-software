@@ -1,7 +1,7 @@
 'use strict';
 
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
 /**
  * Daily attendance record per teacher.
@@ -59,4 +59,4 @@ const TeacherAttendance = sequelize.define('TeacherAttendance', {
     timestamps: true,
 });
 
-module.exports = TeacherAttendance;
+export default TeacherAttendance;

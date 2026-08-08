@@ -1,6 +1,6 @@
 'use strict';
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
 // Junction: classroom ↔ student (one student → one classroom per academic year)
 const ClassroomStudent = sequelize.define('ClassroomStudent', {
@@ -23,4 +23,4 @@ const ClassroomStudent = sequelize.define('ClassroomStudent', {
     timestamps: true,
 });
 
-module.exports = ClassroomStudent;
+export default ClassroomStudent;

@@ -1,9 +1,8 @@
-'use strict';
-
-const { verifyAccessToken } = require('../utils/tokenUtils');
-const { User } = require('../models');
-const { getPermissions } = require('../services/permissionService');
-const { error } = require('../utils/apiResponse');
+import { verifyAccessToken } from '../utils/tokenUtils.js';
+import db from '../models/index.js';
+const { User } = db;
+import { getPermissions } from '../services/permissionService.js';
+import { error } from '../utils/apiResponse.js';
 
 /**
  * Verifies the Bearer JWT access token.
@@ -53,4 +52,4 @@ const authenticate = async (req, res, next) => {
     }
 };
 
-module.exports = authenticate;
+export default authenticate;

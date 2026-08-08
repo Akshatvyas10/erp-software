@@ -1,9 +1,10 @@
 'use strict';
 
-const { Op } = require('sequelize');
-const { Role, Permission, User } = require('../models');
-const { success, error } = require('../utils/apiResponse');
-const permissionEmitter = require('../events/permissionEmitter');
+import { Op } from 'sequelize';
+import db from '../models/index.js';
+const { Role, Permission, User } = db;
+import { success, error } from '../utils/apiResponse.js';
+import permissionEmitter from '../events/permissionEmitter.js';
 
 // ─── shared include helpers ───────────────────────────────────────────────────
 
@@ -247,7 +248,7 @@ const assignRoleToUser = async (req, res, next) => {
     }
 };
 
-module.exports = {
+export {
     listRoles,
     getRole,
     getRoleUsers,

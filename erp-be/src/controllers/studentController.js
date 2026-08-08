@@ -1,12 +1,13 @@
 'use strict';
 
-const path = require('path');
-const fs = require('fs');
-const { Op, literal, fn, col } = require('sequelize');
-const { Student, User, Role, Classroom, ClassroomStudent } = require('../models');
-const { success, error } = require('../utils/apiResponse');
-const permissionEmitter = require('../events/permissionEmitter');
-const { buildPhotoUrl } = require('../middlewares/uploadMiddleware');
+import path from 'path';
+import fs from 'fs';
+import { Op, literal, fn, col } from 'sequelize';
+import db from '../models/index.js';
+const { Student, User, Role, Classroom, ClassroomStudent } = db;
+import { success, error } from '../utils/apiResponse.js';
+import permissionEmitter from '../events/permissionEmitter.js';
+import { buildPhotoUrl } from '../middlewares/uploadMiddleware.js';
 
 // ─── Shared eager-load: always join the user account ─────────────────────────
 const studentWithAccount = {
@@ -416,7 +417,7 @@ const deleteStudent = async (req, res, next) => {
     }
 };
 
-module.exports = {
+export {
     listStudents,
     getStudent,
     getMyStudentProfile,

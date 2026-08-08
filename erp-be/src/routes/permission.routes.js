@@ -1,18 +1,18 @@
 'use strict';
 
-const router = require('express').Router();
-const { body } = require('express-validator');
-const {
-    getMyPermissions,
+import express from 'express';
+const router = express.Router();
+import { body } from 'express-validator';
+import * as permissionController from '../controllers/permissionController.js';
+const { getMyPermissions,
     checkPermission,
     checkManyPermissions,
     listPermissions,
-    createPermission,
-} = require('../controllers/permissionController');
+    createPermission, } = permissionController;
 
-const authenticate = require('../middlewares/authenticate');
-const { requirePermission } = require('../middlewares/authorize');
-const validate = require('../middlewares/validate');
+import authenticate from '../middlewares/authenticate.js';
+import { requirePermission } from '../middlewares/authorize.js';
+import validate from '../middlewares/validate.js';
 
 // All routes require a valid JWT
 router.use(authenticate);
@@ -56,4 +56,4 @@ router.post('/',
 // DELETE is intentionally NOT exposed — permissions are system records
 // and can only be restored via the seed script on the server.
 
-module.exports = router;
+export default router;

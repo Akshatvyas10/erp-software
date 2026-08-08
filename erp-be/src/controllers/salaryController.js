@@ -1,8 +1,9 @@
 'use strict';
 
-const { Op } = require('sequelize');
-const { Teacher, SalarySlip, TeacherAttendance, User } = require('../models');
-const { success, error } = require('../utils/apiResponse');
+import { Op } from 'sequelize';
+import db from '../models/index.js';
+const { Teacher, SalarySlip, TeacherAttendance, User } = db;
+import { success, error } from '../utils/apiResponse.js';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -226,7 +227,7 @@ const listAllSalarySlips = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
-module.exports = {
+export {
     previewSalary, generateSalarySlip, getTeacherSalarySlips,
     getSalarySlip, updatePaymentStatus, listAllSalarySlips,
 };

@@ -240,7 +240,7 @@ export default function SubjectsPage() {
                     <Button variant="outline" size="icon" className="h-10 w-10 border-border/80 rounded-xl" onClick={() => refetch()} disabled={isFetching}>
                         <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetching ? "animate-spin text-[#7f39c2]" : ""}`} />
                     </Button>
-                    <PermissionGate resource="classrooms" action="create">
+                    <PermissionGate resource="subjects" action="create">
                         <Button onClick={handleCreate} className="gap-2 h-10 px-5 bg-purple-700 hover:bg-purple-800 dark:bg-purple-600 dark:hover:bg-purple-500 text-white rounded-xl shadow-md transition-transform">
                             <Plus className="h-4 w-4 stroke-[2.5]" /> New Subject
                         </Button>
@@ -317,12 +317,12 @@ export default function SubjectsPage() {
                                                         </Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent align="end" className="w-40 rounded-xl border-purple-100 dark:border-zinc-800 shadow-lg">
-                                                        <PermissionGate resource="classrooms" action="update">
+                                                        <PermissionGate resource="subjects" action="update">
                                                             <DropdownMenuItem className="gap-2 text-[13px] font-medium cursor-pointer" onClick={() => handleEdit(s)}>
                                                                 <Edit2 className="h-3.5 w-3.5" /> Edit
                                                             </DropdownMenuItem>
                                                         </PermissionGate>
-                                                        <PermissionGate resource="classrooms" action="delete">
+                                                        <PermissionGate resource="subjects" action="delete">
                                                             <DropdownMenuSeparator className="bg-purple-100 dark:bg-zinc-800" />
                                                             <DropdownMenuItem className="gap-2 text-[13px] font-medium text-destructive cursor-pointer focus:bg-destructive/10" onClick={() => setDeleteId(s.id)}>
                                                                 <Trash2 className="h-3.5 w-3.5" /> Delete

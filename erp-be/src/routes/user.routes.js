@@ -1,14 +1,14 @@
 'use strict';
 
-const router = require('express').Router();
-const { body, param } = require('express-validator');
-const {
-    listUsers, getUser, createUser, updateUser,
-    assignRoles, setActiveStatus, deleteUser,
-} = require('../controllers/userController');
-const authenticate = require('../middlewares/authenticate');
-const { requirePermission } = require('../middlewares/authorize');
-const validate = require('../middlewares/validate');
+import express from 'express';
+const router = express.Router();
+import { body, param } from 'express-validator';
+import * as userController from '../controllers/userController.js';
+const { listUsers, getUser, createUser, updateUser,
+    assignRoles, setActiveStatus, deleteUser, } = userController;
+import authenticate from '../middlewares/authenticate.js';
+import { requirePermission } from '../middlewares/authorize.js';
+import validate from '../middlewares/validate.js';
 
 router.use(authenticate);
 
@@ -31,4 +31,4 @@ router.patch('/:id/roles', [param('id').isUUID(), body('roleIds').isArray()], va
 router.patch('/:id/activate', [param('id').isUUID()], validate, requirePermission('users', 'manage'), setActiveStatus(true));
 router.patch('/:id/deactivate', [param('id').isUUID()], validate, requirePermission('users', 'manage'), setActiveStatus(false));
 
-module.exports = router;
+export default router;

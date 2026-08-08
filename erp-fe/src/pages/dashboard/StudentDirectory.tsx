@@ -325,10 +325,9 @@ export default function StudentDirectory() {
                     </Button>
                     <PermissionGate resource="students" action="create">
                         <Button
+                            variant="primary"
                             onClick={handleCreate}
-                            className="gap-2 h-10 px-5 bg-purple-700 hover:bg-purple-800 dark:bg-purple-600
-                                       dark:hover:bg-purple-500 text-white rounded-xl font-semibold shadow-md
-                                       hover:scale-[1.02] active:scale-[0.98] transition-transform"
+                            className="w-full md:w-auto gap-2 h-10 px-5 transition-all hover:scale-[1.02] active:scale-[0.98]"
                         >
                             <Plus className="h-4 w-4 stroke-[2.5]" /> Enroll Student
                         </Button>

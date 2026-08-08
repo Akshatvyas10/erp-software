@@ -1,11 +1,9 @@
-'use strict';
-
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 // ─── Ensure upload directory exists ──────────────────────────────────────────
-const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'students');
+export const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'students');
 if (!fs.existsSync(UPLOAD_DIR)) {
     fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
@@ -58,7 +56,7 @@ const uploadProfilePhoto = upload.single('profilePhoto');
  * Converts Multer errors into consistent { success:false } API responses
  * so the global error handler does not need to know about Multer specifics.
  */
-const handleProfilePhotoUpload = (req, res, next) => {
+export const handleProfilePhotoUpload = (req, res, next) => {
     uploadProfilePhoto(req, res, (err) => {
         if (!err) return next();
 
@@ -83,7 +81,5 @@ const handleProfilePhotoUpload = (req, res, next) => {
  * Build the relative public URL stored in the DB.
  * e.g. /uploads/students/stud-1710920001234-0042.jpg
  */
-const buildPhotoUrl = (filename) =>
+export const buildPhotoUrl = (filename) =>
     `/uploads/students/${filename}`;
-
-module.exports = { handleProfilePhotoUpload, buildPhotoUrl, UPLOAD_DIR };

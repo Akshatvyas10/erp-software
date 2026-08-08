@@ -1,6 +1,6 @@
 'use strict';
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
 // Academic map: classroom + subject + assigned teacher
 const ClassroomSubject = sequelize.define('ClassroomSubject', {
@@ -27,4 +27,4 @@ const ClassroomSubject = sequelize.define('ClassroomSubject', {
     timestamps: true,
 });
 
-module.exports = ClassroomSubject;
+export default ClassroomSubject;

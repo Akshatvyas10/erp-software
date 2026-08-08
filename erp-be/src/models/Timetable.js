@@ -1,6 +1,6 @@
 'use strict';
-const { DataTypes } = require('sequelize'); // Trigger restart
-const sequelize = require('../config/database');
+import { DataTypes } from 'sequelize'; // Trigger restart
+import sequelize from '../config/database.js';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -34,4 +34,4 @@ const Timetable = sequelize.define('Timetable', {
     timestamps: true,
 });
 
-module.exports = Timetable;
+export default Timetable;

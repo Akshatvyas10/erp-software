@@ -27,6 +27,8 @@ import ClassroomDetails from "./pages/dashboard/ClassroomDetails";
 import SubjectsPage from "./pages/dashboard/SubjectsPage";
 import StudentDirectory from "./pages/dashboard/StudentDirectory";
 import StudentDetailsPage from "./pages/dashboard/StudentDetailsPage";
+import HomeworkPage from "./pages/dashboard/HomeworkPage";
+import HomeworkDetailsPage from "./pages/dashboard/HomeworkDetailsPage";
 
 import "./App.css";
 
@@ -73,6 +75,10 @@ function App() {
             {/* Students */}
             <Route path="/dashboard/students" element={<StudentDirectory />} />
             <Route path="/dashboard/students/:id" element={<StudentDetailsPage />} />
+
+            {/* Homework */}
+            <Route path="/dashboard/homework" element={<HomeworkPage />} />
+            <Route path="/dashboard/homework/:id" element={<HomeworkDetailsPage />} />
           </Route>
         </Route>
 

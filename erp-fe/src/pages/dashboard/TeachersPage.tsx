@@ -197,8 +197,11 @@ export default function TeachersPage() {
                                                     </Badge>
                                                 </div>
                                                 <div className="text-xs text-muted-foreground space-y-1">
-                                                    <p><span className="font-medium text-foreground">Email:</span> {teacher.account.email}</p>
-                                                    <p><span className="font-medium text-foreground">Dept:</span> {teacher.department ?? "—"} • <span className="font-medium text-foreground">Role:</span> {teacher.designation ?? "—"}</p>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-semibold text-base text-foreground leading-none">{teacher.account?.firstName} {teacher.account?.lastName}</span>
+                                                        <span className="text-[13px] text-muted-foreground mt-1">{teacher.account?.email}</span>
+                                                        <p><span className="font-medium text-foreground">Dept:</span> {teacher.departmentName ?? teacher.department ?? "—"} • <span className="font-medium text-foreground">Role:</span> {teacher.designationName ?? teacher.designation ?? "—"}</p>
+                                                    </div>
                                                 </div>
                                                 <div className="flex flex-wrap gap-1">
                                                     {(teacher.subjects ?? []).map(s => (
@@ -266,10 +269,10 @@ export default function TeachersPage() {
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell className="text-sm font-medium text-muted-foreground py-4.5">
-                                                        {teacher.department ?? "—"}
+                                                        {teacher.departmentName ?? teacher.department ?? "—"}
                                                     </TableCell>
                                                     <TableCell className="text-sm font-medium text-muted-foreground py-4.5">
-                                                        {teacher.designation ?? "—"}
+                                                        {teacher.designationName ?? teacher.designation ?? "—"}
                                                     </TableCell>
                                                     <TableCell className="py-4.5">
                                                         <div className="flex flex-wrap gap-1.5 max-w-[260px]">

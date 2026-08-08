@@ -1,8 +1,9 @@
 'use strict';
 
-const { Op } = require('sequelize');
-const { TeacherAttendance, Teacher, User } = require('../models');
-const { success, error } = require('../utils/apiResponse');
+import { Op } from 'sequelize';
+import db from '../models/index.js';
+const { TeacherAttendance, Teacher, User } = db;
+import { success, error } from '../utils/apiResponse.js';
 
 // ─── GET /api/attendance/teacher/:teacherId?month=&year= ─────────────────────
 const getTeacherAttendance = async (req, res, next) => {
@@ -124,4 +125,4 @@ const getTodayAttendance = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
-module.exports = { getTeacherAttendance, markAttendance, biometricEntry, getTodayAttendance };
+export { getTeacherAttendance, markAttendance, biometricEntry, getTodayAttendance };

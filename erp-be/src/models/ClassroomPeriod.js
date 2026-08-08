@@ -1,6 +1,5 @@
-'use strict';
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
 const ClassroomPeriod = sequelize.define('ClassroomPeriod', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
@@ -31,4 +30,4 @@ const ClassroomPeriod = sequelize.define('ClassroomPeriod', {
     timestamps: true,
 });
 
-module.exports = ClassroomPeriod;
+export default ClassroomPeriod;

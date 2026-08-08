@@ -6,6 +6,7 @@ import {
     MoreVertical, Eye, Info
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,7 @@ import PermissionGate from "@/components/auth/PermissionGate";
 import AccessDenied from "@/components/auth/AccessDenied";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { RoleFormDialog } from "@/components/roles/RoleFormDialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Permission { id: number; name: string; resource: string; action: string; description: string | null; }
@@ -125,9 +127,8 @@ export default function RolesPage() {
 
             {/* Roles grid */}
             {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-32 gap-3">
-                    <Loader2 className="h-8 w-8 animate-spin text-[#5513a1]" />
-                    <p className="text-sm text-muted-foreground font-medium animate-pulse">Fetching secure configurations...</p>
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {[1, 2, 3, 4, 5, 6].map(i => <RoleCardSkeleton key={i} />)}
                 </div>
             ) : (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -174,6 +175,49 @@ export default function RolesPage() {
     );
 }
 
+// ─── Role card skeletons ──────────────────────────────────────────────────────
+function RoleCardSkeleton() {
+    return (
+        <Card className="border-border dark:border-zinc-800 dark:bg-zinc-950 shadow-sm flex flex-col h-full relative">
+            <CardHeader className="p-4 border-b border-border/60 dark:border-zinc-800 bg-muted/10 dark:bg-zinc-900/50 flex flex-row items-start justify-between gap-3 space-y-0">
+                <div className="space-y-2 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <Skeleton className="h-5 w-32" />
+                        <Skeleton className="h-4 w-16" />
+                    </div>
+                    <Skeleton className="h-3 w-4/5" />
+                    <Skeleton className="h-3 w-3/5" />
+                </div>
+                <Skeleton className="h-7 w-7 rounded-md shrink-0" />
+            </CardHeader>
+            <CardContent className="p-4 flex-1 flex flex-col justify-between gap-4">
+                <div className="space-y-3">
+                    <Skeleton className="h-3 w-32 mb-4" />
+                    <div className="space-y-2.5">
+                        <div className="flex items-center gap-2">
+                            <Skeleton className="h-3 w-16" />
+                            <Skeleton className="h-4 w-12" />
+                            <Skeleton className="h-4 w-14" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Skeleton className="h-3 w-14" />
+                            <Skeleton className="h-4 w-10" />
+                            <Skeleton className="h-4 w-16" />
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                    <div className="flex -space-x-1.5">
+                        <Skeleton className="h-8 w-8 rounded-full border-2 border-background dark:border-zinc-950" />
+                        <Skeleton className="h-8 w-8 rounded-full border-2 border-background dark:border-zinc-950" />
+                        <Skeleton className="h-8 w-8 rounded-full border-2 border-background dark:border-zinc-950" />
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 // ─── Role card ────────────────────────────────────────────────────────────────
 export function RoleCard({
     role,
@@ -202,8 +246,8 @@ export function RoleCard({
 
     return (
         <>
-            <Card className="border-border shadow-sm hover:shadow-md transition-all flex flex-col h-full relative">
-                <CardHeader className="p-4 border-b border-border/60 bg-muted/10 flex flex-row items-start justify-between gap-3 space-y-0">
+            <Card className="border-border dark:border-zinc-800 dark:bg-zinc-950 shadow-sm hover:shadow-md dark:hover:border-purple-500/30 transition-all flex flex-col h-full relative group">
+                <CardHeader className="p-4 border-b border-border/60 dark:border-zinc-800 bg-muted/10 dark:bg-zinc-900/50 flex flex-row items-start justify-between gap-3 space-y-0">
                     <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                             <CardTitle className="text-sm font-bold capitalize truncate max-w-[140px] md:max-w-none">
@@ -299,8 +343,8 @@ export function RoleCard({
                                 const variantColor = getColorVariant(fullName)
                                 return (
                                     <Avatar key={user.id}
-                                        variant={variantColor} className="h-8 w-8 border border-purple-600/30/10 shadow-sm">
-                                        <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-[#5513a1] dark:text-purple-400-foreground text-xs font-bold">
+                                        variant={variantColor} className="h-8 w-8 border-2 border-background dark:border-zinc-950 shadow-sm relative z-10 hover:z-20 transition-transform hover:scale-110">
+                                        <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-white text-xs font-bold">
                                             {user.firstName[0]}{user.lastName[0]}
                                         </AvatarFallback>
                                     </Avatar>
@@ -308,7 +352,7 @@ export function RoleCard({
                                 )
                             })}
                             {role.Users.length > 4 && (
-                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted ring-2 ring-background text-[9px] font-bold text-muted-foreground">
+                                <div className="flex h-8 w-8 -ml-2 relative z-0 items-center justify-center rounded-full bg-muted dark:bg-zinc-800 border-2 border-background dark:border-zinc-950 text-[10px] font-bold text-muted-foreground dark:text-zinc-300">
                                     +{role.Users.length - 4}
                                 </div>
                             )}
@@ -390,7 +434,7 @@ export function RoleCard({
                                             <div key={u.id} className="flex items-center gap-2.5 py-1.5 px-2.5 rounded-lg bg-secondary/30 border border-border/40">
                                                 <Avatar key={u.id}
                                                     variant={variantColor} className="h-8 w-8 border border-purple-600/30/10 shadow-sm">
-                                                    <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-[#5513a1] dark:text-purple-400-foreground text-xs font-bold">
+                                                    <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-white text-xs font-bold">
                                                         {u.firstName[0]}{u.lastName[0]}
                                                     </AvatarFallback>
                                                 </Avatar>
@@ -491,7 +535,7 @@ function AssignUsersDialog({ role, onClose, onSaved }: {
                                                 <div className="flex items-center gap-2.5 min-w-0">
                                                     <Avatar key={u.id}
                                                         variant={variantColor} className="h-8 w-8 border border-purple-600/30/10 shadow-sm">
-                                                        <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-[#5513a1] dark:text-purple-400-foreground text-xs font-bold">
+                                                        <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-white text-xs font-bold">
                                                             {u.firstName[0]}{u.lastName[0]}
                                                         </AvatarFallback>
                                                     </Avatar>
@@ -557,7 +601,7 @@ function AssignUsersDialog({ role, onClose, onSaved }: {
                                                 <div className="flex items-center gap-2.5 min-w-0">
                                                     <Avatar key={u.id}
                                                         variant={variantColor} className="h-8 w-8 border border-purple-600/30/10 shadow-sm">
-                                                        <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-[#5513a1] dark:text-purple-400-foreground text-xs font-bold">
+                                                        <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-white text-xs font-bold">
                                                             {u.firstName[0]}{u.lastName[0]}
                                                         </AvatarFallback>
                                                     </Avatar>
@@ -567,7 +611,7 @@ function AssignUsersDialog({ role, onClose, onSaved }: {
                                                         <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                                                             <span className="text-[10px] font-mono text-muted-foreground">{u.userId}</span>
                                                             {userRoles.map(r => (
-                                                                <Badge key={r.id} variant="outline" className="text-[9px] capitalize py-0 px-1 bg-purple-600 dark:bg-purple-700/5 text-[#5513a1] dark:text-purple-400 border-purple-600/30/20">
+                                                                <Badge key={r.id} variant="outline" className="text-[9px] capitalize py-0 px-1 bg-purple-600 dark:bg-purple-700 text-white border-purple-600/30/20">
                                                                     {r.name.replace(/_/g, " ")}
                                                                 </Badge>
                                                             ))}
@@ -609,125 +653,4 @@ function AssignUsersDialog({ role, onClose, onSaved }: {
         </Dialog>
     );
 }
-
-// ─── Role form dialog (create / edit) ─────────────────────────────────────────
-function RoleFormDialog({ open, onClose, allPermissions, existing, onSaved }: {
-    open: boolean; onClose: () => void;
-    allPermissions: Permission[]; existing?: Role; onSaved: () => void;
-}) {
-    const [name, setName] = useState(existing?.name ?? "");
-    const [description, setDescription] = useState(existing?.description ?? "");
-    const [selectedIds, setSelectedIds] = useState<number[]>(existing?.Permissions.map(p => p.id) ?? []);
-    const [saving, setSaving] = useState(false);
-
-    const grouped = useMemo(() => {
-        return allPermissions.reduce<Record<string, Permission[]>>((acc, p) => {
-            if (!acc[p.resource]) acc[p.resource] = [];
-            acc[p.resource].push(p);
-            return acc;
-        }, {});
-    }, [allPermissions]);
-
-    const toggle = (id: number) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-    const toggleAll = (perms: Permission[]) => {
-        const ids = perms.map(p => p.id);
-        const allSel = ids.every(id => selectedIds.includes(id));
-        setSelectedIds(prev => allSel ? prev.filter(id => !ids.includes(id)) : [...new Set([...prev, ...ids])]);
-    };
-
-    const handleSave = async () => {
-        if (!name.trim()) { toast.error("Role operational token descriptor required"); return; }
-        setSaving(true);
-        try {
-            if (existing) {
-                await api.put(`/roles/${existing.id}`, { name, description, permissionIds: selectedIds });
-                toast.success("Role configurations persistent variables pushed successfully");
-            } else {
-                await api.post("/roles", { name, description, permissionIds: selectedIds });
-                toast.success("New structural role parameters appended cleanly");
-            }
-            onSaved();
-        } catch (e: unknown) {
-            toast.error((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Configuration state mapping failure detected.");
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl flex flex-col p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl bg-background dark:bg-zinc-950">
-                <DialogHeader className="px-6 py-5 bg-muted/40 dark:bg-purple-950/10 border-b border-border">
-                    <DialogTitle className="flex items-center gap-2 text-lg md:text-xl font-bold tracking-tight text-foreground">
-                        <ShieldCheck className="h-5 w-5 text-[#5513a1] dark:text-purple-400" />
-                        {existing ? "Modify Existing Role Properties" : "Provision Security Access Descriptor"}
-                    </DialogTitle>
-                    <DialogDescription className="text-xs md:text-sm text-muted-foreground mt-1.5">
-                        Establish organizational permissions bounds, operational policies, and identity access scoping configurations.
-                    </DialogDescription>
-                </DialogHeader>
-
-                <div className="flex-1 overflow-y-auto max-h-[70vh] custom-scrollbar p-6 lg:p-8 bg-background dark:bg-zinc-950 space-y-5">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">System Label Reference *</Label>
-                            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. core_compliance_reviewer" className="h-10 bg-muted/10 border-border/80" />
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Scoping Summary Context</Label>
-                            <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Functional parameters context description..." className="h-10 bg-muted/10 border-border/80" />
-                        </div>
-                    </div>
-
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Capability Mapping Matrix</Label>
-                            <Badge variant="secondary" className="text-xs font-mono font-bold text-[#5513a1] dark:text-purple-400 bg-purple-600 dark:bg-purple-700/10 border border-purple-600/30/20 px-2 py-0.5">{selectedIds.length} Nodes Enabled</Badge>
-                        </div>
-
-                        <ScrollArea className="h-[40vh] border border-border rounded-xl p-4 bg-muted/5">
-                            <div className="space-y-6">
-                                {Object.entries(grouped).map(([resource, perms]) => {
-                                    const groupIds = perms.map(p => p.id);
-                                    const allChecked = groupIds.every(id => selectedIds.includes(id));
-                                    return (
-                                        <div key={resource} className="space-y-3 pb-4 border-b border-border/40 last:border-0 last:pb-0">
-                                            <div className="flex items-center justify-between bg-muted/40 p-2 rounded-lg border border-border/40">
-                                                <span className="text-xs font-bold uppercase tracking-wider text-foreground capitalize">{resource} Matrix</span>
-                                                <div className="flex items-center gap-2">
-                                                    <Checkbox id={`all-${resource}`} checked={allChecked} onCheckedChange={() => toggleAll(perms)} />
-                                                    <Label htmlFor={`all-${resource}`} className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide cursor-pointer select-none">Toggle Scope</Label>
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pl-1">
-                                                {perms.map((p) => (
-                                                    <div key={p.id} className="flex items-start gap-3 p-2 rounded-lg border border-border/30 bg-card hover:bg-muted/10 transition-colors">
-                                                        <Checkbox id={`p-${p.id}`} checked={selectedIds.includes(p.id)} onCheckedChange={() => toggle(p.id)} className="mt-0.5" />
-                                                        <div className="space-y-0.5 cursor-pointer select-none flex-1" onClick={() => toggle(p.id)}>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-xs font-bold text-foreground capitalize">{p.action}</span>
-                                                                <Badge variant="outline" className={`text-[9px] uppercase font-medium tracking-tight px-1 py-0 ${ACTION_COLOR[p.action] ?? ""}`}>{p.action}</Badge>
-                                                            </div>
-                                                            {p.description && <p className="text-[10px] text-muted-foreground leading-normal">{p.description}</p>}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </ScrollArea>
-                    </div>
-                </div>
-
-                <DialogFooter className="mt-4 border-t border-border/40 pt-3 flex gap-2">
-                    <Button variant="outline" onClick={onClose} disabled={saving} className="h-10">Abort Provision</Button>
-                    <Button onClick={handleSave} disabled={saving} className="h-10 min-w-[100px]">
-                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Commit State"}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
-}
+

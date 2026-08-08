@@ -1,10 +1,8 @@
-'use strict';
-
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const departmentController = require('../controllers/departmentController');
-const authenticate = require('../middlewares/authenticate');
-const { requirePermission } = require('../middlewares/authorize');
+import * as departmentController from '../controllers/departmentController.js';
+import authenticate from '../middlewares/authenticate.js';
+import { requirePermission } from '../middlewares/authorize.js';
 
 router.use(authenticate);
 
@@ -17,4 +15,4 @@ router.post('/', requirePermission('teachers', 'create'), departmentController.c
 router.put('/:id', requirePermission('teachers', 'update'), departmentController.updateDepartment);
 router.delete('/:id', requirePermission('teachers', 'delete'), departmentController.deleteDepartment);
 
-module.exports = router;
+export default router;

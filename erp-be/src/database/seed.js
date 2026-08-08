@@ -1,8 +1,7 @@
-'use strict';
-
-require('dotenv').config();
-const { sequelize, Role, Permission, User } = require('../models');
-const logger = require('../utils/logger');
+import 'dotenv/config';
+import db from '../models/index.js';
+const { sequelize, Role, Permission, User } = db;
+import logger from '../utils/logger.js';
 
 // ─── All permissions ──────────────────────────────────────────────────────────
 const PERMISSIONS = [
@@ -21,6 +20,25 @@ const PERMISSIONS = [
     { name: 'teachers:update', resource: 'teachers', action: 'update', description: 'Update teachers' },
     { name: 'teachers:delete', resource: 'teachers', action: 'delete', description: 'Delete teachers' },
     { name: 'teachers:manage', resource: 'teachers', action: 'manage', description: 'Full teacher management' },
+    { name: 'classrooms:read', resource: 'classrooms', action: 'read', description: 'View classrooms' },
+    { name: 'classrooms:create', resource: 'classrooms', action: 'create', description: 'Create classrooms' },
+    { name: 'classrooms:update', resource: 'classrooms', action: 'update', description: 'Update classrooms' },
+    { name: 'classrooms:delete', resource: 'classrooms', action: 'delete', description: 'Delete classrooms' },
+    { name: 'classrooms:manage', resource: 'classrooms', action: 'manage', description: 'Full classroom management' },
+    { name: 'subjects:read', resource: 'subjects', action: 'read', description: 'View subjects' },
+    { name: 'subjects:create', resource: 'subjects', action: 'create', description: 'Create subjects' },
+    { name: 'subjects:update', resource: 'subjects', action: 'update', description: 'Update subjects' },
+    { name: 'subjects:delete', resource: 'subjects', action: 'delete', description: 'Delete subjects' },
+    { name: 'subjects:manage', resource: 'subjects', action: 'manage', description: 'Full subject management' },
+    { name: 'departments:read', resource: 'departments', action: 'read', description: 'View departments' },
+    { name: 'departments:create', resource: 'departments', action: 'create', description: 'Create departments' },
+    { name: 'departments:update', resource: 'departments', action: 'update', description: 'Update departments' },
+    { name: 'departments:delete', resource: 'departments', action: 'delete', description: 'Delete departments' },
+    { name: 'departments:manage', resource: 'departments', action: 'manage', description: 'Full department management' },
+    { name: 'attendance:read', resource: 'attendance', action: 'read', description: 'View attendance' },
+    { name: 'attendance:manage', resource: 'attendance', action: 'manage', description: 'Manage attendance' },
+    { name: 'salary:read', resource: 'salary', action: 'read', description: 'View salary' },
+    { name: 'salary:manage', resource: 'salary', action: 'manage', description: 'Manage salary' },
     { name: 'roles:read', resource: 'roles', action: 'read', description: 'View roles' },
     { name: 'roles:manage', resource: 'roles', action: 'manage', description: 'Manage roles' },
     { name: 'permissions:read', resource: 'permissions', action: 'read', description: 'View permissions' },
@@ -40,18 +58,20 @@ const ROLES = [
         description: 'Administrative access',
         permissions: [
             'users:manage', 'students:manage', 'teachers:manage',
+            'classrooms:manage', 'subjects:manage', 'departments:manage',
+            'attendance:manage', 'salary:manage',
             'roles:manage', 'permissions:manage',
         ],
     },
     {
         name: 'teacher',
         description: 'Teacher access',
-        permissions: ['students:read', 'teachers:read', 'users:read'],
+        permissions: ['students:read', 'teachers:read', 'users:read', 'classrooms:read', 'subjects:read', 'departments:read'],
     },
     {
         name: 'student',
         description: 'Student access',
-        permissions: ['students:read'],
+        permissions: ['students:read', 'classrooms:read', 'subjects:read'],
     },
 ];
 

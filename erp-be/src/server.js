@@ -1,9 +1,8 @@
-'use strict';
-
-require('dotenv').config();
-const app = require('./app');
-const { sequelize } = require('./models');
-const logger = require('./utils/logger');
+import 'dotenv/config';
+import app from './app.js';
+import db from './models/index.js';
+const { sequelize } = db;
+import logger from './utils/logger.js';
 
 const PORT = parseInt(process.env.PORT, 10) || 5000;
 

@@ -1,6 +1,4 @@
-'use strict';
-
-const { EventEmitter } = require('events');
+import { EventEmitter } from 'events';
 
 /**
  * Central event bus for permission-related events.
@@ -16,4 +14,4 @@ const permissionEmitter = new EventEmitter();
 // Prevent memory-leak warnings for large numbers of listeners
 permissionEmitter.setMaxListeners(20);
 
-module.exports = permissionEmitter;
+export default permissionEmitter;

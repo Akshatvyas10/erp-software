@@ -1,9 +1,9 @@
-'use strict';
-const router = require('express').Router();
-const { body, param } = require('express-validator');
-const C = require('../controllers/subjectController');
-const authenticate = require('../middlewares/authenticate');
-const validate = require('../middlewares/validate');
+import express from 'express';
+const router = express.Router();
+import { body, param } from 'express-validator';
+import * as C from '../controllers/subjectController.js';
+import authenticate from '../middlewares/authenticate.js';
+import validate from '../middlewares/validate.js';
 
 router.use(authenticate);
 
@@ -29,4 +29,4 @@ router.put('/:id',
 
 router.delete('/:id', [isUUID('id')], validate, C.deleteSubject);
 
-module.exports = router;
+export default router;

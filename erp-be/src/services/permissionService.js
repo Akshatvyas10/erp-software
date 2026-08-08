@@ -1,8 +1,7 @@
-'use strict';
-
-const { User, Role, Permission } = require('../models');
-const permissionEmitter = require('../events/permissionEmitter');
-const logger = require('../utils/logger');
+import db from '../models/index.js';
+const { User, Role, Permission } = db;
+import permissionEmitter from '../events/permissionEmitter.js';
+import logger from '../utils/logger.js';
 
 /**
  * In-process permission cache.
@@ -77,7 +76,7 @@ const getCacheEntry = (userId) => {
     return entry;
 };
 
-const bustCache = (userId) => {
+export const bustCache = (userId) => {
     permissionCache.delete(userId);
     logger.debug(`[PermissionService] Cache busted for user ${userId}`);
 };
@@ -88,7 +87,7 @@ const bustCache = (userId) => {
  * Get permissions for a user.
  * Returns from cache if fresh, otherwise fetches from DB and caches.
  */
-const getPermissions = async (userId) => {
+export const getPermissions = async (userId) => {
     const cached = getCacheEntry(userId);
     if (cached) {
         logger.debug(`[PermissionService] Cache HIT for user ${userId}`);
@@ -111,7 +110,7 @@ const getPermissions = async (userId) => {
  * @param {string} resource  e.g. "students"
  * @param {string} action    e.g. "read"
  */
-const hasPermission = async (userId, resource, action) => {
+export const hasPermission = async (userId, resource, action) => {
     const data = await getPermissions(userId);
     if (!data) return false;
 
@@ -133,7 +132,7 @@ const hasPermission = async (userId, resource, action) => {
 /**
  * Force-refresh the cache for a user (call after role/permission changes).
  */
-const refreshPermissions = async (userId) => {
+export const refreshPermissions = async (userId) => {
     bustCache(userId);
     return getPermissions(userId);
 };
@@ -186,10 +185,3 @@ permissionEmitter.on('user:refresh', async ({ userId }) => {
         logger.error(`[PermissionService] Failed to warm cache on refresh for ${userId}:`, err);
     }
 });
-
-module.exports = {
-    getPermissions,
-    hasPermission,
-    refreshPermissions,
-    bustCache,
-};

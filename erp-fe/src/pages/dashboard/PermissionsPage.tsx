@@ -1,9 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { KeyRound, Plus, Loader2, RefreshCw, Lock } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "../../components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,6 +14,7 @@ import {
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { usePermissions } from "@/store/hooks";
+import { useDebounce } from "@/hooks/use-debounce";
 import PermissionGate from "@/components/auth/PermissionGate";
 import AccessDenied from "@/components/auth/AccessDenied";
 
@@ -23,11 +25,11 @@ interface Permission {
 const ACTIONS = ["read", "create", "update", "delete", "manage"] as const;
 
 const ACTION_COLOR: Record<string, string> = {
-    read: "bg-blue-500/10 text-blue-600 border-blue-200",
-    create: "bg-green-500/10 text-green-600 border-green-200",
-    update: "bg-yellow-500/10 text-yellow-600 border-yellow-200",
-    delete: "bg-red-500/10 text-red-600 border-red-200",
-    manage: "bg-primary/10 text-primary border-primary/20",
+    read: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-transparent",
+    create: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-transparent",
+    update: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-transparent",
+    delete: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-transparent",
+    manage: "bg-purple-600/10 text-[#5513a1] dark:text-purple-400 border-transparent",
 };
 
 const fetchPermissions = async (): Promise<Permission[]> => {
@@ -39,7 +41,8 @@ export default function PermissionsPage() {
     const { can } = usePermissions();
     const qc = useQueryClient();
     const [createOpen, setCreateOpen] = useState(false);
-    const [search, setSearch] = useState("");
+    const [searchInput, setSearchInput] = useState("");
+    const search = useDebounce(searchInput, 300);
 
     const { data, isLoading, refetch, isFetching } = useQuery({
         queryKey: ["permissions", "all"],
@@ -64,20 +67,20 @@ export default function PermissionsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <KeyRound className="h-6 w-6 text-primary" />
+                        <KeyRound className="h-6 w-6 text-[#5513a1] dark:text-purple-400" />
                         Permissions
-                        {data && <Badge variant="secondary" className="text-xs">{data.length}</Badge>}
+                        {data && <Badge variant="secondary" className="text-xs bg-purple-600/10 text-[#5513a1] dark:text-purple-400">{data.length}</Badge>}
                     </h1>
                     <p className="text-muted-foreground text-sm mt-1">All system permissions grouped by resource.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => refetch()} disabled={isFetching}>
+                    <Button variant="outline" size="sm" className="gap-1.5 h-9 border-border/80 hover:bg-muted" onClick={() => refetch()} disabled={isFetching}>
                         <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
                         Refresh
                     </Button>
                     <PermissionGate resource="permissions" action="manage">
-                        <Button onClick={() => setCreateOpen(true)} className="gap-2 h-9">
-                            <Plus className="h-4 w-4" /> New Permission
+                        <Button variant="primary" onClick={() => setCreateOpen(true)} className="w-full md:w-auto gap-2 h-10 px-5 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                            <Plus className="h-4 w-4 stroke-[2.5]" /> New Permission
                         </Button>
                     </PermissionGate>
                 </div>
@@ -86,51 +89,61 @@ export default function PermissionsPage() {
             {/* Search */}
             <Input
                 placeholder="Search permissions..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="max-w-sm h-9 bg-secondary/50 border-none"
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                className="max-w-sm h-9 border-border bg-background shadow-sm focus-visible:ring-purple-500"
             />
 
             {isLoading ? (
-                <div className="flex justify-center py-16">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <div className="w-full space-y-4">
+                    {[1, 2, 3, 4].map(i => (
+                        <div key={i} className="border border-border/60 rounded-xl px-4 py-4 bg-card shadow-sm">
+                            <div className="flex items-center justify-between w-full">
+                                <div className="flex items-center gap-2">
+                                    <Skeleton className="h-4 w-4 rounded-full" />
+                                    <Skeleton className="h-5 w-32" />
+                                </div>
+                                <Skeleton className="h-5 w-24 rounded-full" />
+                            </div>
+                        </div>
+                    ))}
                 </div>
             ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <Accordion type="multiple" className="w-full space-y-4">
                     {Object.entries(grouped).map(([resource, perms]) => (
-                        <Card key={resource} className="border-border shadow-sm">
-                            <CardHeader className="pb-3 border-b border-border">
-                                <CardTitle className="text-xs font-bold uppercase tracking-wider flex items-center justify-between">
-                                    <span className="capitalize flex items-center gap-1.5">
-                                        <Lock className="h-3.5 w-3.5 text-primary" />
+                        <AccordionItem value={resource} key={resource} className="border border-border/60 rounded-xl px-1 sm:px-4 bg-card shadow-sm data-[state=open]:border-purple-600/40 transition-colors">
+                            <AccordionTrigger className="hover:no-underline py-4">
+                                <div className="flex items-center justify-between w-full pr-4">
+                                    <span className="capitalize flex items-center gap-2 font-bold text-sm md:text-base text-foreground">
+                                        <Lock className="h-4 w-4 text-[#5513a1] dark:text-purple-400" />
                                         {resource}
                                     </span>
-                                    <Badge variant="secondary" className="text-[10px] normal-case font-normal">
-                                        {perms.length}
+                                    <Badge variant="secondary" className="text-[10px] md:text-xs normal-case font-bold text-white bg-purple-600 dark:bg-purple-700/90 border-transparent">
+                                        {perms.length} Permissions
                                     </Badge>
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="pt-3 space-y-1.5">
-                                {perms.map((p) => (
-                                    <div
-                                        key={p.id}
-                                        className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-secondary/50 transition-colors group"
-                                    >
-                                        <div className="min-w-0">
-                                            <p className="text-[11px] font-semibold font-mono text-foreground truncate">{p.name}</p>
-                                            {p.description && (
-                                                <p className="text-[10px] text-muted-foreground truncate">{p.description}</p>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-1.5 ml-2 shrink-0">
-                                            <Badge variant="outline" className={`text-[10px] capitalize ${ACTION_COLOR[p.action] ?? ""}`}>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="pb-4 pt-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
+                                    {perms.map((p) => (
+                                        <div
+                                            key={p.id}
+                                            className="flex items-start justify-between py-3 px-3.5 rounded-lg bg-muted/20 border border-border/40 hover:bg-muted/50 transition-colors group"
+                                        >
+                                            <div className="min-w-0 flex-1 pr-3">
+                                                <p className="text-xs font-bold font-mono text-foreground truncate group-hover:text-[#5513a1] dark:group-hover:text-purple-400 transition-colors">{p.name}</p>
+                                                {p.description && (
+                                                    <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
+                                                )}
+                                            </div>
+                                            <Badge variant="outline" className={`text-[9px] uppercase font-bold shrink-0 shadow-sm ${ACTION_COLOR[p.action] ?? ""}`}>
                                                 {p.action}
                                             </Badge>
                                         </div>
-                                    </div>
-                                ))}
-                            </CardContent>
-                        </Card>
+                                    ))}
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
                     ))}
 
                     {Object.keys(grouped).length === 0 && !isLoading && (
@@ -139,7 +152,7 @@ export default function PermissionsPage() {
                             <p className="font-medium">No permissions found</p>
                         </div>
                     )}
-                </div>
+                </Accordion>
             )}
 
             <CreatePermissionDialog
@@ -176,15 +189,15 @@ function CreatePermissionDialog({ open, onClose, onSaved }: {
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-md">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <KeyRound className="h-5 w-5 text-primary" />
+            <DialogContent className="max-w-md p-0 overflow-hidden border-border/80 shadow-2xl rounded-2xl bg-background dark:bg-zinc-950">
+                <DialogHeader className="px-6 py-5 bg-muted/40 dark:bg-purple-950/10 border-b border-border shrink-0">
+                    <DialogTitle className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground">
+                        <KeyRound className="h-5 w-5 text-[#5513a1] dark:text-purple-400" />
                         New Permission
                     </DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-4 py-2">
+                <div className="space-y-4 px-6 py-4">
                     <div className="space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Name *</Label>
                         <Input value={name} onChange={e => setName(e.target.value)} placeholder="students:read" className="h-10 font-mono" />
@@ -203,7 +216,7 @@ function CreatePermissionDialog({ open, onClose, onSaved }: {
                                         key={a}
                                         variant="outline"
                                         onClick={() => setAction(a)}
-                                        className={`cursor-pointer capitalize text-xs transition-all ${action === a ? "bg-primary text-primary-foreground border-primary" : ACTION_COLOR[a]}`}
+                                        className={`cursor-pointer capitalize text-xs transition-all font-bold tracking-tight ${action === a ? "bg-purple-600 text-white border-transparent" : ACTION_COLOR[a]}`}
                                     >
                                         {a}
                                     </Badge>
@@ -217,9 +230,9 @@ function CreatePermissionDialog({ open, onClose, onSaved }: {
                     </div>
                 </div>
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-                    <Button onClick={handleSave} disabled={saving} className="gap-2">
+                <DialogFooter className="px-6 py-5 bg-muted/40 dark:bg-purple-950/10 border-t border-border mt-6">
+                    <Button variant="outline" onClick={onClose} disabled={saving} className="h-10 px-6 font-semibold border-border/80 hover:bg-muted rounded-xl">Cancel</Button>
+                    <Button onClick={handleSave} disabled={saving} className="h-10 px-8 gap-2 font-semibold bg-purple-700 hover:bg-purple-800 dark:bg-purple-600 dark:hover:bg-purple-500 text-white rounded-xl shadow-md transition-transform active:scale-[0.98]">
                         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                         Create
                     </Button>

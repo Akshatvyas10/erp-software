@@ -1,14 +1,14 @@
 'use strict';
 
-const router = require('express').Router();
-const { body, param, query } = require('express-validator');
-const {
-    previewSalary, generateSalarySlip, getTeacherSalarySlips,
-    getSalarySlip, updatePaymentStatus, listAllSalarySlips,
-} = require('../controllers/salaryController');
-const authenticate = require('../middlewares/authenticate');
-const { requirePermission } = require('../middlewares/authorize');
-const validate = require('../middlewares/validate');
+import express from 'express';
+const router = express.Router();
+import { body, param, query } from 'express-validator';
+import * as salaryController from '../controllers/salaryController.js';
+const { previewSalary, generateSalarySlip, getTeacherSalarySlips,
+    getSalarySlip, updatePaymentStatus, listAllSalarySlips, } = salaryController;
+import authenticate from '../middlewares/authenticate.js';
+import { requirePermission } from '../middlewares/authorize.js';
+import validate from '../middlewares/validate.js';
 
 router.use(authenticate);
 
@@ -56,4 +56,4 @@ router.patch('/slip/:slipId/status',
     updatePaymentStatus
 );
 
-module.exports = router;
+export default router;

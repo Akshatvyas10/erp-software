@@ -1,6 +1,6 @@
-'use strict';
-const { Subject } = require('../models');
-const { success, error } = require('../utils/apiResponse');
+import db from '../models/index.js';
+const { Subject } = db;
+import { success, error } from '../utils/apiResponse.js';
 
 // ── GET /api/subjects ────────────────────────────────────────────────────────
 const getAllSubjects = async (req, res, next) => {
@@ -78,7 +78,7 @@ const deleteSubject = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
-module.exports = {
+export {
     getAllSubjects,
     getSubjectById,
     createSubject,

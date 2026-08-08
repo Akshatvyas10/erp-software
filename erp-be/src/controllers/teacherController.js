@@ -1,8 +1,9 @@
 'use strict';
 
-const { Op } = require('sequelize');
-const { Teacher, User, Role } = require('../models');
-const { success, error } = require('../utils/apiResponse');
+import { Op } from 'sequelize';
+import db from '../models/index.js';
+const { Teacher, User, Role, Department } = db;
+import { success, error } from '../utils/apiResponse.js';
 
 // All teacher-owned fields allowed on create / update
 const TEACHER_FIELDS = [
@@ -52,9 +53,31 @@ const listTeachers = async (req, res, next) => {
             order: [['createdAt', 'DESC']],
             distinct: true,
         });
+        
+        // Map department and designation names
+        const departments = await Department.findAll();
+        const deptMap = departments.reduce((acc, d) => ({ ...acc, [d.id]: d.name }), {});
+        
+        const designationLabels = {
+            'CLASS_TEACHER': 'Class Teacher',
+            'SUBJECT_TEACHER': 'Subject Teacher',
+            'HEAD_OF_DEPARTMENT': 'Head of Department',
+            'ASSISTANT_TEACHER': 'Assistant Teacher',
+            'LAB_ASSISTANT': 'Lab Assistant',
+            'SPECIAL_EDUCATOR': 'Special Educator',
+            'PHYSICAL_EDUCATION_TEACHER': 'Physical Education Teacher',
+            'SUBSTITUTE_TEACHER': 'Substitute Teacher'
+        };
+
+        const teachersMapped = rows.map(t => {
+            const data = t.toJSON();
+            data.departmentName = deptMap[data.department] || data.department;
+            data.designationName = designationLabels[data.designation] || data.designation;
+            return data;
+        });
 
         return success(res, {
-            teachers: rows,
+            teachers: teachersMapped,
             pagination: { total: count, page, limit, pages: Math.ceil(count / limit) },
         });
     } catch (err) { next(err); }
@@ -197,4 +220,4 @@ const deleteTeacher = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
-module.exports = { listTeachers, getMyTeacherProfile, getTeacher, createTeacher, updateTeacher, deleteTeacher };
+export { listTeachers, getMyTeacherProfile, getTeacher, createTeacher, updateTeacher, deleteTeacher };

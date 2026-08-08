@@ -1,6 +1,5 @@
-'use strict';
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
 const Subject = sequelize.define('Subject', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
@@ -19,4 +18,4 @@ const Subject = sequelize.define('Subject', {
     updatedAt: 'updated_at'
 });
 
-module.exports = Subject;
+export default Subject;

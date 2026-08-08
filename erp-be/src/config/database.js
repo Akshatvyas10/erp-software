@@ -1,6 +1,4 @@
-'use strict';
-
-const { Sequelize } = require('sequelize');
+import { Sequelize } from 'sequelize';
 
 if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL environment variable is not set');
@@ -36,4 +34,4 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
     },
 });
 
-module.exports = sequelize;
+export default sequelize;

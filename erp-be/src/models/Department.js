@@ -1,7 +1,5 @@
-'use strict';
-
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
 const Department = sequelize.define('Department', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true, allowNull: false },
@@ -24,4 +22,4 @@ const Department = sequelize.define('Department', {
     }
 }, { tableName: 'departments' });
 
-module.exports = Department;
+export default Department;

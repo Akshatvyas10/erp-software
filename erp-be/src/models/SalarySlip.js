@@ -1,7 +1,7 @@
 'use strict';
 
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
 const SalarySlip = sequelize.define('SalarySlip', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
@@ -62,4 +62,4 @@ const SalarySlip = sequelize.define('SalarySlip', {
     timestamps: true,
 });
 
-module.exports = SalarySlip;
+export default SalarySlip;

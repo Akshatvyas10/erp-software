@@ -1,8 +1,9 @@
 'use strict';
 
-const { Op } = require('sequelize');
-const { User, Role, Student, Teacher } = require('../models');
-const { success, error } = require('../utils/apiResponse');
+import { Op } from 'sequelize';
+import db from '../models/index.js';
+const { User, Role, Student, Teacher } = db;
+import { success, error } from '../utils/apiResponse.js';
 
 const safeAttrs = { exclude: ['password', 'refreshTokenHash', 'loginAttempts', 'lockedUntil'] };
 
@@ -138,4 +139,4 @@ const deleteUser = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
-module.exports = { listUsers, getUser, createUser, updateUser, assignRoles, setActiveStatus, deleteUser };
+export { listUsers, getUser, createUser, updateUser, assignRoles, setActiveStatus, deleteUser };

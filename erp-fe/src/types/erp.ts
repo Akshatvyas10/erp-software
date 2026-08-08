@@ -53,6 +53,8 @@ export interface Teacher {
     employeeNumber: string | null;
     department: string | null;
     designation: string | null;
+    departmentName: string | null;
+    designationName: string | null;
     qualification: string | null;
     joiningDate: string | null;
     phone: string | null;
@@ -297,4 +299,55 @@ export interface UpsertTimetableSlotPayload {
     dayOfWeek: DayOfWeek;
     startTime: string;
     endTime: string;
+}
+
+// ─── Homework Management Types ────────────────────────────────────────────────
+export type HomeworkStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+export type HomeworkSubmissionStatus = 'PENDING' | 'SUBMITTED' | 'REVIEWED' | 'OVERDUE';
+
+export interface Homework {
+    id: string;
+    title: string;
+    description: string;
+    dueDate: string;
+    status: HomeworkStatus;
+    classroomId: string;
+    subjectId: string;
+    teacherId: string;
+    createdAt: string;
+    updatedAt: string;
+    classroom?: {
+        id: string;
+        name: string;
+        section: string;
+    };
+    subject?: {
+        id: string;
+        name: string;
+        code: string;
+    };
+    teacher?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+    };
+}
+
+export interface HomeworkSubmission {
+    id: string;
+    homeworkId: string;
+    studentId: string;
+    status: HomeworkSubmissionStatus;
+    submittedAt: string | null;
+    feedback: string | null;
+    grade: string | null;
+    createdAt: string;
+    updatedAt: string;
+    student?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        admissionNumber: string | null;
+    };
+    homework?: Homework;
 }

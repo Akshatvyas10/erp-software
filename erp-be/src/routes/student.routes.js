@@ -1,17 +1,17 @@
 'use strict';
 
-const router = require('express').Router();
-const { body, param, query } = require('express-validator');
+import express from 'express';
+const router = express.Router();
+import { body, param, query } from 'express-validator';
 
-const {
-    listStudents, getStudent, getMyStudentProfile,
-    createStudent, updateStudent, deleteStudent,
-} = require('../controllers/studentController');
+import * as studentController from '../controllers/studentController.js';
+const { listStudents, getStudent, getMyStudentProfile,
+    createStudent, updateStudent, deleteStudent, } = studentController;
 
-const authenticate = require('../middlewares/authenticate');
-const { requirePermission, requireRole } = require('../middlewares/authorize');
-const validate = require('../middlewares/validate');
-const { handleProfilePhotoUpload } = require('../middlewares/uploadMiddleware');
+import authenticate from '../middlewares/authenticate.js';
+import { requirePermission, requireRole } from '../middlewares/authorize.js';
+import validate from '../middlewares/validate.js';
+import { handleProfilePhotoUpload } from '../middlewares/uploadMiddleware.js';
 
 // ─── All routes require a valid JWT ──────────────────────────────────────────
 router.use(authenticate);
@@ -140,4 +140,4 @@ router.delete('/:id',
     deleteStudent
 );
 
-module.exports = router;
+export default router;

@@ -1,6 +1,4 @@
-'use strict';
-
-const logger = require('../utils/logger');
+import logger from '../utils/logger.js';
 
 // eslint-disable-next-line no-unused-vars
 const errorHandler = (err, req, res, next) => {
@@ -29,4 +27,4 @@ const errorHandler = (err, req, res, next) => {
     return res.status(statusCode).json({ success: false, message });
 };
 
-module.exports = errorHandler;
+export default errorHandler;

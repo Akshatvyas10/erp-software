@@ -1,20 +1,20 @@
 'use strict';
 
-const router = require('express').Router();
-const { body, param, query } = require('express-validator');
-const {
-    listRoles,
+import express from 'express';
+const router = express.Router();
+import { body, param, query } from 'express-validator';
+import * as roleController from '../controllers/roleController.js';
+const { listRoles,
     getRole,
     getRoleUsers,
     searchUsers,
     createRole,
     updateRole,
     deleteRole,
-    assignRoleToUser,
-} = require('../controllers/roleController');
-const authenticate = require('../middlewares/authenticate');
-const { requirePermission } = require('../middlewares/authorize');
-const validate = require('../middlewares/validate');
+    assignRoleToUser, } = roleController;
+import authenticate from '../middlewares/authenticate.js';
+import { requirePermission } from '../middlewares/authorize.js';
+import validate from '../middlewares/validate.js';
 
 router.use(authenticate);
 
@@ -77,4 +77,4 @@ router.patch('/:id/users/:userId',
     assignRoleToUser
 );
 
-module.exports = router;
+export default router;

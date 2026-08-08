@@ -1,10 +1,11 @@
 'use strict';
-const router = require('express').Router();
-const { body, param } = require('express-validator');
-const C = require('../controllers/classroomController');
-const authenticate = require('../middlewares/authenticate');
-const { requirePermission } = require('../middlewares/authorize');
-const validate = require('../middlewares/validate');
+import express from 'express';
+const router = express.Router();
+import { body, param } from 'express-validator';
+import * as C from '../controllers/classroomController.js';
+import authenticate from '../middlewares/authenticate.js';
+import { requirePermission } from '../middlewares/authorize.js';
+import validate from '../middlewares/validate.js';
 
 router.use(authenticate);
 
@@ -57,4 +58,4 @@ router.delete('/:id/subjects/:subjectId/timetable/:slotId',
     [isUUID('id'), isUUID('subjectId'), isUUID('slotId')], validate,
     requirePermission('classrooms', 'update'), C.deleteTimetableSlot);
 
-module.exports = router;
+export default router;

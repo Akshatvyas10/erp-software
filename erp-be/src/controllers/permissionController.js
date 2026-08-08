@@ -1,9 +1,10 @@
 'use strict';
 
-const { Permission } = require('../models');
-const { getPermissions, hasPermission } = require('../services/permissionService');
-const { encryptPayload } = require('../utils/payloadCrypto');
-const { success, error } = require('../utils/apiResponse');
+import db from '../models/index.js';
+const { Permission } = db;
+import { getPermissions, hasPermission } from '../services/permissionService.js';
+import { encryptPayload } from '../utils/payloadCrypto.js';
+import { success, error } from '../utils/apiResponse.js';
 
 // ─── GET /api/permissions/my ──────────────────────────────────────────────────
 /**
@@ -120,7 +121,7 @@ const deletePermission = async (req, res, next) => {
     }
 };
 
-module.exports = {
+export {
     getMyPermissions,
     checkPermission,
     checkManyPermissions,

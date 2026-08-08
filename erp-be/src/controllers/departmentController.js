@@ -1,7 +1,6 @@
-'use strict';
-
-const { Department, Teacher, User } = require('../models');
-const { success, error } = require('../utils/apiResponse');
+import db from '../models/index.js';
+const { Department, Teacher, User } = db;
+import { success, error } from '../utils/apiResponse.js';
 
 /** GET /api/departments */
 const listDepartments = async (req, res, next) => {
@@ -95,4 +94,4 @@ const deleteDepartment = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
-module.exports = { listDepartments, createDepartment, updateDepartment, deleteDepartment };
+export { listDepartments, createDepartment, updateDepartment, deleteDepartment };

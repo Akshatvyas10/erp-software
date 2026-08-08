@@ -1,14 +1,14 @@
 'use strict';
 
-const router = require('express').Router();
-const { body, param } = require('express-validator');
-const {
-    listTeachers, getMyTeacherProfile, getTeacher,
-    createTeacher, updateTeacher, deleteTeacher,
-} = require('../controllers/teacherController');
-const authenticate = require('../middlewares/authenticate');
-const { requirePermission, requireRole } = require('../middlewares/authorize');
-const validate = require('../middlewares/validate');
+import express from 'express';
+const router = express.Router();
+import { body, param } from 'express-validator';
+import * as teacherController from '../controllers/teacherController.js';
+const { listTeachers, getMyTeacherProfile, getTeacher,
+    createTeacher, updateTeacher, deleteTeacher, } = teacherController;
+import authenticate from '../middlewares/authenticate.js';
+import { requirePermission, requireRole } from '../middlewares/authorize.js';
+import validate from '../middlewares/validate.js';
 
 router.use(authenticate);
 
@@ -56,4 +56,4 @@ router.delete('/:id',
     deleteTeacher
 );
 
-module.exports = router;
+export default router;

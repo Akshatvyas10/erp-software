@@ -1,7 +1,5 @@
-'use strict';
-
-const { hasPermission } = require('../services/permissionService');
-const { error } = require('../utils/apiResponse');
+import { hasPermission } from '../services/permissionService.js';
+import { error } from '../utils/apiResponse.js';
 
 /**
  * requirePermission('students', 'read')
@@ -13,7 +11,7 @@ const { error } = require('../utils/apiResponse');
  *   - Multiple permission pairs:  requirePermission('students','read', 'teachers','read')
  *     → user must pass ALL listed checks
  */
-const requirePermission = (...pairs) => {
+export const requirePermission = (...pairs) => {
     if (pairs.length % 2 !== 0) {
         throw new Error('requirePermission: arguments must be resource/action pairs e.g. ("students","read")');
     }
@@ -39,7 +37,7 @@ const requirePermission = (...pairs) => {
  * requireRole('admin', 'teacher')
  * User must have ANY of the listed roles.
  */
-const requireRole = (...roles) => {
+export const requireRole = (...roles) => {
     return (req, res, next) => {
         if (!req.user) return error(res, 'Authentication required', 401);
 
@@ -57,7 +55,7 @@ const requireRole = (...roles) => {
  * requireSelf(paramName, overridePermission)
  * User can only access their own resource unless they have the override permission.
  */
-const requireSelf = (paramName = 'id', overrideResource = null, overrideAction = 'manage') => {
+export const requireSelf = (paramName = 'id', overrideResource = null, overrideAction = 'manage') => {
     return async (req, res, next) => {
         if (!req.user) return error(res, 'Authentication required', 401);
 
@@ -75,5 +73,3 @@ const requireSelf = (paramName = 'id', overrideResource = null, overrideAction =
         next();
     };
 };
-
-module.exports = { requirePermission, requireRole, requireSelf };

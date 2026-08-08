@@ -1,20 +1,22 @@
 'use strict';
 
-const sequelize = require('../config/database');
-const Role = require('./Role');
-const Permission = require('./Permission');
-const User = require('./User');
-const Student = require('./Student');
-const Teacher = require('./Teacher');
-const TeacherAttendance = require('./TeacherAttendance');
-const SalarySlip = require('./SalarySlip');
-const Department = require('./Department');
-const Classroom = require('./Classroom');
-const ClassroomStudent = require('./ClassroomStudent');
-const ClassroomSubject = require('./ClassroomSubject');
-const ClassroomPeriod = require('./ClassroomPeriod');
-const Timetable = require('./Timetable');
-const Subject = require('./Subject');
+import sequelize from '../config/database.js';
+import Role from './Role.js';
+import Permission from './Permission.js';
+import User from './User.js';
+import Student from './Student.js';
+import Teacher from './Teacher.js';
+import TeacherAttendance from './TeacherAttendance.js';
+import SalarySlip from './SalarySlip.js';
+import Department from './Department.js';
+import Classroom from './Classroom.js';
+import ClassroomStudent from './ClassroomStudent.js';
+import ClassroomSubject from './ClassroomSubject.js';
+import ClassroomPeriod from './ClassroomPeriod.js';
+import Timetable from './Timetable.js';
+import Subject from './Subject.js';
+import Homework from './Homework.js';
+import HomeworkSubmission from './HomeworkSubmission.js';
 
 // ─── Role ↔ Permission ────────────────────────────────────────────────────────
 Role.belongsToMany(Permission, { through: 'role_permissions', foreignKey: 'role_id', otherKey: 'permission_id', timestamps: false });
@@ -68,9 +70,26 @@ Timetable.belongsTo(ClassroomSubject, { foreignKey: 'classroomSubjectId', as: 'c
 Subject.hasMany(ClassroomSubject, { foreignKey: 'subjectId', as: 'classroomSubjects' });
 ClassroomSubject.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
 
-module.exports = {
+// ─── Homework ↔ Classroom / Subject / Teacher ──────────────────────────────────
+Classroom.hasMany(Homework, { foreignKey: 'classroomId', as: 'homeworks', onDelete: 'CASCADE' });
+Homework.belongsTo(Classroom, { foreignKey: 'classroomId', as: 'classroom' });
+
+Subject.hasMany(Homework, { foreignKey: 'subjectId', as: 'homeworks', onDelete: 'CASCADE' });
+Homework.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });
+
+Teacher.hasMany(Homework, { foreignKey: 'teacherId', as: 'homeworks', onDelete: 'CASCADE' });
+Homework.belongsTo(Teacher, { foreignKey: 'teacherId', as: 'teacher' });
+
+// ─── Homework ↔ HomeworkSubmission ───────────────────────────────────────────
+Homework.hasMany(HomeworkSubmission, { foreignKey: 'homeworkId', as: 'submissions', onDelete: 'CASCADE' });
+HomeworkSubmission.belongsTo(Homework, { foreignKey: 'homeworkId', as: 'homework' });
+
+Student.hasMany(HomeworkSubmission, { foreignKey: 'studentId', as: 'homeworkSubmissions', onDelete: 'CASCADE' });
+HomeworkSubmission.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
+
+export default {
     sequelize, Role, Permission, User, Student, Teacher,
     TeacherAttendance, SalarySlip, Department,
     Classroom, ClassroomStudent, ClassroomPeriod, ClassroomSubject, Timetable,
-    Subject,
+    Subject, Homework, HomeworkSubmission,
 };

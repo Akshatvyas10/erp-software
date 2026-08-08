@@ -39,7 +39,7 @@ export default function DepartmentsPage() {
 
     useEffect(() => {
         fetchDepartments();
-        if (can("teachers", "create")) fetchTeachers();
+        if (can("departments", "create")) fetchTeachers();
     }, []);
 
     const fetchDepartments = async (quiet = false) => {
@@ -105,7 +105,7 @@ export default function DepartmentsPage() {
         visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
     };
 
-    if (!can("teachers", "read")) return <AccessDenied />;
+    if (!can("departments", "read")) return <AccessDenied />;
 
     return (
         <motion.div
@@ -135,7 +135,7 @@ export default function DepartmentsPage() {
                     >
                         <RefreshCw className={`h-4 w-4 text-muted-foreground ${isRefetching ? "animate-spin text-[#7f39c2]" : ""}`} />
                     </Button>
-                    {can("teachers", "create") && (
+                    {can("departments", "create") && (
                         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                             <DialogTrigger asChild>
                                 <Button variant="primary" className="w-full md:w-auto gap-2 h-10 px-5 transition-all hover:scale-[1.02] active:scale-[0.98]">
@@ -247,7 +247,7 @@ export default function DepartmentsPage() {
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-right pr-6 py-4.5">
-                                                {can("teachers", "delete") && (
+                                                {can("departments", "delete") && (
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"

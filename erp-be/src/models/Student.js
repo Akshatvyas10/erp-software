@@ -1,7 +1,7 @@
 'use strict';
 
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
 const Student = sequelize.define(
     'Student',
@@ -142,4 +142,4 @@ const Student = sequelize.define(
     }
 );
 
-module.exports = Student;
+export default Student;

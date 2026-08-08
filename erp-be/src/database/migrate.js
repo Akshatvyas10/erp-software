@@ -1,12 +1,18 @@
-'use strict';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-require('dotenv').config();
+import db from '../models/index.js';
 const {
     sequelize, Role, Permission, User,
     Student, Teacher, TeacherAttendance, SalarySlip, Department,
     Classroom, ClassroomStudent, ClassroomSubject, Timetable, Subject,
-} = require('../models');
-const logger = require('../utils/logger');
+    Homework, HomeworkSubmission,
+} = db;
+import logger from '../utils/logger.js';
 
 (async () => {
     try {
@@ -61,6 +67,12 @@ const logger = require('../utils/logger');
 
         await Timetable.sync({ force: false, alter: true });
         logger.info('✓ timetables');
+
+        await Homework.sync({ force: false, alter: true });
+        logger.info('✓ homeworks');
+
+        await HomeworkSubmission.sync({ force: false, alter: true });
+        logger.info('✓ homework_submissions');
 
         logger.info('All tables synchronized with Neon DB.');
         process.exit(0);

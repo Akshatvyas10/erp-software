@@ -1,10 +1,11 @@
 'use strict';
-const { Op } = require('sequelize');
+import { Op } from 'sequelize';
+import db from '../models/index.js';
 const {
     Classroom, ClassroomStudent, ClassroomSubject, ClassroomPeriod,
     Timetable, Student, Teacher, User, Subject,
-} = require('../models');
-const { success, error } = require('../utils/apiResponse');
+} = db;
+import { success, error } from '../utils/apiResponse.js';
 
 const studentAccount = {
     model: User, as: 'account',
@@ -305,7 +306,7 @@ const deletePeriod = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
-module.exports = {
+export {
     listClassrooms, getClassroom, createClassroom, updateClassroom, deleteClassroom,
     getRoster, assignStudents, removeStudent,
     getSubjects, addSubject, removeSubject,

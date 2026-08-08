@@ -1,11 +1,12 @@
 'use strict';
 
-const bcrypt = require('bcryptjs');
-const { User, Role, Permission } = require('../models');
-const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../utils/tokenUtils');
-const { success, error } = require('../utils/apiResponse');
-const logger = require('../utils/logger');
-const permissionEmitter = require('../events/permissionEmitter');
+import bcrypt from 'bcryptjs';
+import db from '../models/index.js';
+const { User, Role, Permission } = db;
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/tokenUtils.js';
+import { success, error } from '../utils/apiResponse.js';
+import logger from '../utils/logger.js';
+import permissionEmitter from '../events/permissionEmitter.js';
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 15 * 60 * 1000;
@@ -221,4 +222,4 @@ const me = async (req, res, next) => {
     }
 };
 
-module.exports = { login, refresh, logout, logoutAll, me };
+export { login, refresh, logout, logoutAll, me };

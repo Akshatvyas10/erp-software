@@ -1,29 +1,29 @@
-'use strict';
+import path from 'path';
+import express from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import compression from 'compression';
+import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 
-const path = require('path');
-const express = require('express');
-const helmet = require('helmet');
-const cors = require('cors');
-const compression = require('compression');
-const morgan = require('morgan');
-const cookieParser = require('cookie-parser');
-
-const { apiLimiter } = require('./middlewares/rateLimiter');
-const errorHandler = require('./middlewares/errorHandler');
-const logger = require('./utils/logger');
+import { apiLimiter } from './middlewares/rateLimiter.js';
+import errorHandler from './middlewares/errorHandler.js';
+import logger from './utils/logger.js';
+import xssSanitizer from './middlewares/xssSanitizer.js';
 
 // Routes
-const authRoutes = require('./routes/auth.routes');
-const userRoutes = require('./routes/user.routes');
-const roleRoutes = require('./routes/role.routes');
-const permissionRoutes = require('./routes/permission.routes');
-const studentRoutes = require('./routes/student.routes');
-const teacherRoutes = require('./routes/teacher.routes');
-const salaryRoutes = require('./routes/salary.routes');
-const attendanceRoutes = require('./routes/attendance.routes');
-const departmentRoutes = require('./routes/department.routes');
-const classroomRoutes = require('./routes/classroom.routes');
-const subjectRoutes = require('./routes/subject.routes');
+import authRoutes from './routes/auth.routes.js';
+import userRoutes from './routes/user.routes.js';
+import roleRoutes from './routes/role.routes.js';
+import permissionRoutes from './routes/permission.routes.js';
+import studentRoutes from './routes/student.routes.js';
+import teacherRoutes from './routes/teacher.routes.js';
+import salaryRoutes from './routes/salary.routes.js';
+import attendanceRoutes from './routes/attendance.routes.js';
+import departmentRoutes from './routes/department.routes.js';
+import classroomRoutes from './routes/classroom.routes.js';
+import subjectRoutes from './routes/subject.routes.js';
+import homeworkRoutes from './routes/homework.routes.js';
 
 const app = express();
 
@@ -51,6 +51,7 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false, limit: '10kb' }));
 app.use(cookieParser());
 app.use(compression());
+app.use(xssSanitizer);
 
 // ─── Logging ─────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
@@ -80,6 +81,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/classrooms', classroomRoutes);
 app.use('/api/subjects', subjectRoutes);
+app.use('/api/homeworks', homeworkRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {
@@ -89,4 +91,4 @@ app.use((req, res) => {
 // ─── Global error handler ─────────────────────────────────────────────────────
 app.use(errorHandler);
 
-module.exports = app;
+export default app;

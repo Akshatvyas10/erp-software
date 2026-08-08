@@ -1,7 +1,5 @@
-'use strict';
-
-const { validationResult } = require('express-validator');
-const { error } = require('../utils/apiResponse');
+import { validationResult } from 'express-validator';
+import { error } from '../utils/apiResponse.js';
 
 /**
  * Runs after express-validator chains and short-circuits on failure.
@@ -15,4 +13,4 @@ const validate = (req, res, next) => {
     next();
 };
 
-module.exports = validate;
+export default validate;

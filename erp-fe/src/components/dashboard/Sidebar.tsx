@@ -33,8 +33,9 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Users", to: "/dashboard/users", icon: Users, resource: "users", action: "read" },
     { label: "Students", to: "/dashboard/students", icon: GraduationCap, resource: "students", action: "read" },
     { label: "Teachers", to: "/dashboard/teachers", icon: BookOpen, resource: "teachers", action: "read" },
-    { label: "Departments", to: "/dashboard/departments", icon: Building2, resource: "teachers", action: "read" },
+    { label: "Departments", to: "/dashboard/departments", icon: Building2, resource: "departments", action: "read" },
     { label: "Classrooms", to: "/dashboard/classrooms", icon: LayoutGrid, resource: "classrooms", action: "read" },
+    { label: "Homework", to: "/dashboard/homework", icon: BookOpen, resource: "homework", action: "read" },
     { label: "Roles", to: "/dashboard/roles", icon: ShieldCheck, resource: "roles", action: "read" },
     { label: "Permissions", to: "/dashboard/permissions", icon: KeyRound, resource: "permissions", action: "read" },
 ];
