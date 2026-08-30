@@ -20,10 +20,12 @@ import studentRoutes from './routes/student.routes.js';
 import teacherRoutes from './routes/teacher.routes.js';
 import salaryRoutes from './routes/salary.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
+import studentAttendanceRoutes from './routes/studentAttendance.routes.js';
 import departmentRoutes from './routes/department.routes.js';
 import classroomRoutes from './routes/classroom.routes.js';
 import subjectRoutes from './routes/subject.routes.js';
 import homeworkRoutes from './routes/homework.routes.js';
+import eventRoutes from './routes/event.routes.js';
 
 const app = express();
 
@@ -77,11 +79,13 @@ app.use('/api/permissions', permissionRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/salary', salaryRoutes);
-app.use('/api/attendance', attendanceRoutes);
+app.use('/api/attendance', attendanceRoutes); // Teacher attendance
+app.use('/api/student-attendance', studentAttendanceRoutes); // Student attendance
 app.use('/api/departments', departmentRoutes);
 app.use('/api/classrooms', classroomRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/homeworks', homeworkRoutes);
+app.use('/api/events', eventRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {

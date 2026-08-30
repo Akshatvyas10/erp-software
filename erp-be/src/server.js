@@ -4,6 +4,9 @@ import db from './models/index.js';
 const { sequelize } = db;
 import logger from './utils/logger.js';
 
+import http from 'http';
+import { initSocket } from './config/socket.js';
+
 const PORT = parseInt(process.env.PORT, 10) || 5000;
 
 const start = async () => {
@@ -11,7 +14,10 @@ const start = async () => {
         await sequelize.authenticate();
         logger.info('PostgreSQL connection established.');
 
-        app.listen(PORT, () => {
+        const server = http.createServer(app);
+        initSocket(server);
+
+        server.listen(PORT, () => {
             logger.info(`ERP server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
         });
     } catch (err) {

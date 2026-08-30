@@ -43,6 +43,11 @@ const PERMISSIONS = [
     { name: 'roles:manage', resource: 'roles', action: 'manage', description: 'Manage roles' },
     { name: 'permissions:read', resource: 'permissions', action: 'read', description: 'View permissions' },
     { name: 'permissions:manage', resource: 'permissions', action: 'manage', description: 'Manage permissions' },
+    { name: 'events:read', resource: 'events', action: 'read', description: 'View events' },
+    { name: 'events:create', resource: 'events', action: 'create', description: 'Create events' },
+    { name: 'events:update', resource: 'events', action: 'update', description: 'Update events' },
+    { name: 'events:delete', resource: 'events', action: 'delete', description: 'Delete events' },
+    { name: 'events:manage', resource: 'events', action: 'manage', description: 'Full event management' },
     { name: 'all:manage', resource: 'all', action: 'manage', description: 'Full system access' },
 ];
 
@@ -60,18 +65,18 @@ const ROLES = [
             'users:manage', 'students:manage', 'teachers:manage',
             'classrooms:manage', 'subjects:manage', 'departments:manage',
             'attendance:manage', 'salary:manage',
-            'roles:manage', 'permissions:manage',
+            'roles:manage', 'permissions:manage', 'events:manage',
         ],
     },
     {
         name: 'teacher',
         description: 'Teacher access',
-        permissions: ['students:read', 'teachers:read', 'users:read', 'classrooms:read', 'subjects:read', 'departments:read'],
+        permissions: ['students:read', 'teachers:read', 'users:read', 'classrooms:read', 'subjects:read', 'departments:read', 'events:read', 'events:create', 'events:update'],
     },
     {
         name: 'student',
         description: 'Student access',
-        permissions: ['students:read', 'classrooms:read', 'subjects:read'],
+        permissions: ['students:read', 'classrooms:read', 'subjects:read', 'events:read'],
     },
 ];
 

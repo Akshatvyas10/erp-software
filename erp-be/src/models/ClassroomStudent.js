@@ -13,10 +13,14 @@ const ClassroomStudent = sequelize.define('ClassroomStudent', {
         type: DataTypes.UUID, allowNull: false, field: 'student_id',
         references: { model: 'students', key: 'id' }, onDelete: 'CASCADE'
     },
+    rollNumber: {
+        type: DataTypes.STRING(20), allowNull: true, field: 'roll_number'
+    },
 }, {
     tableName: 'classroom_students',
     indexes: [
         { unique: true, fields: ['classroom_id', 'student_id'], name: 'unique_classroom_student' },
+        { unique: true, fields: ['classroom_id', 'roll_number'], name: 'unique_classroom_roll' },
         { fields: ['student_id'], name: 'idx_cs_student' },
     ],
     paranoid: false,

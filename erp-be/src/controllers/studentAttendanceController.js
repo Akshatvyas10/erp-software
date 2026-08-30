@@ -1,0 +1,153 @@
+import db from '../models/index.js';
+import logger from '../utils/logger.js';
+import { Op } from 'sequelize';
+
+import { isSaturday, isSunday, parseISO } from 'date-fns';
+
+const { StudentAttendance, Classroom, ClassroomSubject, Teacher, Student, CalendarEvent, EventType } = db;
+
+export const getMyClassrooms = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const isAdmin = req.user.Roles?.some(r => r.name === 'admin' || r.name === 'super_admin');
+
+        if (isAdmin) {
+            const allClassrooms = await Classroom.findAll();
+            return res.json({ success: true, classrooms: allClassrooms });
+        }
+
+        const teacher = await Teacher.findOne({ where: { userId } });
+        if (!teacher) {
+            return res.status(403).json({ success: false, message: "User is not a teacher." });
+        }
+
+        // Get class teacher classrooms
+        const classTeacherClassrooms = await Classroom.findAll({
+            where: { classTeacherId: teacher.id }
+        });
+
+        // Get subject teacher classrooms
+        const subjectAssigned = await ClassroomSubject.findAll({
+            where: { teacherId: teacher.id },
+            include: [{ model: Classroom, as: 'classroom' }]
+        });
+
+        const subjectClassrooms = subjectAssigned
+            .filter(cs => cs.classroom)
+            .map(cs => cs.classroom);
+
+        // Merge and unique
+        const map = new Map();
+        classTeacherClassrooms.forEach(c => map.set(c.id, c));
+        subjectClassrooms.forEach(c => map.set(c.id, c));
+
+        return res.json({ success: true, classrooms: Array.from(map.values()) });
+    } catch (err) {
+        logger.error('Error in getMyClassrooms:', err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+export const getClassroomAttendance = async (req, res) => {
+    try {
+        const { classroomId } = req.params;
+        const { date } = req.query;
+
+        if (!date) {
+            return res.status(400).json({ success: false, message: "date query param is required" });
+        }
+
+        const whereClause = {
+            classroomId,
+            attendanceDate: date
+        };
+
+        const attendance = await StudentAttendance.findAll({
+            where: whereClause
+        });
+
+        return res.json({ success: true, attendance });
+    } catch (err) {
+        logger.error('Error in getClassroomAttendance:', err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+export const bulkCreateAttendance = async (req, res) => {
+    const t = await db.sequelize.transaction();
+    try {
+        const { classroomId, academicYearId, date, records } = req.body;
+        const teacherId = req.user.teacherProfileId; // populated by attendanceScope
+
+        // Validation 1: Prevent attendance on weekends
+        const attendanceDate = parseISO(date);
+        if (isSaturday(attendanceDate) || isSunday(attendanceDate)) {
+            return res.status(400).json({ success: false, message: "Cannot take attendance on weekends (Saturday/Sunday)." });
+        }
+
+        // Validation 2: Prevent attendance on holidays
+        const eventsOnDate = await CalendarEvent.findAll({
+            where: {
+                start_date: { [Op.lte]: date },
+                end_date: { [Op.gte]: date },
+                status: 'PUBLISHED'
+            }
+        });
+
+        for (const event of eventsOnDate) {
+            if (event.day_type === 'HOLIDAY') {
+                return res.status(400).json({ success: false, message: `Cannot take attendance on a holiday: ${event.title}` });
+            }
+            
+            const eventType = await EventType.findOne({ where: { code: event.type } });
+            if (eventType && eventType.is_leave_day) {
+                return res.status(400).json({ success: false, message: `Cannot take attendance on a holiday: ${event.title}` });
+            }
+        }
+
+        const basePayload = {
+            classroomId,
+            academicYearId,
+            attendanceDate: date,
+            teacherId,
+            createdBy: req.user.id,
+            updatedBy: req.user.id
+        };
+
+        const upsertPromises = records.map(record => {
+            return StudentAttendance.upsert({
+                ...basePayload,
+                studentId: record.studentId,
+                subjectId: record.subjectId || null,
+                status: record.status,
+                remarks: record.remarks
+            }, { transaction: t });
+        });
+
+        await Promise.all(upsertPromises);
+        await t.commit();
+
+        return res.json({ success: true, message: "Attendance saved successfully." });
+    } catch (err) {
+        await t.rollback();
+        logger.error('Error in bulkCreateAttendance:', err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+export const updateAttendance = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, remarks } = req.body;
+
+        const record = await StudentAttendance.findOne({ where: { id } });
+        if (!record) return res.status(404).json({ success: false, message: "Record not found" });
+
+        await record.update({ status, remarks, updatedBy: req.user.id });
+
+        return res.json({ success: true, message: "Attendance updated successfully.", record });
+    } catch (err) {
+        logger.error('Error in updateAttendance:', err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};

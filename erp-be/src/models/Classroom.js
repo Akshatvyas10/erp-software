@@ -21,6 +21,10 @@ const Classroom = sequelize.define('Classroom', {
         type: DataTypes.STRING(20), allowNull: true,
         field: 'room_number'
     },
+    classTeacherId: {
+        type: DataTypes.UUID, allowNull: true, field: 'class_teacher_id',
+        references: { model: 'teachers', key: 'id' }, onDelete: 'SET NULL'
+    },
     status: {
         type: DataTypes.STRING(10), allowNull: false, defaultValue: 'ACTIVE',
         validate: { isIn: [['ACTIVE', 'INACTIVE']] },

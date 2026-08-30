@@ -17,6 +17,12 @@ import Timetable from './Timetable.js';
 import Subject from './Subject.js';
 import Homework from './Homework.js';
 import HomeworkSubmission from './HomeworkSubmission.js';
+import CalendarEvent from './CalendarEvent.js';
+import EventType from './EventType.js';
+import StudentAttendance from './StudentAttendance.js';
+import PermissionAuditLogInit from './PermissionAuditLog.js';
+
+const PermissionAuditLog = PermissionAuditLogInit(sequelize);
 
 // ─── Role ↔ Permission ────────────────────────────────────────────────────────
 Role.belongsToMany(Permission, { through: 'role_permissions', foreignKey: 'role_id', otherKey: 'permission_id', timestamps: false });
@@ -87,9 +93,36 @@ HomeworkSubmission.belongsTo(Homework, { foreignKey: 'homeworkId', as: 'homework
 Student.hasMany(HomeworkSubmission, { foreignKey: 'studentId', as: 'homeworkSubmissions', onDelete: 'CASCADE' });
 HomeworkSubmission.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
 
+// ─── CalendarEvent ↔ User / Classroom ────────────────────────────────────────
+CalendarEvent.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
+User.hasMany(CalendarEvent, { foreignKey: 'created_by', as: 'createdEvents' });
+
+CalendarEvent.belongsTo(Classroom, { foreignKey: 'target_class_id', as: 'targetClass' });
+Classroom.hasMany(CalendarEvent, { foreignKey: 'target_class_id', as: 'events' });
+
+// ─── StudentAttendance Associations ──────────────────────────────────────
+StudentAttendance.belongsTo(Student, { foreignKey: 'student_id', as: 'student' });
+Student.hasMany(StudentAttendance, { foreignKey: 'student_id', as: 'attendanceRecords' });
+
+StudentAttendance.belongsTo(Classroom, { foreignKey: 'classroom_id', as: 'classroom' });
+Classroom.hasMany(StudentAttendance, { foreignKey: 'classroom_id', as: 'attendanceRecords' });
+
+StudentAttendance.belongsTo(Teacher, { foreignKey: 'teacher_id', as: 'teacher' });
+Teacher.hasMany(StudentAttendance, { foreignKey: 'teacher_id', as: 'markedAttendance' });
+
+StudentAttendance.belongsTo(Subject, { foreignKey: 'subject_id', as: 'subject' });
+Subject.hasMany(StudentAttendance, { foreignKey: 'subject_id', as: 'attendanceRecords' });
+
+// ─── PermissionAuditLog ↔ User ─────────────────────────────────────────────
+PermissionAuditLog.belongsTo(User, { foreignKey: 'target_user_id', as: 'TargetUser' });
+User.hasMany(PermissionAuditLog, { foreignKey: 'target_user_id', as: 'permissionAuditsReceived' });
+PermissionAuditLog.belongsTo(User, { foreignKey: 'changed_by', as: 'AdminUser' });
+User.hasMany(PermissionAuditLog, { foreignKey: 'changed_by', as: 'permissionAuditsPerformed' });
+
 export default {
     sequelize, Role, Permission, User, Student, Teacher,
     TeacherAttendance, SalarySlip, Department,
     Classroom, ClassroomStudent, ClassroomPeriod, ClassroomSubject, Timetable,
-    Subject, Homework, HomeworkSubmission,
+    Subject, Homework, HomeworkSubmission, CalendarEvent, EventType, StudentAttendance,
+    PermissionAuditLog
 };

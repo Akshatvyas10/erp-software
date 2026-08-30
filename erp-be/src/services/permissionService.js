@@ -2,22 +2,14 @@ import db from '../models/index.js';
 const { User, Role, Permission } = db;
 import permissionEmitter from '../events/permissionEmitter.js';
 import logger from '../utils/logger.js';
+import redisClient, { getRedisStatus } from '../config/redis.js';
+import { getIo } from '../config/socket.js';
 
-/**
- * In-process permission cache.
- * Structure: Map<userId, { roles: string[], permissions: string[], cachedAt: Date }>
- *
- * TTL is 15 minutes — matches the access token lifetime.
- * The cache is also busted immediately on logout or role change.
- */
-const CACHE_TTL_MS = 15 * 60 * 1000;
-const permissionCache = new Map();
+const CACHE_TTL = 15 * 60; // 15 minutes in seconds
+const fallbackCache = new Map(); // Fallback in-memory cache
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
-/**
- * Load roles + permissions for a user directly from the DB.
- */
 const fetchFromDB = async (userId) => {
     const user = await User.findOne({
         where: { id: userId, isActive: true },
@@ -47,7 +39,6 @@ const fetchFromDB = async (userId) => {
         ? [...new Set(user.Roles.flatMap((r) => (r.Permissions || []).map((p) => p.name)))]
         : [];
 
-    // Build a structured permission map  { "users": ["read","create",...], ... }
     const permissionMap = {};
     for (const perm of permissions) {
         const [resource, action] = perm.split(':');
@@ -62,33 +53,111 @@ const fetchFromDB = async (userId) => {
 
 // ─── Cache operations ─────────────────────────────────────────────────────────
 
-const setCacheEntry = (userId, data) => {
-    permissionCache.set(userId, { ...data, cachedAt: new Date() });
+const setCacheEntry = async (userId, data) => {
+    try {
+        let version = 1;
+
+        if (getRedisStatus()) {
+            const key = `user:permissions:${userId}`;
+            const existingDataStr = await redisClient.get(key);
+            
+            if (existingDataStr) {
+                const existingData = JSON.parse(existingDataStr);
+                version = existingData.version || 1;
+            }
+
+            const payload = { ...data, version, cachedAt: new Date().toISOString() };
+            await redisClient.setex(key, CACHE_TTL, JSON.stringify(payload));
+            return payload;
+        } else {
+            // Fallback to in-memory map
+            const existing = fallbackCache.get(userId);
+            version = existing ? existing.version : 1;
+            const payload = { ...data, version, cachedAt: new Date().toISOString() };
+            fallbackCache.set(userId, { payload, expiresAt: Date.now() + CACHE_TTL * 1000 });
+            return payload;
+        }
+    } catch (err) {
+        logger.error(`Cache set error for user ${userId}:`, err);
+        return { ...data, version: 1 };
+    }
 };
 
-const getCacheEntry = (userId) => {
-    const entry = permissionCache.get(userId);
-    if (!entry) return null;
-    if (Date.now() - entry.cachedAt.getTime() > CACHE_TTL_MS) {
-        permissionCache.delete(userId);
+const getCacheEntry = async (userId) => {
+    try {
+        if (getRedisStatus()) {
+            const key = `user:permissions:${userId}`;
+            const dataStr = await redisClient.get(key);
+            if (!dataStr) return null;
+            return JSON.parse(dataStr);
+        } else {
+            // Fallback
+            const existing = fallbackCache.get(userId);
+            if (!existing) return null;
+            if (Date.now() > existing.expiresAt) {
+                fallbackCache.delete(userId);
+                return null;
+            }
+            return existing.payload;
+        }
+    } catch (err) {
+        logger.error(`Cache get error for user ${userId}:`, err);
         return null;
     }
-    return entry;
 };
 
-export const bustCache = (userId) => {
-    permissionCache.delete(userId);
-    logger.debug(`[PermissionService] Cache busted for user ${userId}`);
+export const bustCache = async (userId) => {
+    try {
+        let newVersion = 1;
+        if (getRedisStatus()) {
+            const key = `user:permissions:${userId}`;
+            const dataStr = await redisClient.get(key);
+            if (dataStr) {
+                const data = JSON.parse(dataStr);
+                newVersion = (data.version || 1) + 1;
+            }
+            await redisClient.del(key);
+        } else {
+            // Fallback
+            const existing = fallbackCache.get(userId);
+            if (existing) {
+                newVersion = (existing.payload.version || 1) + 1;
+                fallbackCache.delete(userId);
+            }
+        }
+        
+        logger.debug(`[PermissionService] Cache busted for user ${userId}, new version: ${newVersion}`);
+        return newVersion;
+    } catch (err) {
+        logger.error(`bustCache error for user ${userId}:`, err);
+        return 1;
+    }
 };
+
+export const invalidateAndEmit = async (userId) => {
+    try {
+        const newVersion = await bustCache(userId);
+        
+        // Emit to affected user's private room
+        const io = getIo();
+        if (io) {
+            io.to(`user:${userId}`).emit('permissions:updated', {
+                type: 'permissions:updated',
+                userId,
+                version: newVersion,
+                updatedAt: new Date().toISOString()
+            });
+            logger.info(`[PermissionService] Emitted permissions:updated (v${newVersion}) to user:${userId}`);
+        }
+    } catch (err) {
+        logger.error(`Failed to invalidate and emit for user ${userId}`, err);
+    }
+}
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-/**
- * Get permissions for a user.
- * Returns from cache if fresh, otherwise fetches from DB and caches.
- */
 export const getPermissions = async (userId) => {
-    const cached = getCacheEntry(userId);
+    const cached = await getCacheEntry(userId);
     if (cached) {
         logger.debug(`[PermissionService] Cache HIT for user ${userId}`);
         return cached;
@@ -98,88 +167,57 @@ export const getPermissions = async (userId) => {
     const data = await fetchFromDB(userId);
     if (!data) return null;
 
-    setCacheEntry(userId, data);
-    return data;
+    return await setCacheEntry(userId, data);
 };
 
-/**
- * Check whether a user has a specific permission.
- * Supports wildcard: if user has "all:manage" or "<resource>:manage" they pass any check.
- *
- * @param {string} userId
- * @param {string} resource  e.g. "students"
- * @param {string} action    e.g. "read"
- */
 export const hasPermission = async (userId, resource, action) => {
     const data = await getPermissions(userId);
     if (!data) return false;
 
     const { permissionMap, roles } = data;
 
-    // super_admin role bypasses all checks
     if (roles.includes('super_admin')) return true;
-
-    // all:manage wildcard
     if (permissionMap['all']?.includes('manage')) return true;
-
-    // resource-level manage grants all actions on that resource
     if (permissionMap[resource]?.includes('manage')) return true;
 
-    // exact match
     return permissionMap[resource]?.includes(action) ?? false;
 };
 
-/**
- * Force-refresh the cache for a user (call after role/permission changes).
- */
 export const refreshPermissions = async (userId) => {
-    bustCache(userId);
+    await invalidateAndEmit(userId);
     return getPermissions(userId);
 };
 
 // ─── Event listeners ──────────────────────────────────────────────────────────
 
-/**
- * user:login — pre-warm the cache as soon as the user logs in.
- * This means the first authenticated request after login is instant.
- */
 permissionEmitter.on('user:login', async ({ userId }) => {
     try {
-        bustCache(userId); // always start fresh on login
+        await bustCache(userId);
         const data = await fetchFromDB(userId);
         if (data) {
-            setCacheEntry(userId, data);
-            logger.info(`[PermissionService] Permissions pre-cached on login for user ${userId} — ${data.permissions.length} permissions, roles: [${data.roles.join(', ')}]`);
+            await setCacheEntry(userId, data);
+            logger.info(`[PermissionService] Permissions pre-cached on login for user ${userId}`);
         }
     } catch (err) {
         logger.error(`[PermissionService] Failed to pre-cache on login for ${userId}:`, err);
     }
 });
 
-/**
- * user:logout — clear cache on logout.
- */
-permissionEmitter.on('user:logout', ({ userId }) => {
-    bustCache(userId);
+permissionEmitter.on('user:logout', async ({ userId }) => {
+    await bustCache(userId);
 });
 
-/**
- * role:changed — clear cache when admin mutates roles/permissions for a user.
- */
-permissionEmitter.on('role:changed', ({ userId }) => {
-    bustCache(userId);
-    logger.info(`[PermissionService] Cache cleared after role change for user ${userId}`);
+permissionEmitter.on('role:changed', async ({ userId }) => {
+    await invalidateAndEmit(userId);
+    logger.info(`[PermissionService] Cache cleared & event emitted after role change for user ${userId}`);
 });
 
-/**
- * user:refresh — called on token refresh, ensures cache is still warm.
- */
 permissionEmitter.on('user:refresh', async ({ userId }) => {
     try {
-        // Only re-fetch if the cache is already expired (don't thrash on every refresh)
-        if (!getCacheEntry(userId)) {
+        const cached = await getCacheEntry(userId);
+        if (!cached) {
             const data = await fetchFromDB(userId);
-            if (data) setCacheEntry(userId, data);
+            if (data) await setCacheEntry(userId, data);
         }
     } catch (err) {
         logger.error(`[PermissionService] Failed to warm cache on refresh for ${userId}:`, err);

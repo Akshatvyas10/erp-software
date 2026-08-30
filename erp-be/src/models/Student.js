@@ -39,10 +39,6 @@ const Student = sequelize.define(
             allowNull: true,
             unique: true,
         },
-        rollNumber: {
-            type: DataTypes.STRING(20),
-            allowNull: true,
-        },
         // ─── Academic placement ───────────────────────────────────────────────
         grade: {
             type: DataTypes.STRING(20),

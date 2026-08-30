@@ -2,7 +2,7 @@
 
 import { Op } from 'sequelize';
 import db from '../models/index.js';
-const { Role, Permission, User } = db;
+const { Role, Permission, User, PermissionAuditLog } = db;
 import { success, error } from '../utils/apiResponse.js';
 import permissionEmitter from '../events/permissionEmitter.js';
 
@@ -171,6 +171,9 @@ const updateRole = async (req, res, next) => {
 
         if (permissionIds !== undefined) {
             const perms = await Permission.findAll({ where: { id: permissionIds } });
+            
+            const oldPerms = await role.getPermissions();
+            
             await role.setPermissions(perms);
 
             // Bust permission cache for all users who carry this role
@@ -178,7 +181,16 @@ const updateRole = async (req, res, next) => {
                 include: [{ model: Role, as: 'Roles', where: { id: role.id }, through: { attributes: [] }, required: true }],
                 attributes: ['id'],
             });
-            for (const u of affected) permissionEmitter.emit('role:changed', { userId: u.id });
+            for (const u of affected) {
+                await PermissionAuditLog.create({
+                    targetUserId: u.id,
+                    changedBy: req.user.id,
+                    action: 'role_permissions_updated',
+                    oldPermissions: oldPerms.map(p => p.name),
+                    newPermissions: perms.map(p => p.name)
+                });
+                permissionEmitter.emit('role:changed', { userId: u.id });
+            }
         }
 
         const updated = await Role.findByPk(role.id, { include: [withPermissions, withUsers] });
@@ -230,6 +242,13 @@ const assignRoleToUser = async (req, res, next) => {
         } else {
             return error(res, 'action must be "assign" or "remove"', 422);
         }
+        
+        await PermissionAuditLog.create({
+            targetUserId: user.id,
+            changedBy: req.user.id,
+            action: action === 'assign' ? 'role_assigned' : 'role_removed',
+            newPermissions: { roleAssigned: role.name } // Storing role name for simplicity
+        });
 
         permissionEmitter.emit('role:changed', { userId: user.id });
 

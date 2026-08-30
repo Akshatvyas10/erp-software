@@ -165,6 +165,18 @@ const listStudents = async (req, res, next) => {
                     where: Object.keys(accountWhere).length ? accountWhere : undefined,
                     required: Object.keys(accountWhere).length > 0,
                 },
+                {
+                    model: ClassroomStudent,
+                    as: 'classroomEnrollments',
+                    required: false,
+                    include: [
+                        {
+                            model: Classroom,
+                            as: 'classroom',
+                            attributes: ['id', 'name', 'section', 'academicYear', 'status'],
+                        },
+                    ],
+                },
             ],
             limit,
             offset,
@@ -265,9 +277,6 @@ const createStudent = async (req, res, next) => {
                 userId: user.id,
                 studentId: erpStudentId,
                 admissionNumber,                       // ← auto-generated
-                rollNumber: rollNumber || null,
-                grade: grade || null,
-                section: section || null,
                 dateOfBirth: dateOfBirth || null,
                 gender: gender || null,
                 bloodGroup: bloodGroup || null,
@@ -301,7 +310,7 @@ const createStudent = async (req, res, next) => {
                 return error(res, 'Classroom not found', 404);
             }
             await ClassroomStudent.create(
-                { classroomId, studentId: student.id },
+                { classroomId, studentId: student.id, rollNumber: rollNumber || null },
                 { transaction: t }
             );
         }
@@ -319,6 +328,9 @@ const createStudent = async (req, res, next) => {
         if (req.file) {
             fs.unlink(req.file.path, () => { });
         }
+        if (err.name === 'SequelizeUniqueConstraintError' && err.errors?.[0]?.path === 'unique_classroom_roll') {
+            return error(res, `Roll number ${req.body.rollNumber} is already taken in this classroom.`, 400);
+        }
         next(err);
     }
 };
@@ -328,9 +340,11 @@ const createStudent = async (req, res, next) => {
 // Handles optional new photo upload; replaces old file if one existed.
 // =============================================================================
 const updateStudent = async (req, res, next) => {
+    const t = await Student.sequelize.transaction();
     try {
-        const student = await Student.findByPk(req.params.id, studentWithAccount);
+        const student = await Student.findByPk(req.params.id, { include: ['account'], transaction: t });
         if (!student) {
+            await t.rollback();
             // Clean up uploaded file if student not found
             if (req.file) fs.unlink(req.file.path, () => { });
             return error(res, 'Student not found', 404);
@@ -344,12 +358,12 @@ const updateStudent = async (req, res, next) => {
         if (email !== undefined) accountUpdates.email = email;
         if (isActive !== undefined) accountUpdates.isActive = isActive;
         if (Object.keys(accountUpdates).length) {
-            await student.account.update(accountUpdates);
+            await student.account.update(accountUpdates, { transaction: t });
         }
 
         // ── Student-level fields ──────────────────────────────────────────────
         const allowedFields = [
-            'admissionNumber', 'rollNumber', 'grade', 'section', 'dateOfBirth',
+            'admissionNumber', 'dateOfBirth',
             'gender', 'bloodGroup', 'medicalNotes',
             'permanentAddress', 'currentAddress', 'transportationMode',
             'guardianName', 'guardianRelationship', 'guardianPhone', 'guardianEmail',
@@ -377,13 +391,41 @@ const updateStudent = async (req, res, next) => {
         }
 
         if (Object.keys(studentUpdates).length) {
-            await student.update(studentUpdates);
+            await student.update(studentUpdates, { transaction: t });
         }
 
+        // ── Classroom / Roll Number updates ──────────────────────────────────
+        const { classroomId, rollNumber } = req.body;
+        if (classroomId !== undefined || rollNumber !== undefined) {
+            const enrollment = await ClassroomStudent.findOne({ where: { studentId: student.id }, transaction: t });
+            if (enrollment) {
+                const enrollmentUpdates = {};
+                if (classroomId !== undefined) enrollmentUpdates.classroomId = classroomId || null;
+                if (rollNumber !== undefined) enrollmentUpdates.rollNumber = rollNumber || null;
+                
+                if (enrollmentUpdates.classroomId === null) {
+                    await enrollment.destroy({ transaction: t });
+                } else if (Object.keys(enrollmentUpdates).length > 0) {
+                    await enrollment.update(enrollmentUpdates, { transaction: t });
+                }
+            } else if (classroomId) {
+                await ClassroomStudent.create({
+                    studentId: student.id,
+                    classroomId,
+                    rollNumber: rollNumber || null
+                }, { transaction: t });
+            }
+        }
+
+        await t.commit();
         const updated = await Student.findByPk(student.id, studentFullInclude);
         return success(res, { student: updated }, 'Student updated');
     } catch (err) {
+        await t.rollback();
         if (req.file) fs.unlink(req.file.path, () => { });
+        if (err.name === 'SequelizeUniqueConstraintError' && err.errors?.[0]?.path === 'unique_classroom_roll') {
+            return error(res, `Roll number ${req.body.rollNumber} is already taken in this classroom.`, 400);
+        }
         next(err);
     }
 };

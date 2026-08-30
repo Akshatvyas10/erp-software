@@ -12,10 +12,10 @@ import { success, error } from '../utils/apiResponse.js';
  * The frontend must decrypt it with the shared VITE_PERMISSION_ENCRYPT_KEY.
  *
  * Encrypted payload contains:
- *   { roles, permissions, permissionMap, cachedAt, sub }
+ *   { roles, permissions, permissionMap, cachedAt, sub, version }
  *
  * Response shape:
- *   { success: true, data: { encrypted: "<base64 cipher>" } }
+ *   { success: true, data: { encrypted: "<base64 cipher>", version: 1 } }
  */
 const getMyPermissions = async (req, res, next) => {
     try {
@@ -27,14 +27,13 @@ const getMyPermissions = async (req, res, next) => {
             roles: data.roles,
             permissions: data.permissions,
             permissionMap: data.permissionMap,
-            cachedAt: data.cachedAt instanceof Date
-                ? data.cachedAt.toISOString()
-                : new Date().toISOString(),
+            version: data.version || 1,
+            cachedAt: data.cachedAt || new Date().toISOString(),
         };
 
         const encrypted = encryptPayload(plainPayload);
 
-        return success(res, { encrypted }, 'Permissions fetched successfully');
+        return success(res, { encrypted, version: data.version || 1 }, 'Permissions fetched successfully');
     } catch (err) {
         next(err);
     }
