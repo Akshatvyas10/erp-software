@@ -232,7 +232,7 @@ export default function StudentDetailsPage() {
                 <div className="lg:col-span-2">
                     <SectionCard title="Academic Matrix" icon={BookOpen} accent="primary">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
-                            <DetailRow icon={Hash} label="Roll Number" value={student.rollNumber} mono />
+                            <DetailRow icon={Hash} label="Roll Number" value={student.classroomEnrollments?.[0]?.rollNumber || "Unassigned"} mono />
                             <DetailRow icon={School} label="Classroom"
                                 value={classroom
                                     ? `${classroom.name} – ${classroom.section} (${classroom.academicYear})`

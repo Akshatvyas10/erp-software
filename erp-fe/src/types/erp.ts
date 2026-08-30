@@ -195,6 +195,7 @@ export interface StudentEnrollment {
     id: string;
     classroomId: string;
     studentId: string;
+    rollNumber: string | null;
     classroom: {
         id: string;
         name: string;
@@ -212,13 +213,20 @@ export interface Student {
     studentId: string;         // "STU-00001"
     enrollmentNumber: string | null;
     admissionNumber: string | null;  // auto-generated "ADM-2026-0014"
-    rollNumber: string | null;
     grade: string | null;
     section: string | null;
     dateOfBirth: string | null;  // "YYYY-MM-DD"
     gender: string | null;
+    religion: string | null;
+    caste: string | null;
+    motherTongue: string | null;
     bloodGroup: string | null;
     medicalNotes: string | null;
+    bankAccountNumber: string | null;
+    bankIfscCode: string | null;
+    bankName: string | null;
+    bankBranch: string | null;
+    bankMicrNumber: string | null;
     profilePhotoUrl: string | null;  // "/uploads/students/stud-xxx.jpg"
     permanentAddress: string | null;
     currentAddress: string | null;
@@ -258,14 +266,20 @@ export interface CreateStudentPayload {
     firstName: string;
     lastName: string;
     rollNumber?: string;
-    grade?: string;
-    section?: string;
     previousSchoolDetails?: string;
     classroomId?: string;   // optional junction insert
     dateOfBirth?: string;
     gender?: string;
+    religion?: string;
+    caste?: string;
+    motherTongue?: string;
     bloodGroup?: string;
     medicalNotes?: string;
+    bankAccountNumber?: string;
+    bankIfscCode?: string;
+    bankName?: string;
+    bankBranch?: string;
+    bankMicrNumber?: string;
     guardianName?: string;
     guardianRelationship?: string;
     guardianPhone?: string;
@@ -276,6 +290,8 @@ export interface CreateStudentPayload {
     transportationMode?: TransportMode;
     feeQuota?: FeeQuota;
     transferCertificateUrl?: string;
+    birthCertificateUrl?: string;
+    nationalIdProofUrl?: string;
     status?: StudentStatus;
 }
 

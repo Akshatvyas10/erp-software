@@ -46,9 +46,10 @@ const admissionSchema = z.object({
     email: z.string().min(1, "Email is required").email("Invalid email address"),
     password: z.string().optional(),
     gender: z.string().optional(),
+    religion: z.string().optional(),
+    caste: z.string().optional(),
+    motherTongue: z.string().optional(),
     rollNumber: z.string().max(20).optional().or(z.literal("")),
-    grade: z.string().max(20).optional().or(z.literal("")),
-    section: z.string().max(10).optional().or(z.literal("")),
     classroomId: z.string().uuid().optional().or(z.literal("")),
     previousSchoolDetails: z.string().optional(),
     dateOfBirth: z.string().optional().or(z.literal("")),
@@ -64,8 +65,12 @@ const admissionSchema = z.object({
     bloodGroup: z.string().max(5).optional().or(z.literal("")),
     transportationMode: z.enum(["SCHOOL_BUS", "PRIVATE_TRANSPORT", "WALKER"]).optional(),
     feeQuota: z.enum(["REGULAR", "STAFF_CHILD", "SCHOLARSHIP_HALF", "SCHOLARSHIP_FULL"]).optional(),
-    transferCertificateUrl: z.string().url("Enter a valid URL").optional().or(z.literal("")),
     medicalNotes: z.string().optional(),
+    bankAccountNumber: z.string().min(1, "Account number is required"),
+    bankIfscCode: z.string().min(1, "IFSC code is required"),
+    bankName: z.string().min(1, "Bank name is required"),
+    bankBranch: z.string().min(1, "Bank branch is required"),
+    bankMicrNumber: z.string().optional().or(z.literal("")),
 });
 
 type AdmissionFormValues = z.infer<typeof admissionSchema>;
@@ -147,6 +152,54 @@ function PhotoPicker({ currentUrl, file, onFile, error }: PhotoPickerProps) {
     );
 }
 
+// ─── Document picker sub-component ──────────────────────────────────────────────
+interface DocumentPickerProps {
+    label: string;
+    currentUrl: string | null;
+    file: File | null;
+    onFile: (f: File | null) => void;
+}
+
+function DocumentPicker({ label, currentUrl, file, onFile }: DocumentPickerProps) {
+    const inputRef = useRef<HTMLInputElement>(null);
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        if (f.size > 5 * 1024 * 1024) {
+            toast.error("Document must be under 5 MB");
+            return;
+        }
+        onFile(f);
+    };
+    return (
+        <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-border/60 bg-muted/20">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+            <div className="flex items-center gap-2">
+                <Button
+                    type="button" variant="outline" size="sm"
+                    onClick={() => inputRef.current?.click()}
+                    className="h-8 text-xs font-semibold rounded-lg text-purple-700 dark:text-purple-400 bg-background"
+                >
+                    <UploadCloud className="h-3.5 w-3.5 mr-2" />
+                    {file ? "Change File" : currentUrl ? "Update File" : "Upload"}
+                </Button>
+                {file ? (
+                    <Badge variant="outline" className="text-[10px] font-mono truncate max-w-[120px] bg-background">{file.name}</Badge>
+                ) : currentUrl ? (
+                    <Badge variant="outline" className="text-[10px] text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30">Uploaded</Badge>
+                ) : null}
+                {file && (
+                    <button type="button" onClick={() => { onFile(null); if (inputRef.current) inputRef.current.value = ""; }}
+                        className="text-destructive/70 hover:text-destructive">
+                        <X className="h-3 w-3" />
+                    </button>
+                )}
+            </div>
+            <input ref={inputRef} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleChange} />
+        </div>
+    );
+}
+
 // ─── Main dialog component ────────────────────────────────────────────────────
 export default function AdmissionFormDialog({
     open, onOpenChange, editTarget, onSuccess,
@@ -155,7 +208,11 @@ export default function AdmissionFormDialog({
     const [showPassword, setShowPassword] = useState(false);
     const [activeTab, setActiveTab] = useState("account");
     const [photoFile, setPhotoFile] = useState<File | null>(null);
+    const [tcFile, setTcFile] = useState<File | null>(null);
+    const [birthCertFile, setBirthCertFile] = useState<File | null>(null);
+    const [idProofFile, setIdProofFile] = useState<File | null>(null);
     const [photoError, setPhotoError] = useState<string | null>(null);
+    const [isDobOpen, setIsDobOpen] = useState(false);
 
     const form = useForm<AdmissionFormValues>({
         resolver: zodResolver(admissionSchema),
@@ -180,6 +237,9 @@ export default function AdmissionFormDialog({
             setActiveTab("account");
             setShowPassword(false);
             setPhotoFile(null);
+            setTcFile(null);
+            setBirthCertFile(null);
+            setIdProofFile(null);
             setPhotoError(null);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -193,10 +253,10 @@ export default function AdmissionFormDialog({
     }, [sameAddress, permAddress, form]);
 
     const fieldsByTab: Record<string, FieldPath<AdmissionFormValues>[]> = {
-        account: ["firstName", "lastName", "email", "password", "gender", "dateOfBirth", "status"],
-        academic: ["rollNumber", "grade", "section", "classroomId", "previousSchoolDetails"],
+        account: ["firstName", "lastName", "email", "password", "gender", "religion", "caste", "motherTongue", "dateOfBirth", "status"],
+        academic: ["rollNumber", "classroomId", "previousSchoolDetails"],
         guardian: ["guardianName", "guardianRelationship", "guardianPhone", "guardianEmail", "permanentAddress", "currentAddress", "sameAddress"],
-        logistics: ["governmentId", "bloodGroup", "transportationMode", "feeQuota", "transferCertificateUrl", "medicalNotes"],
+        logistics: ["governmentId", "bloodGroup", "transportationMode", "feeQuota", "medicalNotes", "bankAccountNumber", "bankIfscCode", "bankName", "bankBranch", "bankMicrNumber"],
     };
 
     const handleNext = async () => {
@@ -236,8 +296,11 @@ export default function AdmissionFormDialog({
             // Build multipart FormData
             const fd = new FormData();
 
-            // Append file if present
+            // Append files if present
             if (photoFile) fd.append("profilePhoto", photoFile);
+            if (tcFile) fd.append("transferCertificate", tcFile);
+            if (birthCertFile) fd.append("birthCertificate", birthCertFile);
+            if (idProofFile) fd.append("nationalIdProof", idProofFile);
 
             // Helper: append only defined, non-empty values
             const app = (key: string, val: string | undefined) => {
@@ -258,9 +321,10 @@ export default function AdmissionFormDialog({
             }
 
             app("gender", values.gender);
+            app("religion", values.religion);
+            app("caste", values.caste);
+            app("motherTongue", values.motherTongue);
             app("rollNumber", values.rollNumber);
-            app("grade", values.grade);
-            app("section", values.section);
             app("classroomId", values.classroomId);
             app("previousSchoolDetails", values.previousSchoolDetails);
             app("dateOfBirth", values.dateOfBirth);
@@ -275,8 +339,12 @@ export default function AdmissionFormDialog({
             app("bloodGroup", values.bloodGroup);
             app("transportationMode", values.transportationMode);
             app("feeQuota", values.feeQuota ?? (isEdit ? undefined : "REGULAR"));
-            app("transferCertificateUrl", values.transferCertificateUrl);
             app("medicalNotes", values.medicalNotes);
+            app("bankAccountNumber", values.bankAccountNumber);
+            app("bankIfscCode", values.bankIfscCode);
+            app("bankName", values.bankName);
+            app("bankBranch", values.bankBranch);
+            app("bankMicrNumber", values.bankMicrNumber);
 
             const config = { headers: { "Content-Type": "multipart/form-data" } };
 
@@ -398,6 +466,31 @@ export default function AdmissionFormDialog({
                                             </SelectContent>
                                         </Select>
                                     </FField>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <FField control={form.control} name="religion" label="Religion">
+                                            <Select onValueChange={v => form.setValue("religion", v)} value={form.watch("religion") ?? ""}>
+                                                <SelectTrigger className={inputCls}><SelectValue placeholder="Select…" /></SelectTrigger>
+                                                <SelectContent>
+                                                    {["Hindu", "Muslim", "Christian", "Sikh", "Jain", "Buddhist", "Other"].map(r => (
+                                                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </FField>
+                                        <FField control={form.control} name="caste" label="Caste / Category">
+                                            <Select onValueChange={v => form.setValue("caste", v)} value={form.watch("caste") ?? ""}>
+                                                <SelectTrigger className={inputCls}><SelectValue placeholder="Select…" /></SelectTrigger>
+                                                <SelectContent>
+                                                    {["General", "OBC", "SC", "ST", "EWS", "Other"].map(c => (
+                                                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </FField>
+                                    </div>
+                                    <FField control={form.control} name="motherTongue" label="Mother Tongue">
+                                        <Input placeholder="e.g. Hindi, English…" className={inputCls} />
+                                    </FField>
                                 </TabsContent>
 
                                 {/* ── TAB 2: Academic ── */}
@@ -427,14 +520,14 @@ export default function AdmissionFormDialog({
                                             render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date of Birth</FormLabel>
-                                                    <Popover>
+                                                    <Popover modal={true} open={isDobOpen} onOpenChange={setIsDobOpen}>
                                                         <PopoverTrigger asChild>
                                                             <FormControl>
                                                                 <Button
                                                                     type="button"
                                                                     variant={"outline"}
                                                                     className={cn(
-                                                                        "w-full h-10 rounded-xl bg-muted/50 border-none justify-start text-left font-normal",
+                                                                        "w-full h-10 rounded-lg bg-zinc-100 dark:bg-zinc-900/50 border-none justify-start text-left font-normal focus-visible:ring-1 focus-visible:ring-purple-500/50",
                                                                         !field.value && "text-muted-foreground"
                                                                     )}
                                                                 >
@@ -447,7 +540,12 @@ export default function AdmissionFormDialog({
                                                             <Calendar
                                                                 mode="single"
                                                                 selected={field.value ? new Date(field.value) : undefined}
-                                                                onSelect={(date) => date && field.onChange(format(date, "yyyy-MM-dd"))}
+                                                                onSelect={(date) => {
+                                                                    if (date) {
+                                                                        field.onChange(format(date, "yyyy-MM-dd"));
+                                                                        setIsDobOpen(false);
+                                                                    }
+                                                                }}
                                                                 disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
                                                             />
                                                         </PopoverContent>
@@ -456,14 +554,6 @@ export default function AdmissionFormDialog({
                                                 </FormItem>
                                             )}
                                         />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <FField control={form.control} name="grade" label="Class / Grade">
-                                            <Input placeholder="e.g. Grade 10" className={inputCls} />
-                                        </FField>
-                                        <FField control={form.control} name="section" label="Section">
-                                            <Input placeholder="e.g. A" className={inputCls} />
-                                        </FField>
                                     </div>
                                     <FField control={form.control} name="classroomId" label="Assign to Classroom (optional)">
                                         <Select onValueChange={v => form.setValue("classroomId", v === "__none__" ? "" : v)}
@@ -585,12 +675,53 @@ export default function AdmissionFormDialog({
                                             </Select>
                                         </FField>
                                     </div>
-                                    <FField control={form.control} name="transferCertificateUrl" label="Transfer Certificate URL">
-                                        <Input placeholder="https://storage.school.edu/tc/…" className={inputCls} />
-                                    </FField>
                                     <FField control={form.control} name="medicalNotes" label="Medical Notes">
                                         <Textarea placeholder="Allergies, conditions, medications or special needs…"
                                             className="bg-zinc-100 dark:bg-zinc-900/50 border-none focus-visible:ring-1 focus-visible:ring-purple-500/50 rounded-lg resize-none min-h-[80px]" />
+                                    </FField>
+
+                                    <div className="pt-2">
+                                        <p className={sectionHd}>Uploaded Documents</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <DocumentPicker 
+                                            label="Transfer Certificate (TC)" 
+                                            currentUrl={editTarget?.transferCertificateUrl ?? null} 
+                                            file={tcFile} onFile={setTcFile} 
+                                        />
+                                        <DocumentPicker 
+                                            label="Birth Certificate" 
+                                            currentUrl={(editTarget as any)?.birthCertificateUrl ?? null} 
+                                            file={birthCertFile} onFile={setBirthCertFile} 
+                                        />
+                                        <DocumentPicker 
+                                            label="Aadhar / ID Proof" 
+                                            currentUrl={(editTarget as any)?.nationalIdProofUrl ?? null} 
+                                            file={idProofFile} onFile={setIdProofFile} 
+                                        />
+                                    </div>
+
+                                    <div className="pt-2">
+                                        <p className={sectionHd}>Bank Details (Required)</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <FField control={form.control} name="bankAccountNumber" label="Account Number *">
+                                            <Input placeholder="e.g. 1234567890" className={inputCls} />
+                                        </FField>
+                                        <FField control={form.control} name="bankIfscCode" label="IFSC Code *">
+                                            <Input placeholder="e.g. HDFC0001234" className={inputCls} />
+                                        </FField>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <FField control={form.control} name="bankName" label="Bank Name *">
+                                            <Input placeholder="e.g. HDFC Bank" className={inputCls} />
+                                        </FField>
+                                        <FField control={form.control} name="bankBranch" label="Branch *">
+                                            <Input placeholder="e.g. MG Road, Bangalore" className={inputCls} />
+                                        </FField>
+                                    </div>
+                                    <FField control={form.control} name="bankMicrNumber" label="MICR Number (Optional)">
+                                        <Input placeholder="e.g. 110002034" className={inputCls} />
                                     </FField>
                                 </TabsContent>
                             </div>
@@ -679,23 +810,27 @@ function FField<T extends FieldValues, N extends FieldPath<T>>({
 function buildDefaults(s: Student | null): AdmissionFormValues {
     if (!s) return {
         firstName: "", lastName: "", email: "", password: "", gender: "",
-        rollNumber: "", grade: "", section: "", classroomId: "",
+        religion: "", caste: "", motherTongue: "",
+        rollNumber: "", classroomId: "",
         dateOfBirth: "", previousSchoolDetails: "", status: "ACTIVE",
         guardianName: "", guardianRelationship: "", guardianPhone: "", guardianEmail: "",
         permanentAddress: "", currentAddress: "", sameAddress: false,
         governmentId: "", bloodGroup: "", transportationMode: undefined,
-        feeQuota: "REGULAR", transferCertificateUrl: "", medicalNotes: "",
+        feeQuota: "REGULAR", medicalNotes: "",
+        bankAccountNumber: "", bankIfscCode: "", bankName: "", bankBranch: "", bankMicrNumber: "",
     };
     const currentClassroomId = s.classroomEnrollments?.[0]?.classroomId ?? "";
+    const currentRollNumber = s.classroomEnrollments?.[0]?.rollNumber ?? "";
     return {
         firstName: s.account.firstName,
         lastName: s.account.lastName,
         email: s.account.email,
         password: "",
         gender: s.gender ?? "",
-        rollNumber: s.rollNumber ?? "",
-        grade: s.grade ?? "",
-        section: s.section ?? "",
+        religion: (s as any).religion ?? "",
+        caste: (s as any).caste ?? "",
+        motherTongue: (s as any).motherTongue ?? "",
+        rollNumber: currentRollNumber,
         classroomId: currentClassroomId,
         dateOfBirth: s.dateOfBirth ?? "",
         previousSchoolDetails: s.previousSchoolDetails ?? "",
@@ -711,7 +846,11 @@ function buildDefaults(s: Student | null): AdmissionFormValues {
         bloodGroup: s.bloodGroup ?? "",
         transportationMode: s.transportationMode ?? undefined,
         feeQuota: s.feeQuota ?? "REGULAR",
-        transferCertificateUrl: s.transferCertificateUrl ?? "",
         medicalNotes: s.medicalNotes ?? "",
+        bankAccountNumber: (s as any).bankAccountNumber ?? "",
+        bankIfscCode: (s as any).bankIfscCode ?? "",
+        bankName: (s as any).bankName ?? "",
+        bankBranch: (s as any).bankBranch ?? "",
+        bankMicrNumber: (s as any).bankMicrNumber ?? "",
     };
 }

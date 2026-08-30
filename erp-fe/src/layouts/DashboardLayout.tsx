@@ -6,6 +6,9 @@ import { useMyPermissions } from "@/hooks/useMyPermissions";
 import { Loader2 } from "lucide-react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GlobalBreadcrumb } from "@/components/shared/GlobalBreadcrumb";
+import { PermissionUpdateDialog } from "@/components/shared/PermissionUpdateDialog";
+import { initializeSocket, disconnectSocket } from "@/lib/socket";
+import { useAppSelector } from "@/store/hooks";
 
 export default function DashboardLayout() {
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -19,6 +22,17 @@ export default function DashboardLayout() {
     useEffect(() => {
         setMobileOpen(false);
     }, [location.pathname]);
+
+    const token = useAppSelector((state) => state.auth.token);
+
+    useEffect(() => {
+        if (token) {
+            initializeSocket(token);
+        }
+        return () => {
+            disconnectSocket();
+        };
+    }, [token]);
 
     // Fetch encrypted permissions from backend → decrypt → store in Redux
     const { isLoading, isError } = useMyPermissions();
@@ -84,6 +98,7 @@ export default function DashboardLayout() {
                         </div>
                     </main>
                 </div>
+                <PermissionUpdateDialog />
             </div>
         </TooltipProvider>
     );

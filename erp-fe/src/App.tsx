@@ -29,6 +29,7 @@ import StudentDirectory from "./pages/dashboard/StudentDirectory";
 import StudentDetailsPage from "./pages/dashboard/StudentDetailsPage";
 import HomeworkPage from "./pages/dashboard/HomeworkPage";
 import HomeworkDetailsPage from "./pages/dashboard/HomeworkDetailsPage";
+import CalendarPage from "./pages/dashboard/CalendarPage";
 
 import "./App.css";
 
@@ -79,6 +80,9 @@ function App() {
             {/* Homework */}
             <Route path="/dashboard/homework" element={<HomeworkPage />} />
             <Route path="/dashboard/homework/:id" element={<HomeworkDetailsPage />} />
+
+            {/* Calendar */}
+            <Route path="/dashboard/calendar" element={<CalendarPage />} />
           </Route>
         </Route>
 

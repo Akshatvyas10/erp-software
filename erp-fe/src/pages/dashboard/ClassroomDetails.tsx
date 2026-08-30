@@ -6,8 +6,9 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
     School, ArrowLeft, Users, LayoutGrid, Search, Plus, Trash2,
-    Loader2, UserCheck, X, BookOpen, Clock, CheckCircle2,
+    Loader2, UserCheck, X, BookOpen, Clock, CheckCircle2, ClipboardCheck, CalendarIcon
 } from "lucide-react";
+import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -36,11 +37,18 @@ import {
 import {
     Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
+import {
+    Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 
 import api from "@/lib/api";
 import { usePermissions } from "@/store/hooks";
 import AccessDenied from "@/components/auth/AccessDenied";
 import CreateSubjectDialog from "@/components/shared/CreateSubjectDialog";
+import { AttendanceGrid } from "@/features/attendance/components/AttendanceGrid";
+import { AttendanceChart } from "@/features/attendance/components/AttendanceChart";
+import { useClassroomAttendance } from "@/features/attendance/api/useAttendance";
 import type {
 
     Classroom, ClassroomEnrollment, ClassroomSubject, ClassroomPeriod,
@@ -457,7 +465,7 @@ function AddSubjectDialog({ open, onOpenChange, classroomId, onSuccess }: AddSub
         }
     };
 
-    const inputCls = "h-9 bg-muted/50 border-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
+    const inputCls = "h-9 bg-zinc-100 dark:bg-zinc-900/50 border-none focus-visible:ring-1 focus-visible:ring-purple-500/50 rounded-lg focus-visible:outline-none";
     const labelCls = "text-[10px] font-bold uppercase tracking-wider text-muted-foreground";
 
     return (
@@ -585,7 +593,7 @@ function ManagePeriodsDialog({ open, onOpenChange, classroomId, periods, onSucce
 
 
 
-    const inputCls = "h-9 bg-muted/50 border-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
+    const inputCls = "h-9 bg-zinc-100 dark:bg-zinc-900/50 border-none focus-visible:ring-1 focus-visible:ring-purple-500/50 rounded-lg focus-visible:outline-none";
     const labelCls = "text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1 block";
 
     const PERIOD_NAMES = [
@@ -635,8 +643,8 @@ function ManagePeriodsDialog({ open, onOpenChange, classroomId, periods, onSucce
                     </DialogTitle>
                 </DialogHeader>
                 <div className="p-6 space-y-6">
-                    <div className="grid grid-cols-12 gap-3 items-end">
-                        <div className="col-span-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:items-end">
+                        <div className="sm:col-span-4">
                             <label className={labelCls}>Name</label>
                             <Select value={name} onValueChange={setName}>
                                 <SelectTrigger className={inputCls}>
@@ -647,7 +655,7 @@ function ManagePeriodsDialog({ open, onOpenChange, classroomId, periods, onSucce
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="col-span-3">
+                        <div className="sm:col-span-3">
                             <label className={labelCls}>Start</label>
                             <Input
                                 type="time"
@@ -656,7 +664,7 @@ function ManagePeriodsDialog({ open, onOpenChange, classroomId, periods, onSucce
                                 onChange={(e) => setStartTime(e.target.value)}
                             />
                         </div>
-                        <div className="col-span-3">
+                        <div className="sm:col-span-3">
                             <label className={labelCls}>End</label>
                             <Input
                                 type="time"
@@ -665,7 +673,7 @@ function ManagePeriodsDialog({ open, onOpenChange, classroomId, periods, onSucce
                                 onChange={(e) => setEndTime(e.target.value)}
                             />
                         </div>
-                        <div className="col-span-2">
+                        <div className="sm:col-span-2">
                             <Button className="w-full h-9 bg-primary hover:bg-primary/90 text-primary-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" disabled={!name || addMutation.isPending}
                                 onClick={handleAdd}>
                                 Add
@@ -1023,8 +1031,101 @@ function TimetableTab({ classroomId, subjects, periods, canEdit, onRefresh }: Ti
     );
 }
 
+// ─── TAB C: Attendance ────────────────────────────────────────────────────────
+interface AttendanceTabProps {
+    classroomId: string;
+    canEdit: boolean;
+}
+
+function AttendanceTab({ classroomId, canEdit }: AttendanceTabProps) {
+    const { can } = usePermissions();
+    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+    const [isEditing, setIsEditing] = useState(false);
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+    const { data: existingAttendance, isLoading: attendanceLoading, refetch } = useClassroomAttendance(classroomId, dateStr);
+
+    // Auto-switch mode based on whether attendance exists for the selected date
+    useMemo(() => {
+        if (existingAttendance) {
+            setIsEditing(existingAttendance.length === 0);
+        }
+    }, [dateStr, existingAttendance]);
+
+    const hasAttendance = existingAttendance && existingAttendance.length > 0;
+
+    return (
+        <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between bg-card p-4 rounded-xl border border-border/50 shadow-sm">
+                <div>
+                    <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                        <ClipboardCheck className="h-4 w-4 text-primary" />
+                        Daily Attendance
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Manage student attendance for the selected date.</p>
+                </div>
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                    {hasAttendance && !isEditing && can("attendance", "update") && (
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => setIsEditing(true)}
+                            className="rounded-xl font-bold border-primary/20 text-primary hover:bg-primary/10 h-10"
+                        >
+                            Edit Attendance
+                        </Button>
+                    )}
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider hidden sm:block">Date</label>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant={"outline"}
+                                className={cn(
+                                    "w-full sm:w-[200px] justify-start text-left font-normal rounded-xl h-10 border-border/60",
+                                    !selectedDate && "text-muted-foreground"
+                                )}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                                {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 rounded-2xl border-border/60 shadow-xl" align="end">
+                            <Calendar
+                                mode="single"
+                                selected={selectedDate}
+                                onSelect={(date) => {
+                                    if (date) {
+                                        setSelectedDate(date);
+                                    }
+                                }}
+                                disabled={(date) => date > new Date()}
+                            />
+                        </PopoverContent>
+                    </Popover>
+                </div>
+            </div>
+            
+            {!isEditing && hasAttendance ? (
+                <AttendanceChart attendance={existingAttendance} />
+            ) : (
+                <AttendanceGrid 
+                    classroomId={classroomId} 
+                    date={dateStr} 
+                    canEdit={hasAttendance ? can("attendance", "update") : can("attendance", "create")} 
+                    existingAttendance={existingAttendance || []}
+                    attendanceLoading={attendanceLoading}
+                    onSaveSuccess={() => {
+                        refetch();
+                        setIsEditing(false);
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
 // ─── Tab type ─────────────────────────────────────────────────────────────────
-type ActiveTab = "roster" | "timetable";
+type ActiveTab = "roster" | "timetable" | "attendance";
 
 // ─── Main Page Component ──────────────────────────────────────────────────────
 export default function ClassroomDetails() {
@@ -1082,6 +1183,10 @@ export default function ClassroomDetails() {
         { key: "timetable", label: "Timetable Builder", icon: LayoutGrid, count: subjects.length },
     ];
 
+    if (can("attendance", "read")) {
+        tabs.push({ key: "attendance", label: "Attendance", icon: ClipboardCheck });
+    }
+
     return (
         <motion.div
             className="mx-auto text-foreground transition-colors duration-200 space-y-5"
@@ -1090,8 +1195,7 @@ export default function ClassroomDetails() {
             transition={{ duration: 0.35 }}
         >
             {/* Back + Header */}
-            <div>
-
+            <div className="pt-4 pb-2 px-1 -mx-1 border-b border-border/60">
                 <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
                     <div>
                         <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-3">
@@ -1105,10 +1209,9 @@ export default function ClassroomDetails() {
                         </p>
                     </div>
                 </div>
-            </div>
 
-            {/* Custom Tabs */}
-            <div className="flex items-center gap-2 border-b border-border/60 pb-px">
+                {/* Custom Tabs */}
+                <div className="flex items-center gap-2 mt-6 overflow-x-auto custom-scrollbar pb-px">
                 {tabs.map(tab => {
                     const isActive = activeTab === tab.key;
                     const Icon = tab.icon;
@@ -1119,7 +1222,7 @@ export default function ClassroomDetails() {
                             className={cn(
                                 "flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-t-xl transition-all relative -mb-px",
                                 isActive
-                                    ? "bg-background text-primary shadow-sm border border-border"
+                                    ? "bg-muted border-b-2 border-primary text-primary"
                                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                             )}
                         >
@@ -1138,6 +1241,7 @@ export default function ClassroomDetails() {
                         </button>
                     );
                 })}
+                </div>
             </div>
 
             {/* Tab content */}
@@ -1146,8 +1250,10 @@ export default function ClassroomDetails() {
                     <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
                         {activeTab === "roster" ? (
                             <><Users className="h-4 w-4 text-primary" /> Student Roster</>
-                        ) : (
+                        ) : activeTab === "timetable" ? (
                             <><LayoutGrid className="h-4 w-4 text-primary" /> Weekly Timetable</>
+                        ) : (
+                            <><ClipboardCheck className="h-4 w-4 text-primary" /> Daily Attendance</>
                         )}
                     </CardTitle>
                 </CardHeader>
@@ -1167,13 +1273,18 @@ export default function ClassroomDetails() {
                                     canEdit={canEdit}
                                     onRefresh={refresh}
                                 />
-                            ) : (
+                            ) : activeTab === "timetable" ? (
                                 <TimetableTab
                                     classroomId={classroom.id}
                                     subjects={subjects}
                                     periods={classroom.periods ?? []}
                                     canEdit={canEdit}
                                     onRefresh={refresh}
+                                />
+                            ) : (
+                                <AttendanceTab 
+                                    classroomId={classroom.id} 
+                                    canEdit={can("attendance", "update") || can("attendance", "create")} 
                                 />
                             )}
                         </motion.div>

@@ -9,6 +9,7 @@ export interface PermissionState {
     roles: string[];
     permissions: string[];
     permissionMap: PermissionMap;
+    version: number;
     cachedAt: string | null;
     isLoading: boolean;
 }
@@ -18,6 +19,7 @@ export const permissionInitialState: PermissionState = {
     roles: [],
     permissions: [],
     permissionMap: {},
+    version: 1,
     cachedAt: null,
     isLoading: false,
 };
@@ -30,11 +32,13 @@ const permissionSlice = createSlice({
             roles: string[];
             permissions: string[];
             permissionMap: PermissionMap;
+            version?: number;
             cachedAt: string;
         }>) => {
             state.roles = action.payload.roles ?? [];
             state.permissions = action.payload.permissions ?? [];
             state.permissionMap = action.payload.permissionMap ?? {};
+            state.version = action.payload.version ?? 1;
             state.cachedAt = action.payload.cachedAt;
             state.isLoading = false;
         },

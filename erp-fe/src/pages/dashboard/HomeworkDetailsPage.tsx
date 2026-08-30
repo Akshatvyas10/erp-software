@@ -5,7 +5,7 @@ import type { Homework, HomeworkSubmission } from "@/types/erp";
 import { useAuth, usePermissions } from "@/store/hooks";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Calendar, User, FileText, Edit, Trash2, CheckCircle2, AlertCircle, Clock, BookOpen, Send, GraduationCap } from "lucide-react";
+import { ArrowLeft, Calendar, User, FileText, Edit, Trash2, CheckCircle2, AlertCircle, Clock, BookOpen, Send, GraduationCap, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,15 +13,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -35,7 +35,7 @@ export default function HomeworkDetailsPage() {
     const qc = useQueryClient();
     const [editDialogOpen, setEditDialogOpen] = useState(false);
 
-    const isStudent = (user as any)?.Roles?.some((r: any) => r.name === 'STUDENT');
+    const canManageHomework = can('homework', 'manage');
 
     const { data: details, isLoading } = useQuery<{ homework: Homework; submission?: HomeworkSubmission }>({
         queryKey: ["homework", id],
@@ -51,7 +51,7 @@ export default function HomeworkDetailsPage() {
             const res = await api.get(`/homeworks/${id}/submissions`);
             return res.data;
         },
-        enabled: !!details && !isStudent
+        enabled: !!details && canManageHomework
     });
 
     const studentSubmitMutation = useMutation({
@@ -118,7 +118,7 @@ export default function HomeworkDetailsPage() {
                         >
                             <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5 text-foreground/80" />
                         </Button>
-                        
+
                         <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5">
                                 <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[9px] sm:text-[10px] uppercase font-bold tracking-wider">
@@ -135,12 +135,12 @@ export default function HomeworkDetailsPage() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 pl-12 sm:pl-0">
-                        {!isStudent && can("homework", "update") && (
-                            <Button variant="outline" className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold hover:bg-accent hover:text-accent-foreground transition-colors" onClick={() => setEditDialogOpen(true)}>
-                                <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" /> Edit
+                        {can("homework", "update") && (
+                            <Button variant="outline" size="sm" onClick={() => setEditDialogOpen(true)}>
+                                <Pencil className="h-4 w-4 mr-2" /> Edit
                             </Button>
                         )}
-                        {!isStudent && can("homework", "delete") && (
+                        {can("homework", "delete") && (
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button variant="outline" className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors">
@@ -156,8 +156,8 @@ export default function HomeworkDetailsPage() {
                                     </AlertDialogHeader>
                                     <AlertDialogFooter className="mt-6 gap-3">
                                         <AlertDialogCancel className="h-11 rounded-xl font-semibold border-border/50">Cancel</AlertDialogCancel>
-                                        <AlertDialogAction 
-                                            className="h-11 rounded-xl font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90" 
+                                        <AlertDialogAction
+                                            className="h-11 rounded-xl font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                             onClick={() => deleteMutation.mutate()}
                                         >
                                             Confirm Delete
@@ -209,10 +209,10 @@ export default function HomeworkDetailsPage() {
                     </Card>
 
                     {/* Student View: Your Submission */}
-                    {isStudent && submission && (
+                    {!canManageHomework && submission && (
                         <Card className={`relative overflow-hidden rounded-3xl p-6 sm:p-8 transition-colors duration-300 border ${submission.status === 'SUBMITTED' || submission.status === 'REVIEWED'
-                                ? 'bg-emerald-500/5 border-emerald-500/20'
-                                : 'bg-primary/5 border-primary/20'
+                            ? 'bg-emerald-500/5 border-emerald-500/20'
+                            : 'bg-primary/5 border-primary/20'
                             }`}>
 
                             <div className="absolute top-0 right-0 -translate-y-1/3 translate-x-1/3 opacity-10 pointer-events-none">
@@ -222,8 +222,8 @@ export default function HomeworkDetailsPage() {
                             <div className="relative z-10">
                                 <h3 className="text-xl font-extrabold mb-6 flex items-center gap-3">
                                     <div className={`p-2.5 rounded-xl border ${submission.status === 'SUBMITTED' || submission.status === 'REVIEWED'
-                                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                                            : 'bg-primary/10 text-primary border-primary/20'
+                                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                        : 'bg-primary/10 text-primary border-primary/20'
                                         }`}>
                                         <FileText className="h-6 w-6" />
                                     </div>
@@ -285,7 +285,7 @@ export default function HomeworkDetailsPage() {
                 </div>
 
                 {/* Teacher View: Sidebar */}
-                {!isStudent && (
+                {canManageHomework && (
                     <div className="lg:col-span-5 xl:col-span-4">
                         <Card className="rounded-3xl border-border/50 shadow-sm bg-card sticky top-24">
                             <div className="p-5 border-b border-border/40 bg-muted/10 rounded-t-3xl">
@@ -309,9 +309,9 @@ export default function HomeworkDetailsPage() {
                                                 <p className="text-xs text-muted-foreground font-medium">Admission No: {sub.student?.admissionNumber || 'N/A'}</p>
                                             </div>
                                             <Badge variant="outline" className={`shrink-0 text-[9px] uppercase tracking-wider font-bold rounded-full ${sub.status === 'SUBMITTED' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' :
-                                                    sub.status === 'REVIEWED' ? 'bg-primary/10 text-primary border-primary/20' :
-                                                        sub.status === 'OVERDUE' ? 'bg-destructive/10 text-destructive border-destructive/20' :
-                                                            'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                                sub.status === 'REVIEWED' ? 'bg-primary/10 text-primary border-primary/20' :
+                                                    sub.status === 'OVERDUE' ? 'bg-destructive/10 text-destructive border-destructive/20' :
+                                                        'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
                                                 }`}>
                                                 {sub.status}
                                             </Badge>

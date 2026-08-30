@@ -39,6 +39,7 @@ interface HomeworkFormDialogProps {
 export default function HomeworkFormDialog({ open, onOpenChange, homeworkId }: HomeworkFormDialogProps) {
     const isEdit = !!homeworkId;
     const qc = useQueryClient();
+    const [isDueDateOpen, setIsDueDateOpen] = React.useState(false);
 
     const form = useForm<HomeworkFormValues>({
         resolver: zodResolver(homeworkSchema),
@@ -215,39 +216,44 @@ export default function HomeworkFormDialog({ open, onOpenChange, homeworkId }: H
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name="dueDate"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="font-semibold text-purple-950 dark:text-purple-300">Due Date</FormLabel>
-                                            <Popover>
-                                                <PopoverTrigger asChild>
-                                                    <FormControl>
-                                                        <Button
-                                                            type="button"
-                                                            variant={"outline"}
-                                                            className={cn(
-                                                                "w-full h-10 rounded-xl bg-muted/50 border-none justify-start text-left font-normal",
-                                                                !field.value && "text-muted-foreground"
-                                                            )}
-                                                        >
-                                                            {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
-                                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                                        </Button>
-                                                    </FormControl>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-auto p-0" align="start">
-                                                    <Calendar
-                                                        mode="single"
-                                                        selected={field.value ? new Date(field.value) : undefined}
-                                                        onSelect={(date) => date && field.onChange(format(date, "yyyy-MM-dd"))}
-                                                        disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
-                                                    />
-                                                </PopoverContent>
-                                            </Popover>
-                                            <FormMessage />
-                                        </FormItem>
+                                    <FormField
+                                        control={form.control}
+                                        name="dueDate"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="font-semibold text-purple-950 dark:text-purple-300">Due Date</FormLabel>
+                                                <Popover modal={true} open={isDueDateOpen} onOpenChange={setIsDueDateOpen}>
+                                                    <PopoverTrigger asChild>
+                                                        <FormControl>
+                                                            <Button
+                                                                type="button"
+                                                                variant={"outline"}
+                                                                className={cn(
+                                                                    "w-full h-10 rounded-lg bg-zinc-100 dark:bg-zinc-900/50 border-none justify-start text-left font-normal focus-visible:ring-1 focus-visible:ring-purple-500/50",
+                                                                    !field.value && "text-muted-foreground"
+                                                                )}
+                                                            >
+                                                                {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                                                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                            </Button>
+                                                        </FormControl>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-auto p-0" align="start">
+                                                        <Calendar
+                                                            mode="single"
+                                                            selected={field.value ? new Date(field.value) : undefined}
+                                                            onSelect={(date) => {
+                                                                if (date) {
+                                                                    field.onChange(format(date, "yyyy-MM-dd"));
+                                                                    setIsDueDateOpen(false);
+                                                                }
+                                                            }}
+                                                            disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
+                                                        />
+                                                    </PopoverContent>
+                                                </Popover>
+                                                <FormMessage />
+                                            </FormItem>
                                     )}
                                 />
 

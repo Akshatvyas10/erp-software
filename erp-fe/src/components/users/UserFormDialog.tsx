@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import type { User, Role } from "@/types/erp";
 
@@ -40,6 +41,7 @@ interface UserFormDialogProps {
 export default function UserFormDialog({ isOpen, onOpenChange, editUser, onSuccess }: UserFormDialogProps) {
     const [showPw, setShowPw] = useState(false);
     const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
+    const [isDobOpen, setIsDobOpen] = useState(false);
 
     const { data: roles } = useQuery<Role[]>({
         queryKey: ["roles", "simple"],
@@ -190,19 +192,23 @@ export default function UserFormDialog({ isOpen, onOpenChange, editUser, onSucce
                                     <FormField control={form.control as any} name="dob" render={({ field }) => (
                                         <FormItem className="flex flex-col pt-[5px]">
                                             <FormLabel className="text-xs font-semibold text-muted-foreground mb-[3px]">Date of Birth</FormLabel>
-                                            <Popover>
+                                            <Popover modal={true} open={isDobOpen} onOpenChange={setIsDobOpen}>
                                                 <PopoverTrigger asChild>
                                                     <FormControl>
                                                         <Button
                                                             type="button"
                                                             variant={"outline"}
                                                             className={cn(
-                                                                "w-full h-10 md:h-11 justify-start text-left font-normal rounded-lg bg-background border-border/80 focus-visible:ring-purple-500",
+                                                                "w-full h-10 md:h-11 justify-start text-left font-normal rounded-lg bg-zinc-100 dark:bg-zinc-900/50 border-none focus-visible:ring-purple-500",
                                                                 !field.value && "text-muted-foreground"
                                                             )}
                                                         >
-                                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                                            {field.value ? field.value.toLocaleDateString() : <span>Pick a date</span>}
+                                                            {field.value ? (
+                                                                format(field.value, "PPP")
+                                                            ) : (
+                                                                <span>Pick a date</span>
+                                                            )}
+                                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                                         </Button>
                                                     </FormControl>
                                                 </PopoverTrigger>
@@ -210,7 +216,10 @@ export default function UserFormDialog({ isOpen, onOpenChange, editUser, onSucce
                                                     <Calendar
                                                         mode="single"
                                                         selected={field.value}
-                                                        onSelect={(date) => field.onChange(date)}
+                                                        onSelect={(date) => {
+                                                            field.onChange(date);
+                                                            setIsDobOpen(false);
+                                                        }}
                                                         disabled={(date) =>
                                                             date > new Date() || date < new Date("1900-01-01")
                                                         }

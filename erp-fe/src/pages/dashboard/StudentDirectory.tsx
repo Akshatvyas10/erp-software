@@ -79,7 +79,6 @@ const fetchClassroomsForFilter = async (): Promise<Classroom[]> => {
 // ─── Row component ────────────────────────────────────────────────────────────
 interface StudentRowProps {
     student: Student;
-    classroomMap: Record<string, string>;
     canEdit: boolean;
     canDelete: boolean;
     onEdit: (s: Student) => void;
@@ -87,10 +86,15 @@ interface StudentRowProps {
     onView: (id: string) => void;
 }
 
-function StudentRow({ student, classroomMap, canEdit, canDelete, onEdit, onDelete, onView }: StudentRowProps) {
+function StudentRow({ student, canEdit, canDelete, onEdit, onDelete, onView }: StudentRowProps) {
     const { account } = student;
     const initials = `${account.firstName[0]}${account.lastName[0]}`.toUpperCase();
-    const classLabel = classroomMap[student.id] ?? (student.grade ? `${student.grade}-${student.section ?? ""}` : "—");
+    
+    const enrollment = student.classroomEnrollments?.[0];
+    const classroom = enrollment?.classroom;
+    const classLabel = classroom 
+        ? `${classroom.name} - ${classroom.section ?? ""}` 
+        : (student.grade ? `${student.grade}-${student.section ?? ""}` : "—");
 
     return (
         <motion.tr
@@ -239,10 +243,6 @@ export default function StudentDirectory() {
     const [formOpen, setFormOpen] = useState(false);
     const [editTarget, setEditTarget] = useState<Student | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
-
-    // Build a classroom → "Grade 10-A" label map keyed by student.id
-    // (we use the student's grade/section fields for now; a full join would need backend change)
-    const classroomMapById = useMemo(() => ({} as Record<string, string>), []);
 
     const { data, isLoading, isFetching, refetch } = useQuery({
         queryKey: ["students", search, statusFilter, classFilter, page],
@@ -466,11 +466,10 @@ export default function StudentDirectory() {
                             </thead>
                             <tbody>
                                 <AnimatePresence>
-                                    {students.map(student => (
+                                    {students.map(s => (
                                         <StudentRow
-                                            key={student.id}
-                                            student={student}
-                                            classroomMap={classroomMapById}
+                                            key={s.id}
+                                            student={s}
                                             canEdit={can("students", "update")}
                                             canDelete={can("students", "delete")}
                                             onEdit={handleEdit}

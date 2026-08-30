@@ -15,6 +15,7 @@ interface DecryptedPermissionPayload {
     roles: string[];
     permissions: string[];
     permissionMap: Record<string, string[]>;
+    version?: number;
     cachedAt: string;
 }
 
@@ -23,7 +24,7 @@ interface DecryptedPermissionPayload {
  * → decrypts client-side → stores in Redux permissionSlice.
  *
  * Flow:
- *   1. Server builds { roles, permissions, permissionMap, cachedAt, sub }
+ *   1. Server builds { roles, permissions, permissionMap, cachedAt, sub, version }
  *   2. Server AES-encrypts with PERMISSION_ENCRYPT_KEY
  *   3. Frontend receives { encrypted: "<base64>" }
  *   4. Frontend decrypts with VITE_PERMISSION_ENCRYPT_KEY
@@ -63,6 +64,7 @@ export const useMyPermissions = () => {
                     roles: query.data.roles,
                     permissions: query.data.permissions,
                     permissionMap: query.data.permissionMap,
+                    version: query.data.version || 1,
                     cachedAt: query.data.cachedAt ?? new Date().toISOString(),
                 })
             );
