@@ -22,6 +22,7 @@ export interface User {
     Roles?: Role[];
     studentProfile?: StudentProfile | null;
     teacherProfile?: TeacherProfile | null;
+    teacherId?: string;
 }
 
 export interface TeacherProfile {
@@ -99,6 +100,42 @@ export interface Classroom {
     academicYear: string;
     roomNumber: string | null;
     status: ClassroomStatus;
+    department?: string | null;
+    buildingBlock?: string | null;
+    maxCapacity?: number;
+    monitorMaleId?: string | null;
+    monitorFemaleId?: string | null;
+    maleMonitor?: {
+        id: string;
+        studentId: string;
+        account: {
+            id: string;
+            userId: string;
+            firstName: string;
+            lastName: string;
+        };
+    } | null;
+    femaleMonitor?: {
+        id: string;
+        studentId: string;
+        account: {
+            id: string;
+            userId: string;
+            firstName: string;
+            lastName: string;
+        };
+    } | null;
+    classTeacherId?: string | null;
+    classTeacher?: {
+        id: string;
+        teacherId: string;
+        account: {
+            id: string;
+            userId: string;
+            firstName: string;
+            lastName: string;
+        };
+    } | null;
     studentCount?: number;
     enrollments?: ClassroomEnrollment[];
     subjects?: ClassroomSubject[];
@@ -305,7 +342,13 @@ export interface CreateClassroomPayload {
     section: string;
     academicYear: string;
     roomNumber?: string;
-    status?: ClassroomStatus;
+    classTeacherId?: string;
+    status: ClassroomStatus;
+    department?: string;
+    buildingBlock?: string;
+    maxCapacity?: number;
+    monitorMaleId?: string;
+    monitorFemaleId?: string;
 }
 
 export interface AssignStudentsPayload {

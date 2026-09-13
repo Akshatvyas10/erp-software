@@ -1,9 +1,10 @@
 import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
+import type { User } from "@/types/erp";
 
 interface AuthState {
     token: string | null;
-    user: Record<string, unknown> | null;
+    user: User | null;
 }
 
 const initialState: AuthState = {
@@ -22,7 +23,7 @@ const authSlice = createSlice({
          */
         loginSuccess: (
             state,
-            action: PayloadAction<{ token: string; user: Record<string, unknown> }>
+            action: PayloadAction<{ token: string; user: User }>
         ) => {
             state.token = action.payload.token;
             state.user = action.payload.user;

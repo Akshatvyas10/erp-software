@@ -100,9 +100,8 @@ const createUser = async (req, res, next) => {
 
         let generatedUserId = req.body.userId;
         if (!generatedUserId) {
-            const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
-            const rand = Math.floor(1000 + Math.random() * 9000).toString();
-            generatedUserId = `ERP-${dateStr}-${rand}`;
+            const [results] = await db.sequelize.query("SELECT nextval('erp_user_id_seq') as seq");
+            generatedUserId = `ERP-${String(results[0].seq).padStart(5, '0')}`;
         }
 
         const user = await User.create({ 

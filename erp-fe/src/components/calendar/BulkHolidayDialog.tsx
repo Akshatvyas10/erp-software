@@ -98,8 +98,8 @@ export function BulkHolidayDialog({ open, onOpenChange }: BulkHolidayDialogProps
             {
                 sessionStartDate: data.sessionStartDate.toISOString(),
                 sessionEndDate: data.sessionEndDate.toISOString(),
-                saturdayRule: data.saturdayRule,
-                sundayRule: data.sundayRule,
+                saturdayRule: data.saturdayRule || 'NONE',
+                sundayRule: data.sundayRule || 'ALL',
             },
             {
                 onSuccess: (res) => {

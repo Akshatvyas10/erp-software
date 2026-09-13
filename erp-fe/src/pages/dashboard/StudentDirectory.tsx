@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
@@ -33,6 +33,7 @@ import PermissionGate from "@/components/auth/PermissionGate";
 import AccessDenied from "@/components/auth/AccessDenied";
 import type { Student, StudentStatus, Classroom } from "@/types/erp";
 import AdmissionFormDialog from "./AdmissionFormDialog";
+import { useDebounce } from "@/hooks/use-debounce";
 
 // ─── Status styling map ───────────────────────────────────────────────────────
 const STATUS_STYLES: Record<StudentStatus, string> = {
@@ -236,6 +237,7 @@ export default function StudentDirectory() {
     const qc = useQueryClient();
 
     const [search, setSearch] = useState("");
+    const debouncedSearch = useDebounce(search, 300);
     const [statusFilter, setStatusFilter] = useState("");
     const [classFilter, setClassFilter] = useState("");
     const [page, setPage] = useState(1);
@@ -245,8 +247,8 @@ export default function StudentDirectory() {
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
     const { data, isLoading, isFetching, refetch } = useQuery({
-        queryKey: ["students", search, statusFilter, classFilter, page],
-        queryFn: () => fetchStudents(search, statusFilter, classFilter, page),
+        queryKey: ["students", debouncedSearch, statusFilter, classFilter, page],
+        queryFn: () => fetchStudents(debouncedSearch, statusFilter, classFilter, page),
         enabled: can("students", "read"),
         staleTime: 30_000,
         placeholderData: (prev) => prev,

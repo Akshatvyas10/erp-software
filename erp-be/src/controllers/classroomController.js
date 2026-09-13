@@ -7,15 +7,15 @@ const {
 } = db;
 import { success, error } from '../utils/apiResponse.js';
 
-const studentAccount = {
+const studentAccount = () => ({
     model: User, as: 'account',
     attributes: ['id', 'userId', 'firstName', 'lastName', 'email', 'isActive'],
-};
+});
 
-const teacherAccount = {
+const teacherAccount = () => ({
     model: User, as: 'account',
     attributes: ['id', 'userId', 'firstName', 'lastName'],
-};
+});
 
 // ── GET /api/classrooms ──────────────────────────────────────────────────────
 const listClassrooms = async (req, res, next) => {
@@ -24,11 +24,42 @@ const listClassrooms = async (req, res, next) => {
         const where = {};
         if (status) where.status = status;
         if (academicYear) where.academicYear = academicYear;
+        
+        let searchCondition = null;
         if (search) {
-            where[Op.or] = [
-                { name: { [Op.iLike]: `%${search}%` } },
-                { section: { [Op.iLike]: `%${search}%` } },
-            ];
+            searchCondition = {
+                [Op.or]: [
+                    { name: { [Op.iLike]: `%${search}%` } },
+                    { section: { [Op.iLike]: `%${search}%` } },
+                ]
+            };
+        }
+
+        const isStandardTeacher = req.userRoles && req.userRoles.includes('TEACHER') && !req.userRoles.some(r => ['ADMIN', 'SUPER_ADMIN'].includes(r));
+        if (isStandardTeacher) {
+            const teacherId = req.user.teacherId;
+            if (!teacherId) return success(res, { classrooms: [] });
+
+            const subjectClassroomIds = await ClassroomSubject.findAll({
+                where: { teacherId },
+                attributes: ['classroomId'],
+                raw: true
+            }).then(rows => rows.map(r => r.classroomId));
+
+            const teacherCondition = {
+                [Op.or]: [
+                    { classTeacherId: teacherId },
+                    { id: { [Op.in]: subjectClassroomIds } }
+                ]
+            };
+
+            if (searchCondition) {
+                where[Op.and] = [searchCondition, teacherCondition];
+            } else {
+                Object.assign(where, teacherCondition);
+            }
+        } else if (searchCondition) {
+            Object.assign(where, searchCondition);
         }
 
         const classrooms = await Classroom.findAll({
@@ -43,10 +74,15 @@ const listClassrooms = async (req, res, next) => {
                     attributes: ['id', 'subjectId', 'teacherId'],
                     required: false,
                     include: [
-                        { model: Teacher, as: 'teacher', attributes: ['id'], include: [teacherAccount] },
+                        { model: Teacher, as: 'teacher', attributes: ['id'], include: [teacherAccount()] },
                         { model: Subject, as: 'subject', attributes: ['id', 'name', 'code', 'type'] }
                     ],
                 },
+                {
+                    model: Teacher, as: 'classTeacher',
+                    attributes: ['id', 'teacherId'],
+                    include: [teacherAccount()]
+                }
             ],
             order: [['name', 'ASC'], ['section', 'ASC']],
         });
@@ -76,46 +112,130 @@ const getClassroom = async (req, res, next) => {
                     include: [{
                         model: Student, as: 'student',
                         attributes: ['id', 'studentId', 'grade', 'section'],
-                        include: [studentAccount],
+                        include: [studentAccount()],
                     }],
                 },
                 {
                     model: ClassroomSubject, as: 'subjects',
                     include: [
-                        { model: Teacher, as: 'teacher', attributes: ['id', 'teacherId'], include: [teacherAccount] },
+                        { model: Teacher, as: 'teacher', attributes: ['id', 'teacherId'], include: [teacherAccount()] },
                         { model: Subject, as: 'subject' },
                         { model: Timetable, as: 'schedule', order: [['dayOfWeek', 'ASC'], ['startTime', 'ASC']] },
                     ],
                 },
+                {
+                    model: Teacher, as: 'classTeacher',
+                    attributes: ['id', 'teacherId'],
+                    include: [teacherAccount()]
+                },
+                {
+                    model: Student, as: 'maleMonitor',
+                    attributes: ['id', 'studentId'],
+                    include: [studentAccount()]
+                },
+                {
+                    model: Student, as: 'femaleMonitor',
+                    attributes: ['id', 'studentId'],
+                    include: [studentAccount()]
+                }
             ],
         });
         if (!classroom) return error(res, 'Classroom not found', 404);
+
+        const isStandardTeacher = req.userRoles && req.userRoles.includes('TEACHER') && !req.userRoles.some(r => ['ADMIN', 'SUPER_ADMIN'].includes(r));
+        if (isStandardTeacher) {
+            const teacherId = req.user.teacherId;
+            if (classroom.classTeacherId !== teacherId) {
+                const hasSubject = classroom.subjects.some(s => s.teacherId === teacherId);
+                if (!hasSubject) return error(res, 'Forbidden: You do not have access to this classroom', 403);
+            }
+        }
+
         return success(res, { classroom });
     } catch (err) { next(err); }
 };
 
 // ── POST /api/classrooms ─────────────────────────────────────────────────────
 const createClassroom = async (req, res, next) => {
+    const t = await db.sequelize.transaction();
     try {
-        const { name, section, academicYear, roomNumber, status = 'ACTIVE' } = req.body;
+        const { name, section, academicYear, roomNumber, classTeacherId, status = 'ACTIVE', department, buildingBlock, maxCapacity = 40, monitorMaleId, monitorFemaleId } = req.body;
 
-        const existing = await Classroom.findOne({ where: { name, section, academicYear } });
-        if (existing) return error(res, 'Classroom already exists for this name/section/year', 409);
+        const existing = await Classroom.findOne({ where: { name, section, academicYear }, transaction: t });
+        if (existing) {
+            await t.rollback();
+            return error(res, 'Classroom already exists for this name/section/year', 409);
+        }
 
-        const classroom = await Classroom.create({ name, section, academicYear, roomNumber, status });
+        if (classTeacherId && status === 'ACTIVE') {
+            const existingAssignment = await Classroom.findOne({
+                where: { classTeacherId, status: 'ACTIVE' },
+                transaction: t
+            });
+            if (existingAssignment) {
+                await t.rollback();
+                return error(res, `Teacher is already assigned as Class Teacher for ${existingAssignment.name} ${existingAssignment.section}`, 409);
+            }
+            
+            const teacher = await Teacher.findByPk(classTeacherId, { transaction: t });
+            if (teacher && (!teacher.designation || teacher.designation === 'SUBJECT_TEACHER')) {
+                await teacher.update({ designation: 'CLASS_TEACHER' }, { transaction: t });
+            }
+        }
+
+        const classroom = await Classroom.create({ name, section, academicYear, roomNumber, classTeacherId, status, department, buildingBlock, maxCapacity, monitorMaleId, monitorFemaleId }, { transaction: t });
+        await t.commit();
         return success(res, { classroom }, 'Classroom created', 201);
-    } catch (err) { next(err); }
+    } catch (err) { 
+        await t.rollback();
+        next(err); 
+    }
 };
 
 // ── PUT /api/classrooms/:id ──────────────────────────────────────────────────
 const updateClassroom = async (req, res, next) => {
+    const t = await db.sequelize.transaction();
     try {
-        const classroom = await Classroom.findByPk(req.params.id);
-        if (!classroom) return error(res, 'Classroom not found', 404);
-        const { name, section, academicYear, roomNumber, status } = req.body;
-        await classroom.update({ name, section, academicYear, roomNumber, status });
+        const classroom = await Classroom.findByPk(req.params.id, { transaction: t });
+        if (!classroom) {
+            await t.rollback();
+            return error(res, 'Classroom not found', 404);
+        }
+        
+        const { name, section, academicYear, roomNumber, classTeacherId, status, department, buildingBlock, maxCapacity, monitorMaleId, monitorFemaleId } = req.body;
+        
+        if (classTeacherId && status !== 'INACTIVE') {
+            const existingAssignment = await Classroom.findOne({
+                where: { classTeacherId, status: 'ACTIVE' },
+                transaction: t
+            });
+            if (existingAssignment && existingAssignment.id !== classroom.id) {
+                await t.rollback();
+                return error(res, `Teacher is already assigned as Class Teacher for ${existingAssignment.name} ${existingAssignment.section}`, 409);
+            }
+            
+            const teacher = await Teacher.findByPk(classTeacherId, { transaction: t });
+            if (teacher && (!teacher.designation || teacher.designation === 'SUBJECT_TEACHER')) {
+                await teacher.update({ designation: 'CLASS_TEACHER' }, { transaction: t });
+            }
+        }
+
+        if (maxCapacity !== undefined) {
+            const currentStudentsCount = await ClassroomStudent.count({ where: { classroomId: classroom.id }, transaction: t });
+            if (maxCapacity < currentStudentsCount) {
+                await t.rollback();
+                return error(res, `Cannot reduce max capacity to ${maxCapacity} because there are already ${currentStudentsCount} students enrolled.`, 422);
+            }
+        }
+
+        
+        await classroom.update({ name, section, academicYear, roomNumber, classTeacherId, status, department, buildingBlock, maxCapacity, monitorMaleId, monitorFemaleId }, { transaction: t });
+        await t.commit();
         return success(res, { classroom }, 'Classroom updated');
-    } catch (err) { next(err); }
+    } catch (err) { 
+        await t.rollback();
+        next(err); 
+    }
 };
 
 // ── DELETE /api/classrooms/:id ───────────────────────────────────────────────
@@ -136,7 +256,7 @@ const getRoster = async (req, res, next) => {
             include: [{
                 model: Student, as: 'student',
                 attributes: ['id', 'studentId', 'grade', 'section', 'status'],
-                include: [studentAccount],
+                include: [studentAccount()],
             }],
             order: [[{ model: Student, as: 'student' }, { model: User, as: 'account' }, 'firstName', 'ASC']],
         });
@@ -170,6 +290,14 @@ const assignStudents = async (req, res, next) => {
             return error(res, 'One or more selected students are already enrolled in a different classroom for this academic year.', 422);
         }
 
+        const currentCount = await ClassroomStudent.count({ where: { classroomId: classroom.id } });
+        const existingInThisClass = existingEnrollments.filter(e => e.classroomId === classroom.id).map(e => e.studentId);
+        const newStudentIds = studentIds.filter(id => !existingInThisClass.includes(id));
+
+        if (currentCount + newStudentIds.length > classroom.maxCapacity) {
+            return error(res, `Cannot assign students. Max capacity is ${classroom.maxCapacity}, currently enrolled: ${currentCount}, adding: ${newStudentIds.length}.`, 422);
+        }
+
         const rows = studentIds.map(sid => ({ classroomId: classroom.id, studentId: sid }));
         const created = await ClassroomStudent.bulkCreate(rows, { ignoreDuplicates: true });
 
@@ -194,7 +322,7 @@ const getSubjects = async (req, res, next) => {
         const subjects = await ClassroomSubject.findAll({
             where: { classroomId: req.params.id },
             include: [
-                { model: Teacher, as: 'teacher', attributes: ['id', 'teacherId'], include: [teacherAccount] },
+                { model: Teacher, as: 'teacher', attributes: ['id', 'teacherId'], include: [teacherAccount()] },
                 { model: Subject, as: 'subject' },
                 { model: Timetable, as: 'schedule', order: [['dayOfWeek', 'ASC'], ['startTime', 'ASC']] },
             ],
@@ -221,7 +349,7 @@ const addSubject = async (req, res, next) => {
 
         const result = await ClassroomSubject.findByPk(subject.id, {
             include: [
-                { model: Teacher, as: 'teacher', attributes: ['id', 'teacherId'], include: [teacherAccount] },
+                { model: Teacher, as: 'teacher', attributes: ['id', 'teacherId'], include: [teacherAccount()] },
                 { model: Subject, as: 'subject' }
             ],
         });

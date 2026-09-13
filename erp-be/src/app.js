@@ -26,6 +26,7 @@ import classroomRoutes from './routes/classroom.routes.js';
 import subjectRoutes from './routes/subject.routes.js';
 import homeworkRoutes from './routes/homework.routes.js';
 import eventRoutes from './routes/event.routes.js';
+import examRoutes from './routes/exam.routes.js';
 
 const app = express();
 
@@ -86,6 +87,7 @@ app.use('/api/classrooms', classroomRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/homeworks', homeworkRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/exams', examRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {

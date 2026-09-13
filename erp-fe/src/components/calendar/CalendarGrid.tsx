@@ -7,7 +7,6 @@ import {
     endOfMonth,
     eachDayOfInterval,
     isSameMonth,
-    isSameDay,
     isToday,
     startOfWeek,
     endOfWeek,
@@ -20,8 +19,6 @@ import { Button } from '../ui/button';
 import { cn } from '../../lib/utils';
 import type { CalendarEvent } from '../../hooks/useEvents';
 import { Badge } from '../ui/badge';
-import { useSelector } from 'react-redux';
-import type { RootState } from '../../store';
 import { usePermissions } from '../../store/hooks';
 import {
     Dialog,

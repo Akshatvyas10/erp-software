@@ -40,6 +40,11 @@ const loadUserWithRoles = async (userId) => {
                     },
                 ],
             },
+            {
+                model: db.Teacher,
+                as: 'teacherProfile',
+                attributes: ['id']
+            }
         ],
     });
 };

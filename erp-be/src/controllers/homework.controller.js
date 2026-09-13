@@ -3,7 +3,7 @@ import { z } from 'zod';
 import db from '../models/index.js';
 import logger from '../utils/logger.js';
 
-const { Homework, HomeworkSubmission, ClassroomStudent, Student, Teacher, Subject, Classroom, User, sequelize } = db;
+const { Homework, HomeworkSubmission, ClassroomStudent, ClassroomSubject, Student, Teacher, Subject, Classroom, User, sequelize } = db;
 
 const homeworkSchema = z.object({
     title: z.string().min(3).max(150),
@@ -60,8 +60,7 @@ export const getHomeworks = async (req, res) => {
                 { model: Subject, as: 'subject', attributes: ['id', 'name', 'code'] },
                 { model: Classroom, as: 'classroom', attributes: ['id', 'name', 'section'] },
                 {
-                    model: Teacher, as: 'teacher', attributes: ['id'],
-                    include: [{ model: User, as: 'account', attributes: ['firstName', 'lastName'] }]
+                    model: User, as: 'createdBy', attributes: ['id', 'firstName', 'lastName']
                 }
             ],
             order: [['created_at', 'DESC']]
@@ -69,10 +68,13 @@ export const getHomeworks = async (req, res) => {
 
         const formatted = homeworks.map(h => {
             const json = h.toJSON();
-            if (json.teacher && json.teacher.account) {
-                json.teacher.firstName = json.teacher.account.firstName;
-                json.teacher.lastName = json.teacher.account.lastName;
-                delete json.teacher.account;
+            // We use createdBy for the assigned by display.
+            if (json.createdBy) {
+                json.teacher = {
+                    firstName: json.createdBy.firstName,
+                    lastName: json.createdBy.lastName
+                };
+                delete json.createdBy;
             }
             return json;
         });
@@ -92,8 +94,7 @@ export const getHomeworkDetails = async (req, res) => {
                 { model: Subject, as: 'subject', attributes: ['id', 'name', 'code'] },
                 { model: Classroom, as: 'classroom', attributes: ['id', 'name', 'section'] },
                 {
-                    model: Teacher, as: 'teacher', attributes: ['id'],
-                    include: [{ model: User, as: 'account', attributes: ['firstName', 'lastName'] }]
+                    model: User, as: 'createdBy', attributes: ['id', 'firstName', 'lastName']
                 }
             ]
         });
@@ -103,10 +104,13 @@ export const getHomeworkDetails = async (req, res) => {
         }
 
         const json = homework.toJSON();
-        if (json.teacher && json.teacher.account) {
-            json.teacher.firstName = json.teacher.account.firstName;
-            json.teacher.lastName = json.teacher.account.lastName;
-            delete json.teacher.account;
+        const formatted = json;
+        if (formatted.createdBy) {
+            formatted.teacher = {
+                firstName: formatted.createdBy.firstName,
+                lastName: formatted.createdBy.lastName
+            };
+            delete formatted.createdBy;
         }
 
         const isStudent = req.userRoles?.some(r => r.toUpperCase() === 'STUDENT');
@@ -115,7 +119,12 @@ export const getHomeworkDetails = async (req, res) => {
 
         if (isTeacher && !isAdmin) {
             const teacher = await Teacher.findOne({ where: { userId: req.user.id } });
-            if (teacher && homework.teacherId !== teacher.id) {
+            if (!teacher) return res.status(403).json({ message: 'Access denied' });
+            
+            const classroom = await Classroom.findByPk(homework.classroomId);
+            const subject = await ClassroomSubject.findOne({ where: { classroomId: homework.classroomId, subjectId: homework.subjectId } });
+            
+            if (classroom?.classTeacherId !== teacher.id && (!subject || subject.teacherId !== teacher.id)) {
                 return res.status(403).json({ message: 'Access denied' });
             }
         }
@@ -163,12 +172,34 @@ export const createHomework = async (req, res) => {
         let teacherId = null;
         if (isTeacher) {
             const teacher = await Teacher.findOne({ where: { userId: req.user.id } });
-            if (!teacher) return res.status(400).json({ message: 'Teacher profile missing' });
-            teacherId = teacher.id;
+            if (teacher) teacherId = teacher.id;
         }
 
-        if (!teacherId && !isAdmin) {
-            return res.status(400).json({ message: 'A valid teacher profile is required to assign homework' });
+        if (!teacherId && isAdmin) {
+            const subject = await ClassroomSubject.findOne({ where: { classroomId: payload.classId, subjectId: payload.subjectId }, transaction: t });
+            if (subject && subject.teacherId) {
+                teacherId = subject.teacherId;
+            } else {
+                const classroom = await Classroom.findByPk(payload.classId, { transaction: t });
+                if (classroom && classroom.classTeacherId) {
+                    teacherId = classroom.classTeacherId;
+                }
+            }
+        }
+
+        if (!teacherId) {
+            await t.rollback();
+            return res.status(400).json({ message: 'Cannot assign homework: No teacher assigned to this subject or classroom' });
+        }
+
+        if (isTeacher && !isAdmin) {
+            const classroom = await Classroom.findByPk(payload.classId, { transaction: t });
+            const subject = await ClassroomSubject.findOne({ where: { classroomId: payload.classId, subjectId: payload.subjectId }, transaction: t });
+            
+            if (classroom?.classTeacherId !== teacherId && (!subject || subject.teacherId !== teacherId)) {
+                await t.rollback();
+                return res.status(403).json({ message: 'You are not authorized to assign homework for this subject' });
+            }
         }
 
         const homework = await Homework.create({
@@ -178,7 +209,8 @@ export const createHomework = async (req, res) => {
             subjectId: payload.subjectId,
             classroomId: payload.classId,
             status: payload.status,
-            teacherId: teacherId
+            teacherId: teacherId,
+            createdById: req.user.id
         }, { transaction: t });
 
         // If published immediately, explicitly create submissions for all enrolled students
@@ -227,9 +259,14 @@ export const updateHomework = async (req, res) => {
         const teacher = await Teacher.findOne({ where: { userId: req.user.id } });
         if (teacher) teacherId = teacher.id;
 
-        if (!isAdmin && homework.teacherId !== teacherId) {
-            await t.rollback();
-            return res.status(403).json({ message: 'You can only edit your own homework' });
+        if (!isAdmin && isTeacher) {
+            const classroom = await Classroom.findByPk(homework.classroomId, { transaction: t });
+            const subject = await ClassroomSubject.findOne({ where: { classroomId: homework.classroomId, subjectId: homework.subjectId }, transaction: t });
+            
+            if (classroom?.classTeacherId !== teacherId && (!subject || subject.teacherId !== teacherId)) {
+                await t.rollback();
+                return res.status(403).json({ message: 'You can only edit homework for your assigned subjects or classes' });
+            }
         }
 
         const previousStatus = homework.status;
@@ -288,9 +325,15 @@ export const deleteHomework = async (req, res) => {
         let teacherId = null;
         const teacher = await Teacher.findOne({ where: { userId: req.user.id } });
         if (teacher) teacherId = teacher.id;
+        const isTeacher = req.userRoles?.some(r => r.toUpperCase() === 'TEACHER');
 
-        if (!isAdmin && homework.teacherId !== teacherId) {
-            return res.status(403).json({ message: 'You can only delete your own homework' });
+        if (!isAdmin && isTeacher) {
+            const classroom = await Classroom.findByPk(homework.classroomId);
+            const subject = await ClassroomSubject.findOne({ where: { classroomId: homework.classroomId, subjectId: homework.subjectId } });
+            
+            if (classroom?.classTeacherId !== teacherId && (!subject || subject.teacherId !== teacherId)) {
+                return res.status(403).json({ message: 'You can only delete homework for your assigned subjects or classes' });
+            }
         }
 
         await homework.destroy();
@@ -314,9 +357,15 @@ export const getHomeworkSubmissions = async (req, res) => {
         let teacherId = null;
         const teacher = await Teacher.findOne({ where: { userId: req.user.id } });
         if (teacher) teacherId = teacher.id;
+        const isTeacher = req.userRoles?.some(r => r.toUpperCase() === 'TEACHER');
 
-        if (!isAdmin && homework.teacherId !== teacherId) {
-            return res.status(403).json({ message: 'Access denied' });
+        if (!isAdmin && isTeacher) {
+            const classroom = await Classroom.findByPk(homework.classroomId);
+            const subject = await ClassroomSubject.findOne({ where: { classroomId: homework.classroomId, subjectId: homework.subjectId } });
+            
+            if (classroom?.classTeacherId !== teacherId && (!subject || subject.teacherId !== teacherId)) {
+                return res.status(403).json({ message: 'Access denied' });
+            }
         }
 
         const submissions = await HomeworkSubmission.findAll({
@@ -384,8 +433,20 @@ export const updateSubmission = async (req, res) => {
             } else {
                 return res.status(400).json({ message: 'Students can only submit homework' });
             }
-        } else if (isAdmin || submission.homework.teacherId === teacherId) {
-            // Teacher/Admin can review
+        } else if (isAdmin) {
+            // Admin can review
+            submission.status = payload.status;
+            if (payload.grade !== undefined) submission.grade = payload.grade;
+            if (payload.feedback !== undefined) submission.feedback = payload.feedback;
+        } else if (teacherId) {
+            const classroom = await Classroom.findByPk(submission.homework.classroomId);
+            const subject = await ClassroomSubject.findOne({ where: { classroomId: submission.homework.classroomId, subjectId: submission.homework.subjectId } });
+            
+            if (classroom?.classTeacherId !== teacherId && (!subject || subject.teacherId !== teacherId)) {
+                return res.status(403).json({ message: 'Access denied' });
+            }
+            
+            // Teacher can review
             submission.status = payload.status;
             if (payload.grade !== undefined) submission.grade = payload.grade;
             if (payload.feedback !== undefined) submission.feedback = payload.feedback;

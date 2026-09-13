@@ -20,10 +20,10 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
     },
 
     pool: {
-        max: 5,   // Neon free tier allows limited concurrent connections
-        min: 0,
-        acquire: 30000,
-        idle: 20000,
+        max: 50,  // Upgraded from 5 to handle concurrent bursts (e.g. attendance rush)
+        min: 2,
+        acquire: 60000,
+        idle: 10000,
         evict: 1000,
     },
 

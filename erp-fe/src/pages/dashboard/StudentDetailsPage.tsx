@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     ArrowLeft, Pencil, GraduationCap, Phone, Mail, MapPin,
     Fingerprint, Bus, BadgeDollarSign, Droplets, AlertTriangle,
     BookOpen, Users, CalendarDays, Hash, School, Loader2,
-    ShieldCheck, HeartPulse,
+    ShieldCheck, HeartPulse, Check, X, Clock, Minus, ChevronLeft, ChevronRight, Palmtree
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -13,13 +11,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { usePermissions } from "@/store/hooks";
 import AccessDenied from "@/components/auth/AccessDenied";
 import AdmissionFormDialog from "./AdmissionFormDialog";
 import type { Student, StudentStatus, TransportMode, FeeQuota } from "@/types/erp";
 import { SectionCard, DetailRow } from "@/components/shared/DetailCards";
+import { useNavigate, useParams } from "react-router-dom";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/api$/, "") ?? "http://localhost:5000";
@@ -54,6 +56,320 @@ const BLOOD_COLORS: Record<string, string> = {
     "O+": "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
     "O−": "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
 };
+
+// =============================================================================
+// Attendance Component
+// =============================================================================
+
+function getLocalISODate(date: Date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+
+function StudentAttendanceCard({ studentId }: { studentId: string }) {
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+
+    const startDate = getLocalISODate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1));
+    const endDate = getLocalISODate(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0));
+
+    const { data, isLoading } = useQuery({
+        queryKey: ["student-attendance", studentId, startDate, endDate],
+        queryFn: () => api.get(`/students/${studentId}/attendance?startDate=${startDate}&endDate=${endDate}`).then(res => res.data.data),
+    });
+
+    const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+    const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+
+    if (isLoading) {
+        return <div className="p-6"><Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" /></div>;
+    }
+
+    const summary = data?.summary || { total: 0, present: 0, absent: 0, late: 0, halfDay: 0, percentage: 0 };
+    const records = data?.records || [];
+    const holidays = data?.holidays || [];
+    const recordMap = new Map();
+    records.forEach((r: any) => recordMap.set(r.attendanceDate, r));
+
+    const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+    const startDayOfWeek = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
+    const todayStr = getLocalISODate(new Date());
+
+    const isHoliday = (dateStr: string) => {
+        return holidays.find((h: any) => {
+            const hStart = getLocalISODate(new Date(h.start_date));
+            const hEnd = getLocalISODate(new Date(h.end_date));
+            return dateStr >= hStart && dateStr <= hEnd;
+        });
+    };
+
+    const renderDayCell = (day: number) => {
+        const dateObj = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+        const dateStr = getLocalISODate(dateObj);
+        const record = recordMap.get(dateStr);
+        const holidayEvent = !record ? isHoliday(dateStr) : null;
+        const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+
+        let Icon = null;
+        let iconClass = "";
+        let bgClass = "bg-card";
+        let tooltipText = "";
+        let labelText = "";
+
+        if (record) {
+            if (record.status === 'PRESENT') {
+                Icon = Check;
+                iconClass = "text-emerald-600 dark:text-emerald-400";
+                bgClass = "bg-emerald-500/10 border-emerald-500/20";
+                tooltipText = "Present";
+            }
+            else if (record.status === 'ABSENT') {
+                Icon = X;
+                iconClass = "text-destructive";
+                bgClass = "bg-destructive/10 border-destructive/20";
+                tooltipText = "Absent";
+            }
+            else if (record.status === 'LATE' || record.status === 'HALF_DAY') {
+                Icon = Clock;
+                iconClass = "text-amber-600 dark:text-amber-400";
+                bgClass = "bg-amber-500/10 border-amber-500/20";
+                tooltipText = "Late / Half Day";
+            }
+        } else if (holidayEvent) {
+            Icon = Palmtree;
+            iconClass = "text-indigo-500";
+            bgClass = "bg-indigo-500/10 border-indigo-500/20";
+            tooltipText = holidayEvent.title || "Holiday";
+            labelText = "Holiday";
+        } else if (isWeekend) {
+            Icon = Minus;
+            iconClass = "text-muted-foreground opacity-50";
+            bgClass = "bg-muted/10 border-border/50";
+            tooltipText = "Weekend";
+            labelText = "Weekend";
+        } else if (dateStr < todayStr) {
+            Icon = AlertTriangle;
+            iconClass = "text-muted-foreground opacity-50";
+            bgClass = "bg-muted/10 border-border/50";
+            tooltipText = "Not Marked";
+        }
+
+        const isToday = dateStr === todayStr;
+
+        return (
+            <div
+                key={day}
+                title={tooltipText}
+                className={cn(
+                    "flex flex-col items-center justify-center p-2 border rounded-md h-16 sm:h-20 relative transition-colors cursor-default",
+                    bgClass,
+                    isToday && "ring-2 ring-primary ring-offset-1 ring-offset-background hover:opacity-90"
+                )}
+            >
+                <span className={cn("text-[10px] sm:text-xs absolute top-1 left-1.5 font-medium", isToday && "text-primary font-bold")}>
+                    {day}
+                </span>
+                {Icon && !labelText && <Icon className={cn("h-4 w-4 sm:h-5 sm:w-5 mt-2", iconClass)} />}
+                {Icon && labelText && <Icon className={cn("h-3 w-3 sm:h-4 sm:w-4 mt-1", iconClass)} />}
+                {labelText && <span className={cn("text-[8px] sm:text-[9px] mt-1 font-semibold leading-none", iconClass)}>{labelText}</span>}
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex flex-col">
+            {/* Calendar Header / Controls */}
+            <div className="flex items-center justify-between p-4 border-b border-border/60 bg-muted/5">
+                <Button variant="outline" size="icon" onClick={prevMonth} className="h-8 w-8">
+                    <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <h3 className="text-sm font-bold text-foreground">
+                    {currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                </h3>
+                <Button variant="outline" size="icon" onClick={nextMonth} className="h-8 w-8" disabled={currentMonth.getMonth() === new Date().getMonth() && currentMonth.getFullYear() === new Date().getFullYear()}>
+                    <ChevronRight className="h-4 w-4" />
+                </Button>
+            </div>
+
+            {/* Summary Row */}
+            <div className="grid grid-cols-5 gap-2 p-4 border-b border-border/60 bg-muted/5">
+                <div className="flex flex-col items-center p-2 rounded-lg bg-card border shadow-sm">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground">Total</span>
+                    <span className="text-sm font-black text-foreground">{summary.total}</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">Present</span>
+                    <span className="text-sm font-black text-emerald-700 dark:text-emerald-300">{summary.present}</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-lg bg-destructive/10 border border-destructive/20">
+                    <span className="text-[10px] uppercase font-bold text-destructive">Absent</span>
+                    <span className="text-sm font-black text-destructive">{summary.absent}</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400">Late</span>
+                    <span className="text-sm font-black text-amber-700 dark:text-amber-300">{summary.late + summary.halfDay}</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-lg bg-primary/10 border border-primary/20">
+                    <span className="text-[10px] uppercase font-bold text-primary">Att %</span>
+                    <span className="text-sm font-black text-primary">{summary.percentage}%</span>
+                </div>
+            </div>
+
+            {/* Calendar Grid */}
+            <div className="p-4 sm:p-6">
+                <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2">
+                    {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(day => (
+                        <div key={day} className="text-center text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            {day}
+                        </div>
+                    ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                    {Array.from({ length: startDayOfWeek }).map((_, i) => (
+                        <div key={`blank-${i}`} className="h-16 sm:h-20" />
+                    ))}
+                    {Array.from({ length: daysInMonth }).map((_, i) => renderDayCell(i + 1))}
+                </div>
+            </div>
+
+            {/* Legend */}
+            <div className="p-4 border-t border-border/60 bg-muted/5 flex items-center justify-center gap-4 flex-wrap text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-500" /> Present</div>
+                <div className="flex items-center gap-1.5"><X className="h-3 w-3 text-destructive" /> Absent</div>
+                <div className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-amber-500" /> Late/Half</div>
+                <div className="flex items-center gap-1.5"><Palmtree className="h-3 w-3 text-indigo-500" /> Holiday</div>
+                <div className="flex items-center gap-1.5"><AlertTriangle className="h-3 w-3 opacity-50" /> Not Marked</div>
+            </div>
+        </div>
+    );
+}
+
+// =============================================================================
+// Exam Results Component
+// =============================================================================
+function StudentExamResults({ studentId }: { studentId: string }) {
+    const { data: results = [], isLoading } = useQuery({
+        queryKey: ["student-exams", studentId],
+        queryFn: () => api.get(`/students/${studentId}/exam-results`).then(res => res.data.data.results),
+    });
+
+    if (isLoading) {
+        return <div className="p-6"><Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" /></div>;
+    }
+
+    if (results.length === 0) {
+        return (
+            <div className="p-6 text-center text-sm text-muted-foreground italic flex flex-col items-center gap-2">
+                <BookOpen className="h-8 w-8 opacity-20" />
+                No published exam results found.
+            </div>
+        );
+    }
+
+    const groupedResults = results.reduce((acc: any, curr: any) => {
+        const scheduleId = curr.exam?.examSchedule?.id || 'unknown';
+        const scheduleName = curr.exam?.examSchedule?.name || 'Unknown Schedule';
+        const scheduleType = curr.exam?.examSchedule?.type || '';
+
+        if (!acc[scheduleId]) {
+            acc[scheduleId] = {
+                id: scheduleId,
+                name: scheduleName,
+                type: scheduleType,
+                results: []
+            };
+        }
+        acc[scheduleId].results.push(curr);
+        return acc;
+    }, {});
+
+    const schedules = Object.values(groupedResults) as any[];
+
+    return (
+        <Accordion type="single" collapsible className="w-full" defaultValue={schedules[0]?.id}>
+            {schedules.map((schedule) => {
+                let totalMarks = 0;
+                let obtainedMarks = 0;
+                schedule.results.forEach((r: any) => {
+                    if (!r.isAbsent && r.marksObtained != null) {
+                        obtainedMarks += Number(r.marksObtained);
+                        totalMarks += Number(r.exam?.maxMarks || 100);
+                    }
+                });
+                const percentage = totalMarks > 0 ? ((obtainedMarks / totalMarks) * 100).toFixed(1) : "0.0";
+
+                return (
+                    <AccordionItem value={schedule.id} key={schedule.id} className="border-b last:border-0 border-border/60">
+                        <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/5 transition-colors group">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full pr-4 gap-2">
+                                <div className="flex flex-col items-start gap-1">
+                                    <span className="font-bold text-base text-foreground group-hover:text-primary transition-colors">{schedule.name}</span>
+                                    {schedule.type && <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{schedule.type}</span>}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <Badge variant="secondary" className="font-mono text-xs shadow-sm bg-muted text-muted-foreground">
+                                        {obtainedMarks} / {totalMarks}
+                                    </Badge>
+                                    <Badge variant="outline" className={cn(
+                                        "font-bold text-xs shadow-sm",
+                                        Number(percentage) >= 40 ? "text-emerald-600 bg-emerald-500/10 border-emerald-500/20" : "text-destructive bg-destructive/10 border-destructive/20"
+                                    )}>
+                                        {percentage}%
+                                    </Badge>
+                                </div>
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-6 pb-6 pt-2">
+                            <div className="overflow-x-auto custom-scrollbar border border-border/60 rounded-xl shadow-sm bg-card">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-muted/30">
+                                        <tr>
+                                            <th className="px-4 py-3 font-semibold text-muted-foreground border-b border-border/60">Subject</th>
+                                            <th className="px-4 py-3 font-semibold text-muted-foreground border-b border-border/60">Date</th>
+                                            <th className="px-4 py-3 font-semibold text-muted-foreground border-b border-border/60">Marks</th>
+                                            <th className="px-4 py-3 font-semibold text-muted-foreground border-b border-border/60">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border/50">
+                                        {schedule.results.map((r: any) => (
+                                            <tr key={r.id} className="hover:bg-muted/5 transition-colors">
+                                                <td className="px-4 py-3 font-semibold text-primary">{r.exam?.subject?.name}</td>
+                                                <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+                                                    {r.exam?.date ? new Date(r.exam.date).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' }) : "-"}
+                                                </td>
+                                                <td className="px-4 py-3 font-mono font-medium">
+                                                    {r.isAbsent ? (
+                                                        <span className="text-destructive font-bold">Absent</span>
+                                                    ) : (
+                                                        <span>{r.marksObtained != null ? r.marksObtained : "-"} <span className="text-muted-foreground text-xs">/ {r.exam?.maxMarks}</span></span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {r.status ? (
+                                                        <Badge variant="outline" className={cn(
+                                                            "text-[10px] uppercase font-bold tracking-wider",
+                                                            r.status === 'PASSED' ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
+                                                                r.status === 'FAILED' ? "bg-destructive/10 text-destructive border-destructive/20" :
+                                                                    "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                                                        )}>
+                                                            {r.status}
+                                                        </Badge>
+                                                    ) : "-"}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                )
+            })}
+        </Accordion>
+    );
+}
 
 // =============================================================================
 // Main Page Component
@@ -174,6 +490,11 @@ export default function StudentDetailsPage() {
                                 >
                                     {student.status}
                                 </Badge>
+                                {classroom && ((classroom as any).monitorMaleId === student.id || (classroom as any).monitorFemaleId === student.id) && (
+                                    <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 border-yellow-500/20">
+                                        Monitor
+                                    </Badge>
+                                )}
                             </div>
 
                             {/* Admission number chip */}
@@ -357,6 +678,28 @@ export default function StudentDetailsPage() {
                     </SectionCard>
                 </div>
             </div>
+
+            {/* ── 5. Published Exam Results ──────────────────────────────── */}
+            <Card className="border border-border/60 rounded-2xl overflow-hidden shadow-sm bg-card">
+                <div className="px-6 py-4 border-b border-border/60 bg-muted/10 flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <BookOpen className="h-4 w-4 text-primary" />
+                    </div>
+                    <h2 className="text-lg font-bold text-foreground tracking-tight">Published Exam Results</h2>
+                </div>
+                <StudentExamResults studentId={id as string} />
+            </Card>
+
+            {/* ── 6. Daily Attendance ──────────────────────────────────────── */}
+            <Card className="border border-border/60 rounded-2xl overflow-hidden shadow-sm bg-card">
+                <div className="px-6 py-4 border-b border-border/60 bg-muted/10 flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                        <CalendarDays className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <h2 className="text-lg font-bold text-foreground tracking-tight">Daily Attendance</h2>
+                </div>
+                <StudentAttendanceCard studentId={id as string} />
+            </Card>
 
             {/* ── Edit dialog ─────────────────────────────────────────────── */}
             <AdmissionFormDialog

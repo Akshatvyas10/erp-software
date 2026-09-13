@@ -110,6 +110,12 @@ User.prototype.toSafeJSON = function () {
     delete obj.refreshTokenHash;
     delete obj.loginAttempts;
     delete obj.lockedUntil;
+    
+    if (obj.teacherProfile) {
+        obj.teacherId = obj.teacherProfile.id;
+        delete obj.teacherProfile;
+    }
+    
     return obj;
 };
 

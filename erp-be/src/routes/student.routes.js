@@ -6,7 +6,9 @@ import { body, param, query } from 'express-validator';
 
 import * as studentController from '../controllers/studentController.js';
 const { listStudents, getStudent, getMyStudentProfile,
-    createStudent, updateStudent, deleteStudent, } = studentController;
+    createStudent, updateStudent, deleteStudent, getStudentExamResults, getStudentAttendance } = studentController;
+
+
 
 import authenticate from '../middlewares/authenticate.js';
 import { requirePermission, requireRole } from '../middlewares/authorize.js';
@@ -89,7 +91,7 @@ const updateStudentValidation = [
 
 const listQueryValidation = [
     query('page').optional().isInt({ min: 1 }),
-    query('limit').optional().isInt({ min: 1, max: 100 }),
+    query('limit').optional().isInt({ min: 1, max: 1000 }),
     query('status').optional().isIn(['ACTIVE', 'SUSPENDED', 'GRADUATED', 'TRANSFERRED']),
     query('classroomId').optional().isUUID(),
 ];
@@ -114,6 +116,20 @@ router.get('/:id',
     [param('id').isUUID()], validate,
     requirePermission('students', 'read'),
     getStudent
+);
+
+// Exam results
+router.get('/:id/exam-results',
+    [param('id').isUUID()], validate,
+    requirePermission('students', 'read'),
+    getStudentExamResults
+);
+
+// Attendance
+router.get('/:id/attendance',
+    [param('id').isUUID()], validate,
+    requirePermission('students', 'read'),
+    getStudentAttendance
 );
 
 // Create — multipart/form-data (file upload + text fields)

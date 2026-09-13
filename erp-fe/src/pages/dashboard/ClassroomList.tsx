@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
     School, Search, Plus, Trash2, Loader2, RefreshCw,
     Users, BookOpen, MapPin, BookText,
-    MoreHorizontal, Pencil, CalendarDays, LayoutGrid,
+    MoreHorizontal, Pencil, CalendarDays, LayoutGrid, UserCheck
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -47,8 +47,15 @@ const classroomSchema = z.object({
     section: z.string().min(1, "Section is required").max(10),
     academicYear: z.string().min(1, "Academic year is required").max(20),
     roomNumber: z.string().max(20).optional(),
+    classTeacherId: z.string().uuid("Invalid Teacher ID").optional().or(z.literal("")),
     status: z.enum(["ACTIVE", "INACTIVE"]),
+    department: z.string().max(50).optional(),
+    buildingBlock: z.string().max(100).optional(),
+    maxCapacity: z.coerce.number().min(1).default(40),
+    monitorMaleId: z.string().uuid("Invalid Student ID").optional().or(z.literal("")),
+    monitorFemaleId: z.string().uuid("Invalid Student ID").optional().or(z.literal("")),
 });
+type ClassroomFormInput = z.input<typeof classroomSchema>;
 type ClassroomFormValues = z.infer<typeof classroomSchema>;
 
 // ─── API fetchers ─────────────────────────────────────────────────────────────
@@ -58,6 +65,16 @@ const fetchClassrooms = async (search: string, status: string): Promise<Classroo
     if (status) params.set("status", status);
     const { data } = await api.get(`/classrooms?${params}`);
     return data.data.classrooms as Classroom[];
+};
+
+const fetchTeachers = async () => {
+    const { data } = await api.get("/teachers");
+    return data.data.teachers;
+};
+
+const fetchStudents = async () => {
+    const { data } = await api.get("/students?limit=1000");
+    return data.data.students || [];
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -193,6 +210,10 @@ function ClassroomCard({ classroom, canEdit, canDelete, onEdit, onDelete, onView
                             <MapPin className="h-3 w-3" />
                             {classroom.roomNumber ?? "—"}
                         </div>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-semibold truncate max-w-[120px]">
+                            <UserCheck className="h-3 w-3" />
+                            {classroom.classTeacher ? `${classroom.classTeacher.account.firstName} ${classroom.classTeacher.account.lastName}` : "No Class Teacher"}
+                        </div>
                         <Badge
                             variant="outline"
                             className={`text-[10px] font-bold uppercase tracking-wider rounded-lg px-2 py-0.5 ${classroom.status === "ACTIVE"
@@ -231,28 +252,58 @@ interface ClassroomFormDialogProps {
 function ClassroomFormDialog({ open, onOpenChange, editTarget, onSuccess }: ClassroomFormDialogProps) {
     const isEdit = !!editTarget;
 
-    const form = useForm<ClassroomFormValues>({
+    const form = useForm<ClassroomFormInput, any, ClassroomFormValues>({
         resolver: zodResolver(classroomSchema),
         defaultValues: {
             name: editTarget?.name ?? "",
             section: editTarget?.section ?? "",
             academicYear: editTarget?.academicYear ?? "",
             roomNumber: editTarget?.roomNumber ?? "",
+            classTeacherId: editTarget?.classTeacherId ?? "",
             status: editTarget?.status ?? "ACTIVE",
+            department: editTarget?.department ?? "",
+            buildingBlock: editTarget?.buildingBlock ?? "",
+            maxCapacity: editTarget?.maxCapacity ?? 40,
+            monitorMaleId: editTarget?.monitorMaleId ?? "",
+            monitorFemaleId: editTarget?.monitorFemaleId ?? "",
         },
     });
 
-    // Reset form whenever dialog opens with a new target
-    const handleOpenChange = (val: boolean) => {
-        if (val) {
+    const { data: teachers = [] } = useQuery({
+        queryKey: ["teachers-list"],
+        queryFn: fetchTeachers,
+        enabled: open,
+        staleTime: 60_000,
+    });
+
+    const { data: students = [] } = useQuery({
+        queryKey: ["students-list"],
+        queryFn: fetchStudents,
+        enabled: open,
+        staleTime: 60_000,
+    });
+
+    // Reset form whenever dialog opens or edit target changes
+    useEffect(() => {
+        if (open) {
             form.reset({
                 name: editTarget?.name ?? "",
                 section: editTarget?.section ?? "",
                 academicYear: editTarget?.academicYear ?? "",
                 roomNumber: editTarget?.roomNumber ?? "",
+                classTeacherId: editTarget?.classTeacherId ?? "",
                 status: editTarget?.status ?? "ACTIVE",
+                department: editTarget?.department ?? "",
+                buildingBlock: editTarget?.buildingBlock ?? "",
+                maxCapacity: editTarget?.maxCapacity ?? 40,
+                monitorMaleId: editTarget?.monitorMaleId ?? "",
+                monitorFemaleId: editTarget?.monitorFemaleId ?? "",
             });
         }
+    }, [open, editTarget, form]);
+
+    const handleOpenChange = (val: boolean) => {
+        if (!val) form.reset();
         onOpenChange(val);
     };
 
@@ -262,7 +313,13 @@ function ClassroomFormDialog({ open, onOpenChange, editTarget, onSuccess }: Clas
             section: values.section,
             academicYear: values.academicYear,
             roomNumber: values.roomNumber || undefined,
+            classTeacherId: values.classTeacherId || undefined,
             status: values.status,
+            department: values.department || undefined,
+            buildingBlock: values.buildingBlock || undefined,
+            maxCapacity: values.maxCapacity,
+            monitorMaleId: values.monitorMaleId || undefined,
+            monitorFemaleId: values.monitorFemaleId || undefined,
         };
         try {
             if (isEdit) {
@@ -317,7 +374,19 @@ function ClassroomFormDialog({ open, onOpenChange, editTarget, onSuccess }: Clas
                                 <FormField control={form.control} name="academicYear" render={({ field }) => (
                                     <FormItem>
                                         <FormLabel className={labelCls}>Academic Year *</FormLabel>
-                                        <FormControl><Input placeholder="e.g. 2024-25" className={inputCls} {...field} /></FormControl>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger className={inputCls}>
+                                                    <SelectValue placeholder="Select year" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="2023-2024">2023-2024</SelectItem>
+                                                <SelectItem value="2024-2025">2024-2025</SelectItem>
+                                                <SelectItem value="2025-2026">2025-2026</SelectItem>
+                                                <SelectItem value="2026-2027">2026-2027</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                         <FormMessage className="text-[11px]" />
                                     </FormItem>
                                 )} />
@@ -329,23 +398,124 @@ function ClassroomFormDialog({ open, onOpenChange, editTarget, onSuccess }: Clas
                                     </FormItem>
                                 )} />
                             </div>
-                            <FormField control={form.control} name="status" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className={labelCls}>Status</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger className={inputCls}>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="ACTIVE">Active</SelectItem>
-                                            <SelectItem value="INACTIVE">Inactive</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage className="text-[11px]" />
-                                </FormItem>
-                            )} />
+                            <div className="grid grid-cols-3 gap-3">
+                                <FormField control={form.control} name="department" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className={labelCls}>Department</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                                            <FormControl>
+                                                <SelectTrigger className={inputCls}>
+                                                    <SelectValue placeholder="Select Dept" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="PRIMARY">Primary</SelectItem>
+                                                <SelectItem value="MIDDLE">Middle</SelectItem>
+                                                <SelectItem value="HIGH_SCHOOL">High School</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage className="text-[11px]" />
+                                    </FormItem>
+                                )} />
+                                <FormField control={form.control} name="buildingBlock" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className={labelCls}>Building / Block</FormLabel>
+                                        <FormControl><Input placeholder="e.g. Science Block" className={inputCls} {...field} /></FormControl>
+                                        <FormMessage className="text-[11px]" />
+                                    </FormItem>
+                                )} />
+                                <FormField control={form.control} name="maxCapacity" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className={labelCls}>Max Capacity</FormLabel>
+                                        <FormControl><Input type="number" min="1" className={inputCls} {...field} value={field.value as string | number | undefined} /></FormControl>
+                                        <FormMessage className="text-[11px]" />
+                                    </FormItem>
+                                )} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <FormField control={form.control} name="classTeacherId" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className={labelCls}>Class Teacher</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger className={inputCls}>
+                                                    <SelectValue placeholder="Assign a teacher" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent className="max-h-56">
+                                                <SelectItem value="">-- Unassigned --</SelectItem>
+                                                {teachers.map((t: any) => (
+                                                    <SelectItem key={t.id} value={t.id}>
+                                                        {t.account.firstName} {t.account.lastName}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage className="text-[11px]" />
+                                    </FormItem>
+                                )} />
+                                <FormField control={form.control} name="status" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className={labelCls}>Status</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger className={inputCls}>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="ACTIVE">Active</SelectItem>
+                                                <SelectItem value="INACTIVE">Inactive</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage className="text-[11px]" />
+                                    </FormItem>
+                                )} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <FormField control={form.control} name="monitorMaleId" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className={labelCls}>Male Monitor</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                                            <FormControl>
+                                                <SelectTrigger className={inputCls}>
+                                                    <SelectValue placeholder="Assign Male Monitor" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent className="max-h-56">
+                                                <SelectItem value="">-- Unassigned --</SelectItem>
+                                                {students.filter((s: any) => s.gender?.toUpperCase() === 'MALE' && (!isEdit || s.classroomEnrollments?.some((ce: any) => ce.classroomId === editTarget.id))).map((s: any) => (
+                                                    <SelectItem key={s.id} value={s.id}>
+                                                        {s.account.firstName} {s.account.lastName} ({s.studentId})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage className="text-[11px]" />
+                                    </FormItem>
+                                )} />
+                                <FormField control={form.control} name="monitorFemaleId" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className={labelCls}>Female Monitor</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                                            <FormControl>
+                                                <SelectTrigger className={inputCls}>
+                                                    <SelectValue placeholder="Assign Female Monitor" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent className="max-h-56">
+                                                <SelectItem value="">-- Unassigned --</SelectItem>
+                                                {students.filter((s: any) => s.gender?.toUpperCase() === 'FEMALE' && (!isEdit || s.classroomEnrollments?.some((ce: any) => ce.classroomId === editTarget.id))).map((s: any) => (
+                                                    <SelectItem key={s.id} value={s.id}>
+                                                        {s.account.firstName} {s.account.lastName} ({s.studentId})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage className="text-[11px]" />
+                                    </FormItem>
+                                )} />
+                            </div>
                         </form>
                     </Form>
                 </div>

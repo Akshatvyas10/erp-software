@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -150,7 +150,7 @@ export function TeacherForm({
                                             <FormControl><SelectTrigger className={inputCls}><SelectValue placeholder="Select department" /></SelectTrigger></FormControl>
                                             <SelectContent>
                                                 <SelectItem value="none">-- No Department --</SelectItem>
-                                                {departments.map(dept => <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>)}
+                                                {departments.map((dept: any) => <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
                                         <FormMessage className="text-[11px]" />
@@ -240,7 +240,7 @@ export function TeacherForm({
                                             <SelectValue placeholder="Select a subject..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {allSubjects.filter(s => !subjects.includes(s.name)).map(s => (
+                                            {allSubjects.filter((s: any) => !subjects.includes(s.name)).map((s: any) => (
                                                 <SelectItem key={s.id} value={s.name}>
                                                     {s.name} ({s.code})
                                                 </SelectItem>

@@ -1,12 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import {
     Users, Plus, Search, Eye, UserCheck, UserX,
-    Loader2, RefreshCw, CheckCircle2, EyeOff, MoreVertical, Trash2, ShieldCheck, Mail, Edit, CalendarIcon
+    Loader2, RefreshCw, MoreVertical, Trash2, Edit
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,25 +14,19 @@ import {
     Table, TableBody, TableCell, TableHead,
     TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel,
     AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
     AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
+
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { usePermissions } from "@/store/hooks";
 import PermissionGate from "@/components/auth/PermissionGate";
 import AccessDenied from "@/components/auth/AccessDenied";
-import type { User, Pagination, Role } from "@/types/erp";
+import type { User, Pagination } from "@/types/erp";
 import { motion } from "framer-motion";
 
 const fetchUsers = async (page: number, search: string, status: string) => {

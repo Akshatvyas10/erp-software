@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import type { Homework, HomeworkSubmission } from "@/types/erp";
 import { useAuth, usePermissions } from "@/store/hooks";
 import { format } from "date-fns";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Calendar, User, FileText, Edit, Trash2, CheckCircle2, AlertCircle, Clock, BookOpen, Send, GraduationCap, Pencil } from "lucide-react";
+import { motion } from "framer-motion";
+import { ArrowLeft, User, FileText, Trash2, CheckCircle2, AlertCircle, Clock, BookOpen, Send, GraduationCap, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,7 @@ import HomeworkFormDialog from "@/components/homework/HomeworkFormDialog";
 export default function HomeworkDetailsPage() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { } = useAuth();
     const { can } = usePermissions();
     const qc = useQueryClient();
     const [editDialogOpen, setEditDialogOpen] = useState(false);

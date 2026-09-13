@@ -18,9 +18,8 @@ export const PermissionUpdateDialog = () => {
     const currentVersion = useAppSelector((state) => state.permissions.version);
 
     useEffect(() => {
-        const socket = getSocket();
-        
-        if (!socket) return;
+        let socket = getSocket();
+        let interval: ReturnType<typeof setInterval>;
 
         const handlePermissionsUpdated = (data: { version: number, userId: string, updatedAt: string }) => {
             // Check if the received version is greater than the one we have
@@ -29,10 +28,21 @@ export const PermissionUpdateDialog = () => {
             }
         };
 
-        socket.on('permissions:updated', handlePermissionsUpdated);
+        if (socket) {
+            socket.on('permissions:updated', handlePermissionsUpdated);
+        } else {
+            interval = setInterval(() => {
+                socket = getSocket();
+                if (socket) {
+                    clearInterval(interval);
+                    socket.on('permissions:updated', handlePermissionsUpdated);
+                }
+            }, 500);
+        }
 
         return () => {
-            socket.off('permissions:updated', handlePermissionsUpdated);
+            if (interval) clearInterval(interval);
+            if (socket) socket.off('permissions:updated', handlePermissionsUpdated);
         };
     }, [currentVersion]);
 

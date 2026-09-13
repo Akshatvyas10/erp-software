@@ -12,8 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -178,8 +177,8 @@ export default function RolesPage() {
 // ─── Role card skeletons ──────────────────────────────────────────────────────
 function RoleCardSkeleton() {
     return (
-        <Card className="border-border dark:border-zinc-800 dark:bg-zinc-950 shadow-sm flex flex-col h-full relative">
-            <CardHeader className="p-4 border-b border-border/60 dark:border-zinc-800 bg-muted/10 dark:bg-zinc-900/50 flex flex-row items-start justify-between gap-3 space-y-0">
+        <Card className="border-border shadow-sm flex flex-col h-full relative">
+            <CardHeader className="p-4 border-b border-border bg-muted/10 flex flex-row items-start justify-between gap-3 space-y-0">
                 <div className="space-y-2 min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                         <Skeleton className="h-5 w-32" />
@@ -208,9 +207,9 @@ function RoleCardSkeleton() {
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-border/40">
                     <div className="flex -space-x-1.5">
-                        <Skeleton className="h-8 w-8 rounded-full border-2 border-background dark:border-zinc-950" />
-                        <Skeleton className="h-8 w-8 rounded-full border-2 border-background dark:border-zinc-950" />
-                        <Skeleton className="h-8 w-8 rounded-full border-2 border-background dark:border-zinc-950" />
+                        <Skeleton className="h-8 w-8 rounded-full border-2 border-background" />
+                        <Skeleton className="h-8 w-8 rounded-full border-2 border-background" />
+                        <Skeleton className="h-8 w-8 rounded-full border-2 border-background" />
                     </div>
                 </div>
             </CardContent>
@@ -246,8 +245,8 @@ export function RoleCard({
 
     return (
         <>
-            <Card className="border-border dark:border-zinc-800 dark:bg-zinc-950 shadow-sm hover:shadow-md dark:hover:border-purple-500/30 transition-all flex flex-col h-full relative group">
-                <CardHeader className="p-4 border-b border-border/60 dark:border-zinc-800 bg-muted/10 dark:bg-zinc-900/50 flex flex-row items-start justify-between gap-3 space-y-0">
+            <Card className="border-border shadow-sm hover:shadow-md hover:border-primary/50 transition-all flex flex-col h-full relative group">
+                <CardHeader className="p-4 border-b border-border bg-muted/10 flex flex-row items-start justify-between gap-3 space-y-0">
                     <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                             <CardTitle className="text-sm font-bold capitalize truncate max-w-[140px] md:max-w-none">
@@ -291,8 +290,9 @@ export function RoleCard({
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                     onClick={onDelete}
-                                    disabled={deleting}
-                                    className="gap-2 text-xs text-destructive focus:text-destructive focus:bg-destructive/5"
+                                    disabled={deleting || role.Users.length > 0}
+                                    title={role.Users.length > 0 ? "Cannot delete role assigned to users" : ""}
+                                    className={`gap-2 text-xs focus:bg-destructive/5 ${role.Users.length > 0 ? 'text-muted-foreground cursor-not-allowed opacity-50' : 'text-destructive focus:text-destructive'}`}
                                 >
                                     {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                                     Delete Role
@@ -343,7 +343,7 @@ export function RoleCard({
                                 const variantColor = getColorVariant(fullName)
                                 return (
                                     <Avatar key={user.id}
-                                        variant={variantColor} className="h-8 w-8 border-2 border-background dark:border-zinc-950 shadow-sm relative z-10 hover:z-20 transition-transform hover:scale-110">
+                                        variant={variantColor} className="h-8 w-8 border-2 border-background shadow-sm relative z-10 hover:z-20 transition-transform hover:scale-110">
                                         <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-white text-xs font-bold">
                                             {user.firstName[0]}{user.lastName[0]}
                                         </AvatarFallback>
@@ -352,7 +352,7 @@ export function RoleCard({
                                 )
                             })}
                             {role.Users.length > 4 && (
-                                <div className="flex h-8 w-8 -ml-2 relative z-0 items-center justify-center rounded-full bg-muted dark:bg-zinc-800 border-2 border-background dark:border-zinc-950 text-[10px] font-bold text-muted-foreground dark:text-zinc-300">
+                                <div className="flex h-8 w-8 -ml-2 relative z-0 items-center justify-center rounded-full bg-muted border-2 border-background text-[10px] font-bold text-muted-foreground">
                                     +{role.Users.length - 4}
                                 </div>
                             )}

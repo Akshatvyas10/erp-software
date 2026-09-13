@@ -34,8 +34,6 @@ import { Textarea } from '../ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import type { CalendarEvent } from '../../hooks/useEvents';
-import { useSelector } from 'react-redux';
-import type { RootState } from '../../store';
 import { usePermissions } from '../../store/hooks';
 import { useClassrooms } from '../../hooks/useClassrooms';
 

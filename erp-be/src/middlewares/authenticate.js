@@ -31,12 +31,16 @@ const authenticate = async (req, res, next) => {
         const user = await User.findOne({
             where: { id: decoded.sub, isActive: true },
             attributes: ['id', 'userId', 'email', 'firstName', 'lastName', 'isActive', 'lockedUntil'],
+            include: [{ model: db.Teacher, as: 'teacherProfile', attributes: ['id'] }]
         });
 
         if (!user) return error(res, 'User not found or deactivated', 401);
         if (user.isLocked()) return error(res, 'Account is temporarily locked', 403);
 
         req.user = user;
+        if (user.teacherProfile) {
+            req.user.teacherId = user.teacherProfile.id;
+        }
 
         // Pull permissions from cache (set by permissionEmitter on login)
         // Falls back to a fresh DB fetch if cache has expired

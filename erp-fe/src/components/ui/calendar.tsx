@@ -149,7 +149,7 @@ function Calendar({
         },
         Dropdown: ({ value, onChange, children, ...props }: any) => {
           const options = props.options
-          if (!options) return null
+          if (!options) return <></>
           const selectedOption = options.find((O: any) => O.value.toString() === value?.toString())
 
           return (

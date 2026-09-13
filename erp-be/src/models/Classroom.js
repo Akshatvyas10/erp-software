@@ -25,6 +25,36 @@ const Classroom = sequelize.define('Classroom', {
         type: DataTypes.UUID, allowNull: true, field: 'class_teacher_id',
         references: { model: 'teachers', key: 'id' }, onDelete: 'SET NULL'
     },
+    department: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        comment: 'e.g. PRIMARY, MIDDLE, HIGH_SCHOOL'
+    },
+    buildingBlock: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        field: 'building_block'
+    },
+    maxCapacity: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 40,
+        field: 'max_capacity'
+    },
+    monitorMaleId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        field: 'monitor_male_id',
+        references: { model: 'students', key: 'id' },
+        onDelete: 'SET NULL'
+    },
+    monitorFemaleId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        field: 'monitor_female_id',
+        references: { model: 'students', key: 'id' },
+        onDelete: 'SET NULL'
+    },
     status: {
         type: DataTypes.STRING(10), allowNull: false, defaultValue: 'ACTIVE',
         validate: { isIn: [['ACTIVE', 'INACTIVE']] },
@@ -33,6 +63,7 @@ const Classroom = sequelize.define('Classroom', {
     tableName: 'classrooms',
     indexes: [
         { unique: true, fields: ['name', 'section', 'academic_year'], name: 'unique_classroom' },
+        { unique: true, fields: ['class_teacher_id'], where: { status: 'ACTIVE' }, name: 'unique_class_teacher_active' },
     ],
 });
 

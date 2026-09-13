@@ -108,29 +108,19 @@ const getCacheEntry = async (userId) => {
 
 export const bustCache = async (userId) => {
     try {
-        let newVersion = 1;
+        const newVersion = Date.now();
         if (getRedisStatus()) {
             const key = `user:permissions:${userId}`;
-            const dataStr = await redisClient.get(key);
-            if (dataStr) {
-                const data = JSON.parse(dataStr);
-                newVersion = (data.version || 1) + 1;
-            }
             await redisClient.del(key);
         } else {
-            // Fallback
-            const existing = fallbackCache.get(userId);
-            if (existing) {
-                newVersion = (existing.payload.version || 1) + 1;
-                fallbackCache.delete(userId);
-            }
+            fallbackCache.delete(userId);
         }
         
         logger.debug(`[PermissionService] Cache busted for user ${userId}, new version: ${newVersion}`);
         return newVersion;
     } catch (err) {
         logger.error(`bustCache error for user ${userId}:`, err);
-        return 1;
+        return Date.now();
     }
 };
 

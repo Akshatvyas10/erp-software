@@ -47,7 +47,8 @@ const StudentAttendance = sequelize.define('StudentAttendance', {
             fields: ['classroom_id', 'student_id', 'subject_id', 'attendance_date'], 
             name: 'unique_student_attendance' 
         },
-        { fields: ['attendance_date'], name: 'idx_attendance_date' }
+        { fields: ['attendance_date'], name: 'idx_attendance_date' },
+        { fields: ['classroom_id', 'attendance_date'], name: 'idx_student_attendance_date' }
     ],
     timestamps: true,
 });

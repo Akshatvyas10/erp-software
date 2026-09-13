@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     ArrowLeft, User, Mail, Shield, Calendar, Clock,
-    UserCheck, UserX, Loader2, Edit2, CheckCircle2, XCircle,
+    UserCheck, UserX, Loader2, CheckCircle2, XCircle,
     BookOpen, GraduationCap, Hash
 } from "lucide-react";
 import { motion } from "framer-motion";

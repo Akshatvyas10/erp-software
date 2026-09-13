@@ -210,7 +210,10 @@ const deleteRole = async (req, res, next) => {
             include: [{ model: Role, as: 'Roles', where: { id: role.id }, through: { attributes: [] }, required: true }],
             attributes: ['id'],
         });
-        for (const u of affected) permissionEmitter.emit('role:changed', { userId: u.id });
+
+        if (affected.length > 0) {
+            return error(res, `Cannot delete role because it is assigned to ${affected.length} user(s)`, 400);
+        }
 
         await role.destroy();
         return success(res, null, 'Role deleted');

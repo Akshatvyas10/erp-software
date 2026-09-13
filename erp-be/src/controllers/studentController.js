@@ -53,53 +53,25 @@ const studentFullInclude = {
 // HELPER — Auto-generate ERP internal student ID  ("STU-00001")
 // =============================================================================
 const generateStudentId = async (t) => {
-    const last = await Student.findOne({
-        order: [['created_at', 'DESC']],
-        paranoid: false,
-        attributes: ['studentId'],
-        lock: t ? t.LOCK.UPDATE : undefined,
-        transaction: t,
-    });
-    if (!last) return 'STU-00001';
-    const num = parseInt(last.studentId.replace('STU-', ''), 10);
-    return `STU-${String(num + 1).padStart(5, '0')}`;
+    const [results] = await db.sequelize.query("SELECT nextval('erp_student_id_seq') as seq", { transaction: t });
+    return `STU-${String(results[0].seq).padStart(5, '0')}`;
 };
 
 // =============================================================================
 // HELPER — Auto-generate ERP user login ID  ("ERP-00002")
 // =============================================================================
 const generateUserId = async (t) => {
-    const last = await User.findOne({
-        order: [['created_at', 'DESC']],
-        paranoid: false,
-        attributes: ['userId'],
-        lock: t ? t.LOCK.UPDATE : undefined,
-        transaction: t,
-    });
-    if (!last) return 'ERP-00002';
-    const num = parseInt(last.userId.replace('ERP-', ''), 10);
-    return `ERP-${String(num + 1).padStart(5, '0')}`;
+    const [results] = await db.sequelize.query("SELECT nextval('erp_user_id_seq') as seq", { transaction: t });
+    return `ERP-${String(results[0].seq).padStart(5, '0')}`;
 };
 
 // =============================================================================
 // HELPER — Auto-generate admission number  ("ADM-2026-0014")
-// Counts students created in the current calendar year, then pads + formats.
-// Runs INSIDE the transaction so concurrent inserts cannot collide.
 // =============================================================================
 const generateAdmissionNumber = async (t) => {
     const year = new Date().getFullYear();
-    const yearStart = new Date(`${year}-01-01T00:00:00.000Z`);
-    const yearEnd = new Date(`${year + 1}-01-01T00:00:00.000Z`);
-
-    const count = await Student.count({
-        where: {
-            createdAt: { [Op.gte]: yearStart, [Op.lt]: yearEnd },
-        },
-        paranoid: false,
-        transaction: t,
-    });
-
-    const seq = String(count + 1).padStart(4, '0');
+    const [results] = await db.sequelize.query("SELECT nextval('student_adm_seq') as seq", { transaction: t });
+    const seq = String(results[0].seq).padStart(4, '0');
     return `ADM-${year}-${seq}`;
 };
 
@@ -110,7 +82,7 @@ const generateAdmissionNumber = async (t) => {
 const listStudents = async (req, res, next) => {
     try {
         const page = Math.max(1, parseInt(req.query.page) || 1);
-        const limit = Math.min(100, parseInt(req.query.limit) || 20);
+        const limit = Math.min(1000, parseInt(req.query.limit) || 20);
         const offset = (page - 1) * limit;
         const search = (req.query.search || '').trim();
         const status = req.query.status || '';
@@ -119,23 +91,15 @@ const listStudents = async (req, res, next) => {
         const studentWhere = {};
         if (status) studentWhere.status = status;
 
-        // Account-level search (joins to users table)
-        const accountWhere = search
-            ? {
-                [Op.or]: [
-                    { firstName: { [Op.iLike]: `%${search}%` } },
-                    { lastName: { [Op.iLike]: `%${search}%` } },
-                    { email: { [Op.iLike]: `%${search}%` } },
-                    { userId: { [Op.iLike]: `%${search}%` } },
-                ],
-            }
-            : {};
-
-        // Student-table search terms
+        // Combine Student and Account (User) search terms using nested field references
         if (search) {
             studentWhere[Op.or] = [
                 { studentId: { [Op.iLike]: `%${search}%` } },
                 { admissionNumber: { [Op.iLike]: `%${search}%` } },
+                { '$account.first_name$': { [Op.iLike]: `%${search}%` } },
+                { '$account.last_name$': { [Op.iLike]: `%${search}%` } },
+                { '$account.email$': { [Op.iLike]: `%${search}%` } },
+                { '$account.user_id$': { [Op.iLike]: `%${search}%` } },
             ];
         }
 
@@ -162,8 +126,7 @@ const listStudents = async (req, res, next) => {
                     model: User,
                     as: 'account',
                     attributes: ['id', 'userId', 'email', 'firstName', 'lastName', 'isActive'],
-                    where: Object.keys(accountWhere).length ? accountWhere : undefined,
-                    required: Object.keys(accountWhere).length > 0,
+                    required: true, // required because student always has an account and we filter on it
                 },
                 {
                     model: ClassroomStudent,
@@ -459,11 +422,102 @@ const deleteStudent = async (req, res, next) => {
     }
 };
 
+// ── GET /api/students/:id/exam-results ──────────────────────────────────────────
+const getStudentExamResults = async (req, res, next) => {
+    try {
+        const studentId = req.params.id;
+        const student = await db.Student.findByPk(studentId);
+        if (!student) return error(res, 'Student not found', 404);
+
+        const results = await db.ExamResult.findAll({
+            where: { studentId },
+            include: [
+                {
+                    model: db.Exam,
+                    as: 'exam',
+                    where: { status: 'PUBLISHED' },
+                    include: [
+                        { model: db.Subject, as: 'subject', attributes: ['id', 'name', 'code'] },
+                        { model: db.ExamSchedule, as: 'examSchedule', attributes: ['id', 'name', 'type'] },
+                        { model: db.Classroom, as: 'classroom', attributes: ['id', 'name', 'section', 'academicYear'] }
+                    ]
+                }
+            ],
+            order: [[{ model: db.Exam, as: 'exam' }, 'date', 'DESC']]
+        });
+        
+        return success(res, { results });
+    } catch (err) { next(err); }
+};
+
+// =============================================================================
+// GET /api/students/:id/attendance — fetch daily attendance history
+// =============================================================================
+const getStudentAttendance = async (req, res, next) => {
+    try {
+        const { id: studentId } = req.params;
+        const student = await db.Student.findByPk(studentId);
+        if (!student) return error(res, 'Student not found', 404);
+
+        const limit = parseInt(req.query.limit) || 30; // Last 30 days default if no dates
+        const startDate = req.query.startDate;
+        const endDate = req.query.endDate;
+
+        const whereClause = { studentId };
+        
+        if (startDate && endDate) {
+            whereClause.attendanceDate = {
+                [Op.between]: [startDate, endDate]
+            };
+        }
+
+        const queryOptions = {
+            where: whereClause,
+            include: [
+                { model: db.Classroom, as: 'classroom', attributes: ['name', 'section', 'academicYear'] }
+            ],
+            order: [['attendanceDate', 'DESC']],
+        };
+
+        // Only apply limit if date range is not provided
+        if (!startDate || !endDate) {
+            queryOptions.limit = Math.min(100, limit);
+        }
+
+        const attendance = await db.StudentAttendance.findAll(queryOptions);
+
+        // Fetch Holidays if dates are provided
+        let holidays = [];
+        if (startDate && endDate) {
+            holidays = await db.CalendarEvent.findAll({
+                where: {
+                    day_type: 'HOLIDAY',
+                    status: 'PUBLISHED',
+                    start_date: { [Op.lte]: new Date(endDate + 'T23:59:59Z') },
+                    end_date: { [Op.gte]: new Date(startDate + 'T00:00:00Z') }
+                },
+                attributes: ['id', 'title', 'start_date', 'end_date']
+            });
+        }
+
+        // Compute stats
+        const total = attendance.length;
+        const present = attendance.filter(a => a.status === 'PRESENT').length;
+        const absent = attendance.filter(a => a.status === 'ABSENT').length;
+        const late = attendance.filter(a => a.status === 'LATE').length;
+        const halfDay = attendance.filter(a => a.status === 'HALF_DAY').length;
+
+        const summary = {
+            total, present, absent, late, halfDay,
+            percentage: total > 0 ? ((present + halfDay * 0.5) / total * 100).toFixed(1) : 0
+        };
+
+        return success(res, { records: attendance, summary, holidays });
+    } catch (err) { next(err); }
+};
+
 export {
-    listStudents,
-    getStudent,
-    getMyStudentProfile,
-    createStudent,
-    updateStudent,
-    deleteStudent,
+    listStudents, getStudent, getMyStudentProfile,
+    createStudent, updateStudent, deleteStudent,
+    getStudentExamResults, getStudentAttendance
 };

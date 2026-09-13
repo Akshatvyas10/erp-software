@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import type { Homework } from "@/types/erp";
@@ -16,7 +16,7 @@ import PermissionGate from "@/components/auth/PermissionGate";
 import HomeworkFormDialog from "@/components/homework/HomeworkFormDialog";
 
 export default function HomeworkPage() {
-    const { user } = useAuth();
+    const { } = useAuth();
     const { can } = usePermissions();
     const navigate = useNavigate();
 
@@ -24,7 +24,7 @@ export default function HomeworkPage() {
     const [statusFilter, setStatusFilter] = useState("");
 
     // In a real app we might fetch subjects/classrooms to populate filters
-    const [subjectFilter, setSubjectFilter] = useState("");
+    const [subjectFilter] = useState("");
 
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
@@ -197,6 +197,14 @@ export default function HomeworkPage() {
                                             {hw.classroom?.name} <span className="opacity-60">{hw.classroom?.section}</span>
                                         </span>
                                     </div>
+                                    {hw.teacher && (
+                                        <div className="flex items-center text-[11px] text-muted-foreground">
+                                            <span className="opacity-70 mr-1">Assigned by</span>
+                                            <span className="font-semibold text-foreground truncate max-w-[120px]" title={`${hw.teacher.firstName} ${hw.teacher.lastName}`}>
+                                                {hw.teacher.firstName} {hw.teacher.lastName}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </Card>
                         </motion.div>

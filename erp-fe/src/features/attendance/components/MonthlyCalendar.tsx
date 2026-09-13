@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, parseISO } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday } from 'date-fns';
 import { ChevronLeft, ChevronRight, CheckCircle, XCircle, Clock, UserMinus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -9,7 +9,7 @@ interface MonthlyCalendarProps {
     attendanceRecords: any[]; // In a real app, this would be fetched from the backend based on studentId and month
 }
 
-export function MonthlyCalendar({ studentId, attendanceRecords = [] }: MonthlyCalendarProps) {
+export function MonthlyCalendar({ attendanceRecords = [] }: MonthlyCalendarProps) {
     const [currentMonth, setCurrentMonth] = useState(new Date());
 
     const days = eachDayOfInterval({

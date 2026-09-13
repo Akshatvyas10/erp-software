@@ -27,10 +27,16 @@ const Homework = sequelize.define('Homework', {
     },
     teacherId: {
         type: DataTypes.UUID,
-        allowNull: false,
+        allowNull: true,
         field: 'teacher_id',
         references: { model: 'teachers', key: 'id' },
         onDelete: 'CASCADE'
+    },
+    createdById: {
+        type: DataTypes.UUID,
+        allowNull: false,
+        field: 'created_by_id',
+        references: { model: 'users', key: 'id' }
     }
 }, {
     tableName: 'homeworks',

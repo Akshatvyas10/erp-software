@@ -6,12 +6,13 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
     School, ArrowLeft, Users, LayoutGrid, Search, Plus, Trash2,
-    Loader2, UserCheck, X, BookOpen, Clock, CheckCircle2, ClipboardCheck, CalendarIcon
+    Loader2, UserCheck, X, BookOpen, Clock, CheckCircle2, ClipboardCheck, CalendarIcon, FileText
 } from "lucide-react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/store/hooks";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,8 @@ import CreateSubjectDialog from "@/components/shared/CreateSubjectDialog";
 import { AttendanceGrid } from "@/features/attendance/components/AttendanceGrid";
 import { AttendanceChart } from "@/features/attendance/components/AttendanceChart";
 import { useClassroomAttendance } from "@/features/attendance/api/useAttendance";
+import HomeworkTab from "@/components/classrooms/HomeworkTab";
+import GradebookTab from "@/components/classrooms/GradebookTab";
 import type {
 
     Classroom, ClassroomEnrollment, ClassroomSubject, ClassroomPeriod,
@@ -107,9 +110,11 @@ interface RosterTabProps {
     enrollments: ClassroomEnrollment[];
     canEdit: boolean;
     onRefresh: () => void;
+    monitorMaleId?: string;
+    monitorFemaleId?: string;
 }
 
-function RosterTab({ classroomId, enrollments, canEdit, onRefresh }: RosterTabProps) {
+function RosterTab({ classroomId, enrollments, canEdit, onRefresh, monitorMaleId, monitorFemaleId }: RosterTabProps) {
     const navigate = useNavigate();
     const [rosterSearch, setRosterSearch] = useState("");
     const [assignOpen, setAssignOpen] = useState(false);
@@ -243,6 +248,7 @@ function RosterTab({ classroomId, enrollments, canEdit, onRefresh }: RosterTabPr
                                 const account = enr.student?.account || { firstName: "Unknown", lastName: "Student", email: "N/A" };
                                 const { firstName, lastName, email } = account;
                                 const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase();
+                                const isMonitor = enr.student.id === monitorMaleId || enr.student.id === monitorFemaleId;
                                 return (
                                     <tr key={enr.id}
                                         className={cn(
@@ -256,9 +262,16 @@ function RosterTab({ classroomId, enrollments, canEdit, onRefresh }: RosterTabPr
                                                         {initials}
                                                     </AvatarFallback>
                                                 </Avatar>
-                                                <span className="font-semibold text-foreground text-[13px] group-hover:text-primary transition-colors">
-                                                    {firstName} {lastName}
-                                                </span>
+                                                <div className="flex flex-col">
+                                                    <span className="font-semibold text-foreground text-[13px] group-hover:text-primary transition-colors flex items-center gap-2">
+                                                        {firstName} {lastName}
+                                                        {isMonitor && (
+                                                            <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 border-yellow-500/20 uppercase font-bold tracking-wider">
+                                                                Monitor
+                                                            </Badge>
+                                                        )}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="py-3.5">
@@ -1037,7 +1050,7 @@ interface AttendanceTabProps {
     canEdit: boolean;
 }
 
-function AttendanceTab({ classroomId, canEdit }: AttendanceTabProps) {
+function AttendanceTab({ classroomId }: AttendanceTabProps) {
     const { can } = usePermissions();
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [isEditing, setIsEditing] = useState(false);
@@ -1125,7 +1138,7 @@ function AttendanceTab({ classroomId, canEdit }: AttendanceTabProps) {
 }
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
-type ActiveTab = "roster" | "timetable" | "attendance";
+type ActiveTab = "roster" | "timetable" | "attendance" | "homework" | "gradebook";
 
 // ─── Main Page Component ──────────────────────────────────────────────────────
 export default function ClassroomDetails() {
@@ -1133,6 +1146,7 @@ export default function ClassroomDetails() {
     const navigate = useNavigate();
     const qc = useQueryClient();
     const { can } = usePermissions();
+    const { user } = useAuth();
     const [activeTab, setActiveTab] = useState<ActiveTab>("roster");
 
     const {
@@ -1145,6 +1159,22 @@ export default function ClassroomDetails() {
         enabled: !!id && can("classrooms", "read"),
         staleTime: 30_000,
     });
+
+    const subjects = (classroom?.subjects ?? []) as ClassroomSubject[];
+
+    const teacherSubjectsMap = useMemo(() => {
+        const map = new Map<string, { teacher: NonNullable<ClassroomSubject["teacher"]>, subjects: Subject[] }>();
+        subjects.forEach(sub => {
+            if (!sub.teacher) return;
+            if (!map.has(sub.teacher.id)) {
+                map.set(sub.teacher.id, { teacher: sub.teacher, subjects: [] });
+            }
+            if (sub.subject && !map.get(sub.teacher.id)!.subjects.find(s => s.id === sub.subject!.id)) {
+                map.get(sub.teacher.id)!.subjects.push(sub.subject);
+            }
+        });
+        return Array.from(map.values());
+    }, [subjects]);
 
     const refresh = () => {
         qc.invalidateQueries({ queryKey: ["classroom", id] });
@@ -1174,16 +1204,20 @@ export default function ClassroomDetails() {
         );
     }
 
-    const canEdit = can("classrooms", "update");
+    const isClassTeacher = user?.teacherId === classroom.classTeacherId;
+    const canEdit = can("classrooms", "update") || isClassTeacher;
     const enrollments = (classroom.enrollments ?? []) as ClassroomEnrollment[];
-    const subjects = (classroom.subjects ?? []) as ClassroomSubject[];
-
     const tabs: { key: ActiveTab; label: string; icon: React.ElementType; count?: number }[] = [
         { key: "roster", label: "Roster", icon: Users, count: enrollments.length },
         { key: "timetable", label: "Timetable Builder", icon: LayoutGrid, count: subjects.length },
+        { key: "homework", label: "Homework", icon: FileText },
     ];
 
-    if (can("attendance", "read")) {
+    if (can("exams", "read") || isClassTeacher) {
+        tabs.push({ key: "gradebook", label: "Gradebook", icon: BookOpen });
+    }
+
+    if (can("attendance", "read") || isClassTeacher) {
         tabs.push({ key: "attendance", label: "Attendance", icon: ClipboardCheck });
     }
 
@@ -1207,6 +1241,61 @@ export default function ClassroomDetails() {
                         <p className="text-sm text-muted-foreground mt-1.5 font-medium max-w-xl">
                             Manage classroom details, enrolled students, and schedule.
                         </p>
+                    </div>
+                </div>
+
+                {/* Teachers Section */}
+                <div className="mt-6 p-4 bg-muted/30 border border-border/50 rounded-xl">
+                    <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+                        <UserCheck className="h-4 w-4 text-primary" />
+                        Classroom Teachers
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {classroom.classTeacher && (
+                            <div className="flex items-start gap-3 p-3 bg-background border border-border/60 rounded-lg shadow-sm">
+                                <Avatar className="h-10 w-10 border border-primary/20">
+                                    <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                                        {classroom.classTeacher.account?.firstName?.[0]}
+                                        {classroom.classTeacher.account?.lastName?.[0]}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="text-sm font-bold text-foreground flex items-center gap-2">
+                                        {classroom.classTeacher.account?.firstName} {classroom.classTeacher.account?.lastName}
+                                        <Badge variant="secondary" className="bg-primary/10 text-primary text-[10px] h-4 px-1.5 border-primary/20">Class Teacher</Badge>
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-0.5 font-medium">{classroom.classTeacher.teacherId}</p>
+                                </div>
+                            </div>
+                        )}
+                        {teacherSubjectsMap.map(({ teacher, subjects }) => {
+                            if (classroom.classTeacher && teacher.id === classroom.classTeacher.id) return null; // Avoid duplicate if they are also class teacher
+                            return (
+                                <div key={teacher.id} className="flex items-start gap-3 p-3 bg-background border border-border/60 rounded-lg shadow-sm">
+                                    <Avatar className="h-10 w-10 border border-border/40">
+                                        <AvatarFallback className="bg-muted text-muted-foreground font-bold">
+                                            {teacher.account?.firstName?.[0]}
+                                            {teacher.account?.lastName?.[0]}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-bold text-foreground truncate">
+                                            {teacher.account?.firstName} {teacher.account?.lastName}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-0.5 truncate flex items-center gap-1.5 flex-wrap">
+                                            <span className="font-medium">{teacher.teacherId}</span>
+                                            <span className="text-border/50">•</span>
+                                            <span className="truncate">{subjects.map(s => s.name).join(", ")}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {!classroom.classTeacher && teacherSubjectsMap.length === 0 && (
+                            <div className="col-span-full py-4 text-center">
+                                <p className="text-sm text-muted-foreground font-medium">No teachers assigned to this classroom yet.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -1252,6 +1341,10 @@ export default function ClassroomDetails() {
                             <><Users className="h-4 w-4 text-primary" /> Student Roster</>
                         ) : activeTab === "timetable" ? (
                             <><LayoutGrid className="h-4 w-4 text-primary" /> Weekly Timetable</>
+                        ) : activeTab === "homework" ? (
+                            <><FileText className="h-4 w-4 text-primary" /> Homework & Assignments</>
+                        ) : activeTab === "gradebook" ? (
+                            <><BookOpen className="h-4 w-4 text-primary" /> Examination Gradebook</>
                         ) : (
                             <><ClipboardCheck className="h-4 w-4 text-primary" /> Daily Attendance</>
                         )}
@@ -1272,6 +1365,8 @@ export default function ClassroomDetails() {
                                     enrollments={enrollments}
                                     canEdit={canEdit}
                                     onRefresh={refresh}
+                                    monitorMaleId={classroom.monitorMaleId || undefined}
+                                    monitorFemaleId={classroom.monitorFemaleId || undefined}
                                 />
                             ) : activeTab === "timetable" ? (
                                 <TimetableTab
@@ -1281,10 +1376,24 @@ export default function ClassroomDetails() {
                                     canEdit={canEdit}
                                     onRefresh={refresh}
                                 />
+                            ) : activeTab === "homework" ? (
+                                <HomeworkTab 
+                                    classroomId={classroom.id} 
+                                    classTeacherId={classroom.classTeacherId || undefined} 
+                                    subjects={subjects} 
+                                />
+                            ) : activeTab === "gradebook" ? (
+                                <GradebookTab 
+                                    classroomId={classroom.id} 
+                                    enrollments={enrollments} 
+                                    subjects={subjects} 
+                                    canEdit={can("exams", "manage") || isClassTeacher}
+                                    classTeacherId={classroom.classTeacherId || undefined}
+                                />
                             ) : (
                                 <AttendanceTab 
                                     classroomId={classroom.id} 
-                                    canEdit={can("attendance", "update") || can("attendance", "create")} 
+                                    canEdit={can("attendance", "update") || can("attendance", "create") || isClassTeacher} 
                                 />
                             )}
                         </motion.div>

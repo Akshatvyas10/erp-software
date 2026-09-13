@@ -1,12 +1,15 @@
 import { io, Socket } from 'socket.io-client';
-import { store } from '@/store'; // Assuming a redux store exists, will double check
+
 
 let socket: Socket | null = null;
 
 export const initializeSocket = (token: string) => {
     if (socket) return socket;
 
-    socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const baseUrl = apiUrl.replace(/\/api\/?$/, '');
+
+    socket = io(baseUrl, {
         auth: { token: `Bearer ${token}` },
         reconnection: true,
         reconnectionAttempts: Infinity,

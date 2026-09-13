@@ -41,9 +41,10 @@ export const requireRole = (...roles) => {
     return (req, res, next) => {
         if (!req.user) return error(res, 'Authentication required', 401);
 
-        if (req.userRoles.includes('super_admin')) return next();
+        const userRolesLower = (req.userRoles || []).map(r => r.toLowerCase());
+        if (userRolesLower.includes('super_admin')) return next();
 
-        const hasRole = roles.some((r) => req.userRoles.includes(r));
+        const hasRole = roles.some((r) => userRolesLower.includes(r.toLowerCase()));
         if (!hasRole) {
             return error(res, `Forbidden — required role: ${roles.join(' or ')}`, 403);
         }
@@ -59,7 +60,8 @@ export const requireSelf = (paramName = 'id', overrideResource = null, overrideA
     return async (req, res, next) => {
         if (!req.user) return error(res, 'Authentication required', 401);
 
-        if (req.userRoles.includes('super_admin')) return next();
+        const userRolesLower = (req.userRoles || []).map(r => r.toLowerCase());
+        if (userRolesLower.includes('super_admin')) return next();
 
         if (overrideResource) {
             const allowed = await hasPermission(req.user.id, overrideResource, overrideAction);

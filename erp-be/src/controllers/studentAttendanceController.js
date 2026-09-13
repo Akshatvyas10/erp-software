@@ -77,7 +77,24 @@ export const bulkCreateAttendance = async (req, res) => {
     const t = await db.sequelize.transaction();
     try {
         const { classroomId, academicYearId, date, records } = req.body;
-        const teacherId = req.user.teacherProfileId; // populated by attendanceScope
+        const teacherId = req.user.teacherProfileId || req.user.teacherId;
+
+        const isStandardTeacher = req.userRoles && req.userRoles.includes('TEACHER') && !req.userRoles.some(r => ['ADMIN', 'SUPER_ADMIN'].includes(r));
+        if (isStandardTeacher) {
+            const classroom = await Classroom.findByPk(classroomId);
+            const subject = await ClassroomSubject.findOne({ where: { classroomId, teacherId } });
+            
+            if (classroom?.classTeacherId !== teacherId && !subject) {
+                return res.status(403).json({ success: false, message: "Forbidden: You cannot take attendance for this classroom" });
+            }
+
+            // Validation: Temporal Immutability (Block edits older than 48 hours for standard teachers)
+            const attendanceDateObj = parseISO(date);
+            const diffInHours = Math.abs(new Date() - attendanceDateObj) / 36e5;
+            if (diffInHours > 48 && !req.userRoles.includes('ADMIN_ATTENDANCE_OVERRIDE')) {
+                return res.status(403).json({ success: false, message: "Forbidden: Cannot modify attendance records older than 48 hours" });
+            }
+        }
 
         // Validation 1: Prevent attendance on weekends
         const attendanceDate = parseISO(date);

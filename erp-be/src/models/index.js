@@ -21,6 +21,9 @@ import CalendarEvent from './CalendarEvent.js';
 import EventType from './EventType.js';
 import StudentAttendance from './StudentAttendance.js';
 import PermissionAuditLogInit from './PermissionAuditLog.js';
+import ExamSchedule from './ExamSchedule.js';
+import Exam from './Exam.js';
+import ExamResult from './ExamResult.js';
 
 const PermissionAuditLog = PermissionAuditLogInit(sequelize);
 
@@ -36,6 +39,20 @@ Role.belongsToMany(User, { through: 'user_roles', foreignKey: 'role_id', otherKe
 User.hasOne(Student, { foreignKey: { name: 'userId', type: sequelize.Sequelize.UUID, allowNull: false }, as: 'studentProfile', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 Student.belongsTo(User, { foreignKey: { name: 'userId', type: sequelize.Sequelize.UUID, allowNull: false }, as: 'account' });
 
+// ─── Classroom ↔ Teacher (classTeacher) ──────────────────────────────────────
+Classroom.belongsTo(Teacher, { foreignKey: 'classTeacherId', as: 'classTeacher' });
+Teacher.hasMany(Classroom, { foreignKey: 'classTeacherId', as: 'classrooms' });
+
+// ─── Classroom ↔ Student (Many-to-Many via ClassroomStudent) ───────────────
+Classroom.belongsToMany(Student, { through: ClassroomStudent, foreignKey: 'classroomId', otherKey: 'studentId', as: 'students' });
+Student.belongsToMany(Classroom, { through: ClassroomStudent, foreignKey: 'studentId', otherKey: 'classroomId', as: 'classrooms' });
+
+Classroom.hasMany(ClassroomStudent, { foreignKey: 'classroomId', as: 'enrollments' });
+ClassroomStudent.belongsTo(Classroom, { foreignKey: 'classroomId', as: 'classroom' });
+
+Student.hasMany(ClassroomStudent, { foreignKey: 'studentId', as: 'classroomEnrollments' });
+ClassroomStudent.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
+
 // ─── User ↔ Teacher (1:1) ─────────────────────────────────────────────────────
 User.hasOne(Teacher, { foreignKey: { name: 'userId', type: sequelize.Sequelize.UUID, allowNull: false }, as: 'teacherProfile', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 Teacher.belongsTo(User, { foreignKey: { name: 'userId', type: sequelize.Sequelize.UUID, allowNull: false }, as: 'account' });
@@ -46,21 +63,6 @@ TeacherAttendance.belongsTo(Teacher, { foreignKey: 'teacherId', as: 'teacher' })
 
 // ─── Teacher ↔ SalarySlip (1:many) ───────────────────────────────────────────
 Teacher.hasMany(SalarySlip, { foreignKey: 'teacherId', as: 'salarySlips', onDelete: 'CASCADE' });
-SalarySlip.belongsTo(Teacher, { foreignKey: 'teacherId', as: 'teacher' });
-
-// ─── Department ↔ Teacher ────────────────────────────────────────────────────
-Department.belongsTo(Teacher, { foreignKey: 'headId', as: 'head' });
-Teacher.hasOne(Department, { foreignKey: 'headId', as: 'managedDepartment' });
-
-// ─── Classroom ↔ Student (many-to-many via ClassroomStudent) ─────────────────
-Classroom.hasMany(ClassroomStudent, { foreignKey: 'classroomId', as: 'enrollments', onDelete: 'CASCADE' });
-ClassroomStudent.belongsTo(Classroom, { foreignKey: 'classroomId', as: 'classroom' });
-ClassroomStudent.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
-Student.hasMany(ClassroomStudent, { foreignKey: 'studentId', as: 'classroomEnrollments' });
-
-// ─── Classroom ↔ ClassroomPeriod (1:many) ────────────────────────────────────
-Classroom.hasMany(ClassroomPeriod, { foreignKey: 'classroomId', as: 'periods', onDelete: 'CASCADE' });
-ClassroomPeriod.belongsTo(Classroom, { foreignKey: 'classroomId', as: 'classroom' });
 
 // ─── Classroom ↔ ClassroomSubject (1:many) ───────────────────────────────────
 Classroom.hasMany(ClassroomSubject, { foreignKey: 'classroomId', as: 'subjects', onDelete: 'CASCADE' });
@@ -124,5 +126,47 @@ export default {
     TeacherAttendance, SalarySlip, Department,
     Classroom, ClassroomStudent, ClassroomPeriod, ClassroomSubject, Timetable,
     Subject, Homework, HomeworkSubmission, CalendarEvent, EventType, StudentAttendance,
-    PermissionAuditLog
+    PermissionAuditLog, ExamSchedule, Exam, ExamResult
 };
+
+// Homework <-> User (Creator)
+User.hasMany(Homework, { foreignKey: 'createdById', as: 'createdHomeworks' });
+Homework.belongsTo(User, { foreignKey: 'createdById', as: 'createdBy' });
+
+// ─── Department ↔ Teacher (head) ──────────────────────────────────────────────
+Department.belongsTo(Teacher, { foreignKey: 'headId', as: 'head' });
+Teacher.hasMany(Department, { foreignKey: 'headId', as: 'headedDepartments' });
+
+// ─── ExamSchedule ↔ Classroom ─────────────────────────────────────────────────
+ExamSchedule.belongsTo(Classroom, { foreignKey: 'classroom_id', as: 'classroom' });
+Classroom.hasMany(ExamSchedule, { foreignKey: 'classroom_id', as: 'examSchedules' });
+
+// ─── Exam ↔ ExamSchedule ──────────────────────────────────────────────────────
+Exam.belongsTo(ExamSchedule, { foreignKey: 'exam_schedule_id', as: 'examSchedule' });
+ExamSchedule.hasMany(Exam, { foreignKey: 'exam_schedule_id', as: 'exams' });
+
+// ─── Exam ↔ Classroom / Subject ───────────────────────────────────────────────
+Exam.belongsTo(Classroom, { foreignKey: 'classroom_id', as: 'classroom' });
+Classroom.hasMany(Exam, { foreignKey: 'classroom_id', as: 'exams' });
+
+Exam.belongsTo(Subject, { foreignKey: 'subject_id', as: 'subject' });
+Subject.hasMany(Exam, { foreignKey: 'subject_id', as: 'exams' });
+
+// ─── ExamResult ↔ Exam / Student ──────────────────────────────────────────────
+ExamResult.belongsTo(Exam, { foreignKey: 'exam_id', as: 'exam' });
+Exam.hasMany(ExamResult, { foreignKey: 'exam_id', as: 'results' });
+
+ExamResult.belongsTo(Student, { foreignKey: 'student_id', as: 'student' });
+Student.hasMany(ExamResult, { foreignKey: 'student_id', as: 'examResults' });
+
+// ─── SalarySlip ↔ Teacher ─────────────────────────────────────────────────────
+SalarySlip.belongsTo(Teacher, { foreignKey: 'teacherId', as: 'teacher' });
+// Teacher.hasMany(SalarySlip) is already defined above
+
+// ─── ClassroomPeriod ↔ Classroom ──────────────────────────────────────────────
+ClassroomPeriod.belongsTo(Classroom, { foreignKey: 'classroom_id', as: 'classroom' });
+Classroom.hasMany(ClassroomPeriod, { foreignKey: 'classroom_id', as: 'periods' });
+
+// ─── Classroom Monitors (Student) ─────────────────────────────────────────────
+Classroom.belongsTo(Student, { foreignKey: 'monitor_male_id', as: 'maleMonitor' });
+Classroom.belongsTo(Student, { foreignKey: 'monitor_female_id', as: 'femaleMonitor' });

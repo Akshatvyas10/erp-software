@@ -9,8 +9,8 @@ import db from '../models/index.js';
 const {
     sequelize, Role, Permission, User,
     Student, Teacher, TeacherAttendance, SalarySlip, Department,
-    Classroom, ClassroomStudent, ClassroomSubject, Timetable, Subject,
-    Homework, HomeworkSubmission, CalendarEvent, StudentAttendance
+    Classroom, ClassroomStudent, ClassroomPeriod, ClassroomSubject, Timetable, Subject,
+    Homework, HomeworkSubmission, CalendarEvent, EventType, StudentAttendance, PermissionAuditLog, ExamSchedule, Exam, ExamResult
 } = db;
 import logger from '../utils/logger.js';
 
@@ -21,6 +21,11 @@ import logger from '../utils/logger.js';
 
         await sequelize.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
         logger.info('pgcrypto extension ready.');
+
+        await sequelize.query('CREATE SEQUENCE IF NOT EXISTS student_adm_seq START 1;');
+        await sequelize.query('CREATE SEQUENCE IF NOT EXISTS erp_student_id_seq START 1;');
+        await sequelize.query('CREATE SEQUENCE IF NOT EXISTS erp_user_id_seq START 2;');
+        logger.info('Global ID sequences ready.');
 
         // ── Sync in FK-dependency order ──────────────────────────────────────────
         await Role.sync({ force: false, alter: true });
@@ -79,6 +84,24 @@ import logger from '../utils/logger.js';
 
         await StudentAttendance.sync({ force: false, alter: true });
         logger.info('✓ student_attendance');
+
+        await ClassroomPeriod.sync({ force: false, alter: true });
+        logger.info('✓ classroom_periods');
+
+        await EventType.sync({ force: false, alter: true });
+        logger.info('✓ event_types');
+
+        await PermissionAuditLog.sync({ force: false, alter: true });
+        logger.info('✓ permission_audit_log');
+
+        await ExamSchedule.sync({ force: false, alter: true });
+        logger.info('✓ exam_schedules');
+
+        await Exam.sync({ force: false, alter: true });
+        logger.info('✓ exams');
+
+        await ExamResult.sync({ force: false, alter: true });
+        logger.info('✓ exam_results');
 
         logger.info('All tables synchronized with Neon DB.');
         process.exit(0);

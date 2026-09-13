@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { useClassroomAttendance, useSubmitBulkAttendance } from '@/features/attendance/api/useAttendance';
+import { useSubmitBulkAttendance } from '@/features/attendance/api/useAttendance';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+
 import { Loader2, Save, UserCheck, UserX, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -204,7 +204,7 @@ export function AttendanceGrid({ classroomId, date, canEdit, existingAttendance,
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-border/40">
-                        {students.map((student, idx) => (
+                        {students.map((student) => (
                             <tr key={student.id} className="hover:bg-muted/10 transition-colors">
                                 <td className="px-4 sm:px-6 py-3 sm:py-4 min-w-[120px] max-w-[150px] sm:max-w-[200px]">
                                     <div className="flex items-center gap-2 sm:gap-3">
