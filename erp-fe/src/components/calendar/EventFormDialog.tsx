@@ -56,10 +56,11 @@ interface EventFormDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     event?: CalendarEvent | null;
+    initialDate?: Date | null;
     onSubmit: (data: Partial<CalendarEvent>) => void;
 }
 
-export function EventFormDialog({ open, onOpenChange, event, onSubmit }: EventFormDialogProps) {
+export function EventFormDialog({ open, onOpenChange, event, initialDate, onSubmit }: EventFormDialogProps) {
     const { can } = usePermissions();
     const canManageEvents = can('events', 'manage');
     const { data: classrooms } = useClassrooms();
@@ -82,8 +83,8 @@ export function EventFormDialog({ open, onOpenChange, event, onSubmit }: EventFo
         defaultValues: {
             title: '',
             type: 'EVENT',
-            startDate: new Date(),
-            endDate: new Date(),
+            startDate: initialDate || new Date(),
+            endDate: initialDate || new Date(),
             dayType: 'FULL_DAY',
             location: '',
             description: '',
@@ -108,11 +109,12 @@ export function EventFormDialog({ open, onOpenChange, event, onSubmit }: EventFo
                 targetClassId: event.target_class_id || undefined,
             });
         } else if (open) {
+            const defaultDate = initialDate || new Date();
             form.reset({
                 title: '',
                 type: 'EVENT',
-                startDate: new Date(),
-                endDate: new Date(),
+                startDate: defaultDate,
+                endDate: defaultDate,
                 dayType: 'FULL_DAY',
                 location: '',
                 description: '',
@@ -121,7 +123,7 @@ export function EventFormDialog({ open, onOpenChange, event, onSubmit }: EventFo
                 targetClassId: undefined,
             });
         }
-    }, [event, open, form, canManageEvents]);
+    }, [event, initialDate, open, form, canManageEvents]);
 
     const targetAudience = form.watch("targetAudience");
 

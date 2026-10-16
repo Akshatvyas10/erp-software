@@ -17,11 +17,13 @@ export default function CalendarPage() {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [isBulkHolidayOpen, setIsBulkHolidayOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const { can } = usePermissions();
     const canManageEvents = can('events', 'manage');
 
-    const handleAddClick = () => {
+    const handleAddClick = (date?: Date) => {
         setSelectedEvent(null);
+        setSelectedDate(date || new Date());
         setIsFormOpen(true);
     };
 
@@ -83,6 +85,7 @@ export default function CalendarPage() {
                 open={isFormOpen}
                 onOpenChange={setIsFormOpen}
                 event={selectedEvent}
+                initialDate={selectedDate}
                 onSubmit={handleFormSubmit}
             />
 

@@ -26,7 +26,7 @@ import { ResponsiveModal } from '../common/ResponsiveModal';
 interface CalendarGridProps {
     events: CalendarEvent[];
     onEventClick: (event: CalendarEvent) => void;
-    onAddEventClick: () => void;
+    onAddEventClick: (date?: Date) => void;
 }
 
 export function CalendarGrid({ events, onEventClick, onAddEventClick }: CalendarGridProps) {
@@ -142,7 +142,7 @@ export function CalendarGrid({ events, onEventClick, onAddEventClick }: Calendar
                     </div>
 
                     {canCreateEvent && (
-                        <Button onClick={onAddEventClick} size="sm" className="h-8 sm:h-9 px-3 text-xs sm:text-sm">
+                        <Button onClick={() => onAddEventClick(selectedDate)} size="sm" className="h-8 sm:h-9 px-3 text-xs sm:text-sm">
                             <Plus className="mr-1.5 h-3.5 w-3.5 sm:h-4 sm:w-4" /> Add Event
                         </Button>
                     )}
@@ -228,7 +228,7 @@ export function CalendarGrid({ events, onEventClick, onAddEventClick }: Calendar
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={onAddEventClick}
+                                        onClick={() => onAddEventClick(selectedDate)}
                                         className="h-7 text-xs px-2.5 rounded-lg"
                                     >
                                         <Plus className="mr-1 h-3 w-3" /> Event
@@ -323,8 +323,9 @@ export function CalendarGrid({ events, onEventClick, onAddEventClick }: Calendar
                         return (
                             <div
                                 key={day.toString()}
+                                onClick={() => canCreateEvent && onAddEventClick(day)}
                                 className={cn(
-                                    "min-h-[100px] p-1.5 border-b border-r border-border transition-colors hover:bg-muted/10",
+                                    "min-h-[100px] p-1.5 border-b border-r border-border transition-colors hover:bg-muted/10 cursor-pointer",
                                     !isSameMonth(day, monthStart) && "bg-muted/30 opacity-50",
                                     (dayIdx + 1) % 7 === 0 && "border-r-0"
                                 )}
