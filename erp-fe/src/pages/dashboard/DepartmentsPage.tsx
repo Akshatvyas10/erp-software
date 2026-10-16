@@ -3,6 +3,7 @@ import { Plus, Building2, Trash2, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -210,7 +211,35 @@ export default function DepartmentsPage() {
                 </CardHeader>
                 <CardContent className="p-0">
                     {loading ? (
-                        <div className="flex justify-center py-20"><Loader2 className="h-7 w-7 animate-spin text-primary/70" /></div>
+                        <div className="w-full overflow-x-auto custom-scrollbar">
+                            <Table className="w-full min-w-[700px]">
+                                <TableHeader className="bg-muted/40 border-b border-border/60">
+                                    <TableRow className="border-border/60">
+                                        <TableHead className="pl-6 text-[11px] font-bold uppercase tracking-wider text-muted-foreground h-12 w-[40%]">Department Name</TableHead>
+                                        <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground h-12 w-[45%]">Head of Department (HOD)</TableHead>
+                                        <TableHead className="text-right pr-6 text-[11px] font-bold uppercase tracking-wider text-muted-foreground h-12">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {Array.from({ length: 5 }).map((_, i) => (
+                                        <TableRow key={i} className="border-border/40">
+                                            <TableCell className="pl-6 py-4.5">
+                                                <Skeleton className="h-5 w-40" />
+                                            </TableCell>
+                                            <TableCell className="py-4.5">
+                                                <div className="flex items-center gap-2">
+                                                    <Skeleton className="h-5 w-32" />
+                                                    <Skeleton className="h-5 w-16 rounded-md" />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right pr-6 py-4.5">
+                                                <Skeleton className="h-8 w-8 rounded-lg ml-auto" />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
                     ) : departments.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
                             <Building2 className="h-9 w-9 mb-3 opacity-25 text-primary" />

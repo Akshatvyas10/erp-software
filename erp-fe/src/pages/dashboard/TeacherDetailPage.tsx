@@ -22,6 +22,7 @@ import AccessDenied from "@/components/auth/AccessDenied";
 import type { Teacher } from "@/types/erp";
 import { TeacherForm } from "@/components/teachers/TeacherForm";
 import { SectionCard, DetailRow } from "@/components/shared/DetailCards";
+import { ProfilePageSkeleton } from "@/components/common/skeletons/ProfilePageSkeleton";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const fetchTeacher = async (id: string): Promise<Teacher> => {
@@ -66,11 +67,7 @@ export default function TeacherDetailPage() {
     });
 
     if (!can("teachers", "read")) return <AccessDenied />;
-    if (isLoading) return (
-        <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-    );
+    if (isLoading) return <ProfilePageSkeleton />;
     if (!teacher) return (
         <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
             <Briefcase className="h-10 w-10 text-muted-foreground/40" />

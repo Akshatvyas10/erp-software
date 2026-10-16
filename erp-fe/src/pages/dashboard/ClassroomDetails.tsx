@@ -21,7 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { DetailsPageSkeleton } from "@/components/common/skeletons/DetailsPageSkeleton";
+import { ClassroomDetailsSkeleton } from "@/components/common/skeletons/ClassroomDetailsSkeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -1186,7 +1186,7 @@ export default function ClassroomDetails() {
     if (!can("classrooms", "read")) return <AccessDenied />;
 
     if (isLoading) {
-        return <DetailsPageSkeleton />;
+        return <ClassroomDetailsSkeleton />;
     }
 
     if (!classroom) {

@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -263,8 +264,31 @@ export default function SubjectsPage() {
 
             <Card className="rounded-2xl border-border bg-card shadow-sm overflow-hidden">
                 {isLoading ? (
-                    <div className="flex justify-center items-center py-24 text-muted-foreground">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-muted/40 border-b border-border/60">
+                                    <TableHead className="pl-6 font-bold text-xs uppercase tracking-wider text-muted-foreground">Code</TableHead>
+                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Name</TableHead>
+                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground hidden sm:table-cell">Type</TableHead>
+                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground hidden md:table-cell">Description</TableHead>
+                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</TableHead>
+                                    <TableHead className="pr-6 text-right font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {Array.from({ length: 6 }).map((_, i) => (
+                                    <TableRow key={i} className="border-b border-border/40">
+                                        <TableCell className="pl-6 py-4"><Skeleton className="h-5 w-16" /></TableCell>
+                                        <TableCell className="py-4"><Skeleton className="h-5 w-36" /></TableCell>
+                                        <TableCell className="py-4 hidden sm:table-cell"><Skeleton className="h-5 w-20 rounded-md" /></TableCell>
+                                        <TableCell className="py-4 hidden md:table-cell"><Skeleton className="h-5 w-48" /></TableCell>
+                                        <TableCell className="py-4"><Skeleton className="h-5 w-16 rounded-md" /></TableCell>
+                                        <TableCell className="pr-6 py-4 text-right"><Skeleton className="h-8 w-8 rounded-lg ml-auto" /></TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
                     </div>
                 ) : subjects.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-24 text-center">
