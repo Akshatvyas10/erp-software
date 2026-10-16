@@ -61,8 +61,22 @@ const loadUserWithRoles = async (userId) => {
 const login = async (req, res, next) => {
     try {
         const { userId, password, remember } = req.body;
+        const identifier = (userId || '').trim();
 
-        const user = await User.findOne({ where: { userId, isActive: true } });
+        // Allow login with either userId (case-insensitive) or email (case-insensitive)
+        const user = await User.findOne({
+            where: {
+                [Op.and]: [
+                    { isActive: true },
+                    {
+                        [Op.or]: [
+                            { userId: identifier },
+                            { email: identifier.toLowerCase() }
+                        ]
+                    }
+                ]
+            }
+        });
         if (!user) return error(res, 'Invalid credentials', 401);
 
         if (user.isLocked()) {

@@ -21,7 +21,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { loginSuccess } from "@/store/slices/authSlice";
 
 const loginSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
+  userId: z.string().min(1, "User ID or Email is required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   remember: z.boolean().optional(),
 });
@@ -78,11 +78,11 @@ export default function Login() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
           <FormField control={form.control} name="userId" render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">User ID</FormLabel>
+              <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">User ID or Email</FormLabel>
               <FormControl>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="e.g. ERP-00001" className="pl-10 h-12  border-none focus-visible:ring-primary" autoComplete="username" {...field} />
+                  <Input placeholder="e.g. ERP-00001 or student@school.com" className="pl-10 h-12  border-none focus-visible:ring-primary" autoComplete="username" {...field} />
                 </div>
               </FormControl>
               <FormMessage />

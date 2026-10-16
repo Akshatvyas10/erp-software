@@ -10,7 +10,7 @@ const router = express.Router();
 
 const loginSchema = {
     body: z.object({
-        userId: z.string().trim().min(1, 'userId is required'),
+        userId: z.string().trim().min(1, 'User ID or Email is required'),
         password: z.string().min(6, 'Password must be at least 6 characters'),
         remember: z.boolean().optional(),
     }),
