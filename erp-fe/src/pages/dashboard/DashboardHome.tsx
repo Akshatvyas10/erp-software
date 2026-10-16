@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { usePermissions, useAuth } from "@/store/hooks";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
 import api from "@/lib/api";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
@@ -42,17 +43,6 @@ const useBulkPermissionCheck = (enabled: boolean) => {
     });
 };
 
-const useServerPermissions = (enabled: boolean) => {
-    return useQuery({
-        queryKey: ["permissions", "my"],
-        queryFn: async () => {
-            const { data } = await api.get("/permissions/my");
-            return data.data;
-        },
-        enabled,
-        staleTime: 14 * 60 * 1000,
-    });
-};
 
 // --- Mock Data for UI Redesign ---
 const METRICS = [
@@ -74,7 +64,7 @@ export default function DashboardHome() {
     const { roles, permissions, can, isLoading: permLoading } = usePermissions();
 
     const bulkCheck = useBulkPermissionCheck(!!user);
-    const serverPerms = useServerPermissions(!!user);
+    const serverPerms = useMyPermissions();
 
     const groupedByResource = RESOURCE_CHECKS.reduce<Record<string, typeof RESOURCE_CHECKS>>((acc, item) => {
         if (!acc[item.resource]) acc[item.resource] = [];
