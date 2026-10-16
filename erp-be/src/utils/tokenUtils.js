@@ -1,10 +1,15 @@
 import jwt from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Sign an access token (short-lived)
  */
 export const signAccessToken = (payload) => {
-    return jwt.sign(payload, process.env.JWT_SECRET, {
+    const tokenPayload = {
+        jti: uuidv4(),
+        ...payload,
+    };
+    return jwt.sign(tokenPayload, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRES_IN || '15m',
         issuer: 'erp-system',
         audience: 'erp-client',
@@ -15,7 +20,11 @@ export const signAccessToken = (payload) => {
  * Sign a refresh token (long-lived)
  */
 export const signRefreshToken = (payload) => {
-    return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
+    const tokenPayload = {
+        jti: uuidv4(),
+        ...payload,
+    };
+    return jwt.sign(tokenPayload, process.env.JWT_REFRESH_SECRET, {
         expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
         issuer: 'erp-system',
         audience: 'erp-client',

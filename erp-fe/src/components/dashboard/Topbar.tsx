@@ -1,7 +1,7 @@
 import { Menu, Bell, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useThemeMode } from "@/store/hooks";
 
 interface TopbarProps {
     onMobileMenuClick: () => void;
@@ -11,7 +11,7 @@ interface TopbarProps {
 
 export default function Topbar({ onMobileMenuClick, isCollapsed, onToggleCollapse }: TopbarProps) {
     const location = useLocation();
-    const [theme, setTheme] = useState<"light" | "dark">("light");
+    const { mode, toggleMode } = useThemeMode();
 
     // Simple breadcrumb generator
     const getBreadcrumbs = () => {
@@ -20,32 +20,15 @@ export default function Topbar({ onMobileMenuClick, isCollapsed, onToggleCollaps
         return path.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" / ");
     };
 
-    const toggleTheme = () => {
-        const newTheme = theme === "light" ? "dark" : "light";
-        setTheme(newTheme);
-        if (newTheme === "dark") {
-            document.documentElement.classList.add("dark");
-        } else {
-            document.documentElement.classList.remove("dark");
-        }
-    };
-
-    // Initialize theme based on document class
-    useEffect(() => {
-        if (document.documentElement.classList.contains("dark")) {
-            setTheme("dark");
-        }
-    }, []);
-
     return (
-        <header className="h-16 border-b shadow-[0_6px_24px_-4px_rgba(0,0,0,0.08)] border-purple-100 dark:border-zinc-800 bg-purple-50/95 dark:bg-zinc-950 flex items-center justify-between px-4 lg:px-6 shrink-0 z-30 sticky top-0 backdrop-blur-md transition-colors">
+        <header className="h-16 border-b shadow-xs border-border/60 bg-background/95 flex items-center justify-between px-4 lg:px-6 shrink-0 z-30 sticky top-0 backdrop-blur-md transition-colors">
             {/* Left Section */}
             <div className="flex items-center gap-2 lg:gap-3">
                 {/* Mobile Menu Toggle */}
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="lg:hidden text-purple-900/70 dark:text-zinc-400 hover:text-purple-950 dark:hover:text-zinc-100 hover:bg-purple-600/5 dark:hover:bg-zinc-900 rounded-xl transition-colors"
+                    className="lg:hidden text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-colors"
                     onClick={onMobileMenuClick}
                 >
                     <Menu className="h-5 w-5" />
@@ -55,7 +38,7 @@ export default function Topbar({ onMobileMenuClick, isCollapsed, onToggleCollaps
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="hidden lg:flex text-purple-900/70 dark:text-zinc-400 hover:text-purple-950 dark:hover:text-zinc-100 hover:bg-purple-600/5 dark:hover:bg-zinc-900 rounded-xl transition-colors"
+                    className="hidden lg:flex text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-colors"
                     onClick={onToggleCollapse}
                 >
                     {isCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
@@ -63,10 +46,10 @@ export default function Topbar({ onMobileMenuClick, isCollapsed, onToggleCollaps
 
                 {/* Breadcrumbs */}
                 <div className="hidden sm:flex flex-col">
-                    <p className="text-[13px] text-purple-900/60 dark:text-zinc-500 font-semibold flex items-center gap-2">
+                    <p className="text-[13px] text-muted-foreground font-semibold flex items-center gap-2">
                         Acme School
-                        <span className="text-purple-200 dark:text-zinc-800 font-normal">/</span>
-                        <span className="text-purple-950 dark:text-zinc-200 font-bold">{getBreadcrumbs()}</span>
+                        <span className="text-border font-normal">/</span>
+                        <span className="text-foreground font-bold">{getBreadcrumbs()}</span>
                     </p>
                 </div>
             </div>
@@ -76,14 +59,14 @@ export default function Topbar({ onMobileMenuClick, isCollapsed, onToggleCollaps
 
                 {/* Search Bar */}
                 <div className="hidden md:flex relative group">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-purple-900/40 dark:text-zinc-500 group-focus-within:text-purple-700 dark:group-focus-within:text-purple-400 transition-colors" />
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <input
                         type="text"
                         placeholder="Search everywhere..."
-                        className="h-10 w-48 lg:w-64 bg-purple-600/5 dark:bg-zinc-900 border border-purple-100 dark:border-zinc-800/80 rounded-xl pl-10 pr-12 text-sm text-purple-950 dark:text-zinc-200 outline-none transition-all placeholder:text-purple-900/40 dark:placeholder:text-zinc-500 focus:bg-white dark:focus:bg-zinc-950 focus:border-purple-600 dark:focus:border-purple-500 focus:ring-4 focus:ring-purple-600/10 dark:focus:ring-purple-500/10 font-medium"
+                        className="h-10 w-48 lg:w-64 bg-muted/50 border border-border/80 rounded-xl pl-10 pr-12 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-4 focus:ring-primary/10 font-medium"
                     />
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1">
-                        <kbd className="hidden lg:inline-flex h-5 items-center gap-1 rounded-md border border-purple-200/60 dark:border-zinc-800 bg-purple-100/50 dark:bg-zinc-950 px-1.5 font-mono text-[9px] font-bold text-purple-900/50 dark:text-zinc-500 shadow-sm">
+                        <kbd className="hidden lg:inline-flex h-5 items-center gap-1 rounded-md border border-border bg-muted/60 px-1.5 font-mono text-[9px] font-bold text-muted-foreground shadow-xs">
                             ⌘K
                         </kbd>
                     </div>
@@ -93,20 +76,21 @@ export default function Topbar({ onMobileMenuClick, isCollapsed, onToggleCollaps
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="text-purple-900/70 dark:text-zinc-400 hover:text-purple-950 dark:hover:text-zinc-100 hover:bg-purple-600/5 dark:hover:bg-zinc-900 rounded-xl h-10 w-10 relative"
+                    className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl h-10 w-10 relative"
                 >
                     <Bell className="h-5 w-5" />
-                    <span className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-purple-600 dark:bg-purple-500 ring-2 ring-purple-5/50 dark:ring-zinc-950"></span>
+                    <span className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-primary ring-2 ring-background"></span>
                 </Button>
 
                 {/* Light/Dark Toggle */}
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="text-purple-900/70 dark:text-zinc-400 hover:text-purple-950 dark:hover:text-zinc-100 hover:bg-purple-600/5 dark:hover:bg-zinc-900 rounded-xl h-10 w-10"
-                    onClick={toggleTheme}
+                    className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl h-10 w-10"
+                    onClick={toggleMode}
+                    title={mode === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
                 >
-                    {theme === "light" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                    {mode === "light" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
             </div>
         </header>

@@ -4,26 +4,42 @@ import db from '../models/index.js';
 
 const { SchoolConfig } = db;
 
+import { decrypt } from './encryption.service.js';
+
 /**
- * Creates a transporter dynamically.
- * In the future, this can be extended to fetch credentials from the database (e.g., for multi-tenant setups or user-defined SMTP).
+ * Creates a transporter dynamically using custom database SMTP configuration.
+ * All SMTP credentials are stored securely and encrypted in PostgreSQL.
  */
 const createTransporter = async () => {
-    // TODO: In the future, fetch these from DB based on user/tenant settings
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASSWORD;
+    const config = await SchoolConfig.findOne();
+    const smtp = config?.smtpSettings;
 
-    if (!user || !pass) {
-        throw new Error('SMTP credentials are not configured in environment variables.');
+    if (!smtp || !smtp.isConfigured || !smtp.host || !smtp.username) {
+        throw new Error('Email server is not configured. Please configure SMTP in School Configuration.');
     }
 
-    return nodemailer.createTransport({
-        service: 'gmail', // Standard configuration for Gmail
-        auth: {
-            user: user,
-            pass: pass,
-        },
-    });
+    const decryptedPassword = decrypt(smtp.password);
+    if (!decryptedPassword) {
+        throw new Error('Failed to decrypt SMTP password. Please re-enter credentials in School Configuration.');
+    }
+
+    const isSecure = smtp.encryption === 'SSL' || Number(smtp.port) === 465;
+    return {
+        transporter: nodemailer.createTransport({
+            host: smtp.host,
+            port: Number(smtp.port),
+            secure: isSecure,
+            auth: {
+                user: smtp.username,
+                pass: decryptedPassword,
+            },
+            tls: {
+                rejectUnauthorized: smtp.encryption !== 'NONE',
+            },
+        }),
+        from: `"${smtp.fromName || config.schoolName || 'ERP System'}" <${smtp.fromEmail || smtp.username}>`,
+        replyTo: smtp.replyTo || smtp.fromEmail || smtp.username,
+    };
 };
 
 /**
@@ -43,7 +59,8 @@ const getSchoolContext = async () => {
         logoUrl: config?.logoUrl ? `${backendUrl}${config.logoUrl}` : '',
         primaryPhone: config?.primaryPhone || '',
         email: config?.email || '',
-        address: [config?.addressLine1, config?.city, config?.state].filter(Boolean).join(', ') || ''
+        address: [config?.addressLine1, config?.city, config?.state].filter(Boolean).join(', ') || '',
+        currentYear: new Date().getFullYear(),
     };
 };
 
@@ -55,12 +72,12 @@ const getSchoolContext = async () => {
  */
 export const sendEmail = async (to, subject, html) => {
     try {
-        const transporter = await createTransporter();
-        const from = process.env.SMTP_FROM || `"ERP System" <${process.env.SMTP_USER}>`;
+        const { transporter, from, replyTo } = await createTransporter();
 
         const info = await transporter.sendMail({
             from,
             to,
+            replyTo,
             subject,
             html,
         });
@@ -74,157 +91,440 @@ export const sendEmail = async (to, subject, html) => {
 };
 
 // =============================================================================
-// Specific Email Templates
+// Reusable Layout Helpers (Cross-client Table Structure)
 // =============================================================================
 
-const getHeaderHtml = (schoolName, logoUrl) => `
-    <div style="background-color: #4f46e5; padding: 24px; text-align: center;">
-        ${logoUrl ? `<img src="${logoUrl}" alt="School Logo" style="max-height: 60px; margin-bottom: 12px;" />` : ''}
-        <h1 style="margin: 0; font-size: 24px; color: #ffffff; font-weight: 600;">${schoolName}</h1>
-    </div>
+const getEmailWrapper = (schoolName, headerBg, contentHtml, footerInfo = {}) => `
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${schoolName}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F1F5F9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F1F5F9; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <!-- Main Container Card -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);">
+          <!-- Header -->
+          <tr>
+            <td align="center" style="background: ${headerBg}; padding: 32px 24px;">
+              <table border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="color: #FFFFFF; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">
+                    ${schoolName}
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="color: #E0E7FF; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; padding-top: 6px;">
+                    School Management & Learning Portal
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Content Body -->
+          <tr>
+            <td style="padding: 36px 32px;">
+              ${contentHtml}
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 22px 32px; background-color: #F8FAFC; border-top: 1px solid #E2E8F0; text-align: center;">
+              ${footerInfo.phone || footerInfo.email ? `
+                <p style="margin: 0 0 6px 0; color: #64748B; font-size: 12px;">
+                  ${footerInfo.phone ? `Phone: <strong>${footerInfo.phone}</strong> &bull; ` : ''}
+                  ${footerInfo.email ? `Email: <a href="mailto:${footerInfo.email}" style="color: #4F46E5; text-decoration: none;">${footerInfo.email}</a>` : ''}
+                </p>
+              ` : ''}
+              ${footerInfo.address ? `<p style="margin: 0 0 6px 0; color: #94A3B8; font-size: 11px;">${footerInfo.address}</p>` : ''}
+              <p style="margin: 0; color: #94A3B8; font-size: 11px;">
+                &copy; ${new Date().getFullYear()} ${schoolName}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
 `;
 
-const getFooterHtml = (schoolName, phone, email, address) => `
-    <div style="background-color: #f9fafb; padding: 24px; text-align: center; border-top: 1px solid #e5e7eb; font-size: 13px; color: #6b7280; line-height: 1.5;">
-        <p style="margin: 0 0 8px 0; font-weight: 600;">${schoolName}</p>
-        ${address ? `<p style="margin: 0 0 4px 0;">${address}</p>` : ''}
-        ${phone || email ? `<p style="margin: 0;">${phone ? `Phone: ${phone}` : ''} ${phone && email ? '|' : ''} ${email ? `Email: ${email}` : ''}</p>` : ''}
-        <p style="margin: 16px 0 0 0; font-size: 11px;">This is an automated message. Please do not reply directly to this email.</p>
-    </div>
+const getButtonHtml = (url, label, bgColor = '#4F46E5') => `
+<table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 28px 0;">
+  <tr>
+    <td align="center">
+      <table border="0" cellpadding="0" cellspacing="0">
+        <tr>
+          <td align="center" style="background-color: ${bgColor}; border-radius: 10px;">
+            <a href="${url}" target="_blank" style="display: inline-block; padding: 14px 34px; font-size: 15px; font-weight: 700; color: #FFFFFF; text-decoration: none; border-radius: 10px; border: 1px solid ${bgColor};">
+              ${label}
+            </a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
 `;
 
-
-export const sendAdmissionSubmissionEmail = async (parentEmail, studentName) => {
-    const ctx = await getSchoolContext();
-    const subject = `Admission Application Received - ${studentName}`;
-    const html = `
-        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-            ${getHeaderHtml(ctx.schoolName, ctx.logoUrl)}
-            <div style="padding: 32px; background-color: #ffffff; color: #374151; line-height: 1.6;">
-                <h2 style="color: #111827; margin-top: 0; font-size: 20px;">Application Successfully Received</h2>
-                <p style="font-size: 16px;">Dear Parent / Guardian,</p>
-                <p style="font-size: 16px;">Thank you for choosing our institution. We have successfully received the admission application for <strong>${studentName}</strong>.</p>
-                <p style="font-size: 16px;">Our admissions team will carefully review the application and all provided details. We will notify you of any updates or if further information is required.</p>
-                <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
-                    <p style="font-size: 15px; margin: 0;">Warm Regards,</p>
-                    <p style="font-size: 16px; font-weight: 600; color: #4f46e5; margin: 4px 0 0 0;">Admissions Office</p>
-                </div>
-            </div>
-            ${getFooterHtml(ctx.schoolName, ctx.primaryPhone, ctx.email, ctx.address)}
-        </div>
-    `;
-    return sendEmail(parentEmail, subject, html);
-};
-
-export const sendAdmissionApprovalEmail = async (parentEmail, studentName, studentId, temporaryPassword) => {
-    const ctx = await getSchoolContext();
-    const subject = `Admission Approved - Welcome ${studentName}!`;
-    const html = `
-        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-            ${getHeaderHtml(ctx.schoolName, ctx.logoUrl).replace('#4f46e5', '#10b981')}
-            <div style="padding: 32px; background-color: #ffffff; color: #374151; line-height: 1.6;">
-                <h2 style="color: #111827; margin-top: 0; font-size: 20px;">Congratulations!</h2>
-                <p style="font-size: 16px;">Dear Parent / Guardian,</p>
-                <p style="font-size: 16px;">We are delighted to inform you that the admission application for <strong>${studentName}</strong> has been officially approved.</p>
-                
-                <div style="background-color: #f3f4f6; border-left: 4px solid #10b981; padding: 16px; margin: 24px 0; border-radius: 4px;">
-                    <h3 style="margin-top: 0; color: #111827; font-size: 16px;">Your ERP Portal Credentials</h3>
-                    <p style="margin: 0 0 8px 0; font-size: 15px;">You can now log in to the School ERP portal to manage academics, fees, and more.</p>
-                    <table style="width: 100%; font-size: 15px;">
-                        <tr>
-                            <td style="padding: 4px 0; width: 100px;"><strong>Login ID:</strong></td>
-                            <td style="padding: 4px 0; color: #111827;">${studentId}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 4px 0;"><strong>Password:</strong></td>
-                            <td style="padding: 4px 0; color: #111827; font-family: monospace; font-size: 16px;">${temporaryPassword}</td>
-                        </tr>
-                    </table>
-                </div>
-                
-                <p style="font-size: 14px; color: #dc2626; font-weight: 500;">⚠️ For security reasons, please ensure you change this password upon your first login.</p>
-                
-                <div style="text-align: center; margin: 32px 0;">
-                    <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" style="background-color: #10b981; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Login to ERP Portal</a>
-                </div>
-
-                <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
-                    <p style="font-size: 15px; margin: 0;">Warm Regards,</p>
-                    <p style="font-size: 16px; font-weight: 600; color: #10b981; margin: 4px 0 0 0;">School Administration</p>
-                </div>
-            </div>
-            ${getFooterHtml(ctx.schoolName, ctx.primaryPhone, ctx.email, ctx.address)}
-        </div>
-    `;
-    return sendEmail(parentEmail, subject, html);
-};
-
-export const sendAdmissionRejectionEmail = async (parentEmail, studentName, reason) => {
-    const ctx = await getSchoolContext();
-    const subject = `Admission Update - ${studentName}`;
-    const html = `
-        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-            <div style="background-color: #f3f4f6; padding: 24px; text-align: center; border-bottom: 3px solid #ef4444;">
-                ${ctx.logoUrl ? `<img src="${ctx.logoUrl}" alt="School Logo" style="max-height: 60px; margin-bottom: 12px;" />` : ''}
-                <h1 style="margin: 0; font-size: 24px; color: #1f2937; font-weight: 600;">${ctx.schoolName}</h1>
-            </div>
-            <div style="padding: 32px; background-color: #ffffff; color: #374151; line-height: 1.6;">
-                <h2 style="color: #111827; margin-top: 0; font-size: 20px;">Application Update</h2>
-                <p style="font-size: 16px;">Dear Parent / Guardian,</p>
-                <p style="font-size: 16px;">Thank you for your interest in our institution and for applying for the admission of <strong>${studentName}</strong>.</p>
-                <p style="font-size: 16px;">After careful consideration and review of the application, we regret to inform you that we are unable to proceed with the admission at this time.</p>
-                
-                ${reason ? `
-                <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; margin: 24px 0; border-radius: 4px;">
-                    <h3 style="margin-top: 0; color: #991b1b; font-size: 15px;">Reason for Decision</h3>
-                    <p style="margin: 0; color: #b91c1c; font-size: 15px;">${reason}</p>
-                </div>
-                ` : ''}
-                
-                <p style="font-size: 16px;">We wish ${studentName} the very best in all future academic endeavors.</p>
-                
-                <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
-                    <p style="font-size: 15px; margin: 0;">Sincerely,</p>
-                    <p style="font-size: 16px; font-weight: 600; color: #4f46e5; margin: 4px 0 0 0;">Admissions Office</p>
-                </div>
-            </div>
-            ${getFooterHtml(ctx.schoolName, ctx.primaryPhone, ctx.email, ctx.address)}
-        </div>
-    `;
-    return sendEmail(parentEmail, subject, html);
-};
-
 // =============================================================================
-// Reusable function for future (e.g., Reset Password)
+// Specific Production Email Templates
 // =============================================================================
+
+/**
+ * 1. Welcome Email (New User)
+ */
+export const sendWelcomeEmail = async (userEmail, userName, userId, temporaryPassword) => {
+    const ctx = await getSchoolContext();
+    const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    const subject = `Welcome to ${ctx.schoolName}!`;
+
+    const contentHtml = `
+      <h1 style="margin: 0 0 16px 0; color: #0F172A; font-size: 22px; font-weight: 700;">
+        Welcome to your new portal, ${userName}!
+      </h1>
+      <p style="margin: 0 0 20px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Your account on the <strong>${ctx.schoolName} ERP Portal</strong> has been successfully created. You can now access your classes, records, and school services from one central dashboard.
+      </p>
+
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; margin-bottom: 24px;">
+        <tr>
+          <td style="padding: 18px 22px;">
+            <p style="margin: 0 0 8px 0; color: #64748B; font-size: 12px; font-weight: 700; text-transform: uppercase;">Login Credentials</p>
+            <p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>User ID:</strong> <span style="font-family: monospace; color: #4F46E5; font-size: 15px;">${userId}</span></p>
+            ${temporaryPassword ? `<p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Temporary Password:</strong> <span style="font-family: monospace; font-size: 15px;">${temporaryPassword}</span></p>` : ''}
+            <p style="margin: 0; color: #0F172A; font-size: 14px;"><strong>Registered Email:</strong> ${userEmail}</p>
+          </td>
+        </tr>
+      </table>
+
+      ${getButtonHtml(loginUrl, 'Sign In to Your Account', '#4F46E5')}
+
+      <p style="margin: 0; color: #64748B; font-size: 13px; line-height: 1.6;">
+        Please change your temporary password immediately upon your first login to keep your account secure.
+      </p>
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, 'linear-gradient(135deg, #4F46E5 0%, #312E81 100%)', contentHtml, ctx);
+    return sendEmail(userEmail, subject, html);
+};
+
+/**
+ * 2. Login OTP / Verification Code
+ */
+export const sendLoginOtpEmail = async (email, userName, otp) => {
+    const ctx = await getSchoolContext();
+    const subject = `Your Verification Code: ${otp}`;
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 12px 0; color: #0F172A; font-size: 20px; font-weight: 700;">Login Verification Code</h2>
+      <p style="margin: 0 0 24px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Hello ${userName}, please use the 6-digit security code below to complete your login verification:
+      </p>
+
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 24px;">
+        <tr>
+          <td align="center" style="background-color: #EEF2FF; border: 2px dashed #6366F1; border-radius: 12px; padding: 18px;">
+            <span style="font-family: 'Courier New', Courier, monospace; font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #4F46E5;">
+              ${otp}
+            </span>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin: 0 0 16px 0; color: #64748B; font-size: 13px; line-height: 1.6;">
+        ⏱ This verification code is valid for <strong>10 minutes</strong>. Never share this code with anyone.
+      </p>
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, '#4F46E5', contentHtml, ctx);
+    return sendEmail(email, subject, html);
+};
+
+/**
+ * 3. Forgot Password Request
+ */
 export const sendPasswordResetEmail = async (email, resetLink) => {
     const ctx = await getSchoolContext();
-    const subject = `Password Reset Request`;
-    const html = `
-        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-            ${getHeaderHtml(ctx.schoolName, ctx.logoUrl)}
-            <div style="padding: 32px; background-color: #ffffff; color: #374151; line-height: 1.6;">
-                <h2 style="color: #111827; margin-top: 0; font-size: 20px;">Password Reset Request</h2>
-                <p style="font-size: 16px;">Hello,</p>
-                <p style="font-size: 16px;">We received a request to reset the password associated with your account on the School ERP portal.</p>
-                <p style="font-size: 16px;">Please click the secure link below to choose a new password:</p>
-                
-                <div style="text-align: center; margin: 32px 0;">
-                    <a href="${resetLink}" style="background-color: #4f46e5; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Reset My Password</a>
-                </div>
-                
-                <p style="font-size: 15px; color: #6b7280;">If the button above does not work, copy and paste the following URL into your browser:</p>
-                <p style="font-size: 13px; color: #4f46e5; word-break: break-all; margin-top: 4px;">${resetLink}</p>
-                
-                <p style="font-size: 15px; margin-top: 24px;">If you did not request this password reset, you can safely ignore this email. Your password will remain unchanged.</p>
-                
-                <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
-                    <p style="font-size: 15px; margin: 0;">Warm Regards,</p>
-                    <p style="font-size: 16px; font-weight: 600; color: #4f46e5; margin: 4px 0 0 0;">School Administration</p>
-                </div>
-            </div>
-            ${getFooterHtml(ctx.schoolName, ctx.primaryPhone, ctx.email, ctx.address)}
-        </div>
+    const subject = `Password Reset Request - ${ctx.schoolName}`;
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 14px 0; color: #0F172A; font-size: 22px; font-weight: 700;">Password Reset Request</h2>
+      <p style="margin: 0 0 18px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Hello, we received a request to reset the password associated with your account on the <strong>${ctx.schoolName}</strong> portal.
+      </p>
+      <p style="margin: 0 0 24px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Click the secure button below to choose a new password:
+      </p>
+
+      ${getButtonHtml(resetLink, 'Reset Password', '#4F46E5')}
+
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px;">
+        <tr>
+          <td style="color: #64748B; font-size: 12px; line-height: 1.5;">
+            ⚠️ This link will expire in <strong>15 minutes</strong> for security reasons. If you did not request a password reset, you can safely ignore this email.
+          </td>
+        </tr>
+      </table>
     `;
+
+    const html = getEmailWrapper(ctx.schoolName, '#4F46E5', contentHtml, ctx);
+    return sendEmail(email, subject, html);
+};
+
+/**
+ * 4. Password Reset Successful
+ */
+export const sendPasswordResetSuccessEmail = async (email, userName) => {
+    const ctx = await getSchoolContext();
+    const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    const subject = `Password Successfully Reset - ${ctx.schoolName}`;
+
+    const contentHtml = `
+      <div align="center" style="margin-bottom: 20px;">
+        <span style="display: inline-block; background-color: #D1FAE5; color: #059669; font-size: 28px; width: 56px; height: 56px; line-height: 56px; border-radius: 50%; text-align: center;">&#10003;</span>
+      </div>
+      <h2 align="center" style="margin: 0 0 12px 0; color: #0F172A; font-size: 22px; font-weight: 700;">Password Updated Successfully</h2>
+      <p style="margin: 0 0 24px 0; color: #475569; font-size: 15px; line-height: 1.6; text-align: center;">
+        Hello ${userName}, your account password has been updated. You can now use your new password to sign in to the portal.
+      </p>
+
+      ${getButtonHtml(loginUrl, 'Sign In to Portal', '#10B981')}
+
+      <div style="background-color: #FEF2F2; border: 1px solid #FEE2E2; border-radius: 8px; padding: 14px 18px;">
+        <p style="margin: 0; color: #991B1B; font-size: 12px; line-height: 1.5;">
+          <strong>Security Notice:</strong> If you did not perform this change yourself, please contact your school administrator immediately.
+        </p>
+      </div>
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, '#10B981', contentHtml, ctx);
+    return sendEmail(email, subject, html);
+};
+
+/**
+ * 5. Admission Form Submitted (to Parent)
+ */
+export const sendAdmissionSubmissionEmail = async (parentEmail, studentName, applicationNumber) => {
+    const ctx = await getSchoolContext();
+    const portalUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    const subject = `Admission Application Received - ${studentName}`;
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 14px 0; color: #0F172A; font-size: 22px; font-weight: 700;">We have received your application!</h2>
+      <p style="margin: 0 0 20px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Dear Parent / Guardian, thank you for applying to <strong>${ctx.schoolName}</strong> for student <strong>${studentName}</strong>.
+      </p>
+
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; margin-bottom: 24px;">
+        <tr>
+          <td style="padding: 18px 22px;">
+            <p style="margin: 0 0 6px 0; color: #64748B; font-size: 12px; font-weight: 700; text-transform: uppercase;">Application Details</p>
+            ${applicationNumber ? `<p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Application Number:</strong> <span style="font-family: monospace; color: #4F46E5; font-weight: 700;">${applicationNumber}</span></p>` : ''}
+            <p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Student Name:</strong> ${studentName}</p>
+            <p style="margin: 0; color: #0F172A; font-size: 14px;"><strong>Submission Date:</strong> ${new Date().toLocaleDateString()}</p>
+          </td>
+        </tr>
+      </table>
+
+      ${getButtonHtml(portalUrl, 'View Admission Portal', '#4F46E5')}
+
+      <p style="margin: 0; color: #64748B; font-size: 13px; line-height: 1.6;">
+        Our admissions committee is currently reviewing your submission. You will receive an email update once a decision is made.
+      </p>
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, '#4F46E5', contentHtml, ctx);
+    return sendEmail(parentEmail, subject, html);
+};
+
+/**
+ * 6. Admission Approved
+ */
+export const sendAdmissionApprovalEmail = async (parentEmail, studentName, studentId, temporaryPassword) => {
+    const ctx = await getSchoolContext();
+    const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    const subject = `Admission Approved - Welcome ${studentName}!`;
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 14px 0; color: #065F46; font-size: 22px; font-weight: 700;">Congratulations, ${studentName} has been accepted!</h2>
+      <p style="margin: 0 0 20px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Dear Parent / Guardian, we are delighted to inform you that the admission application for <strong>${studentName}</strong> has been officially approved at <strong>${ctx.schoolName}</strong>!
+      </p>
+
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px; margin-bottom: 24px;">
+        <tr>
+          <td style="padding: 18px 22px;">
+            <p style="margin: 0 0 8px 0; color: #166534; font-size: 12px; font-weight: 700; text-transform: uppercase;">Portal Login Credentials</p>
+            <p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Login ID:</strong> <span style="font-family: monospace; font-size: 15px; color: #059669; font-weight: 700;">${studentId}</span></p>
+            <p style="margin: 0; color: #0F172A; font-size: 14px;"><strong>Temporary Password:</strong> <span style="font-family: monospace; font-size: 15px;">${temporaryPassword}</span></p>
+          </td>
+        </tr>
+      </table>
+
+      ${getButtonHtml(loginUrl, 'Complete Enrollment in Portal', '#059669')}
+
+      <p style="margin: 0; color: #64748B; font-size: 13px; line-height: 1.6;">
+        Please log in to finalize document verification and complete the enrollment process.
+      </p>
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, '#059669', contentHtml, ctx);
+    return sendEmail(parentEmail, subject, html);
+};
+
+/**
+ * 7. Admission Rejected
+ */
+export const sendAdmissionRejectionEmail = async (parentEmail, studentName, reason) => {
+    const ctx = await getSchoolContext();
+    const portalUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    const subject = `Admission Status Update - ${studentName}`;
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 14px 0; color: #0F172A; font-size: 20px; font-weight: 700;">Update on Your Application</h2>
+      <p style="margin: 0 0 18px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Dear Parent / Guardian, thank you for your interest in <strong>${ctx.schoolName}</strong> for student <strong>${studentName}</strong>.
+      </p>
+      <p style="margin: 0 0 20px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        After review of our current capacity and requirements, we regret to inform you that we are unable to offer admission at this time.
+      </p>
+
+      ${reason ? `
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FEF2F2; border-left: 4px solid #EF4444; border-radius: 4px; margin-bottom: 24px;">
+          <tr>
+            <td style="padding: 14px 18px;">
+              <p style="margin: 0 0 4px 0; color: #991B1B; font-size: 12px; font-weight: 700; text-transform: uppercase;">Committee Notes:</p>
+              <p style="margin: 0; color: #B91C1C; font-size: 14px; line-height: 1.5;">${reason}</p>
+            </td>
+          </tr>
+        </table>
+      ` : ''}
+
+      ${getButtonHtml(portalUrl, 'View Application Dossier', '#475569')}
+
+      <p style="margin: 0; color: #64748B; font-size: 13px; line-height: 1.6;">
+        We wish ${studentName} every success in their academic future.
+      </p>
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, '#475569', contentHtml, ctx);
+    return sendEmail(parentEmail, subject, html);
+};
+
+/**
+ * 8. New Admission Application Received (to Admin)
+ */
+export const sendAdminNewAdmissionAlert = async (adminEmail, studentName, parentName, appliedClass, applicationNumber) => {
+    const ctx = await getSchoolContext();
+    const adminUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/admissions`;
+    const subject = `New Admission Application: ${studentName}`;
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 10px 0; color: #0F172A; font-size: 20px; font-weight: 700;">New Admission Application Received</h2>
+      <p style="margin: 0 0 20px 0; color: #475569; font-size: 14px; line-height: 1.6;">
+        A new student admission application has been submitted and is waiting for administrative review.
+      </p>
+
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; margin-bottom: 24px;">
+        <tr>
+          <td style="padding: 16px 20px; font-size: 14px; color: #1E293B;">
+            <p style="margin: 0 0 6px 0;"><strong>Student Name:</strong> ${studentName}</p>
+            <p style="margin: 0 0 6px 0;"><strong>Parent/Guardian:</strong> ${parentName}</p>
+            <p style="margin: 0 0 6px 0;"><strong>Applied Grade:</strong> ${appliedClass}</p>
+            <p style="margin: 0;"><strong>Application ID:</strong> <span style="font-family: monospace; color: #4F46E5;">${applicationNumber}</span></p>
+          </td>
+        </tr>
+      </table>
+
+      ${getButtonHtml(adminUrl, 'Review Application in ERP', '#4F46E5')}
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, '#312E81', contentHtml, ctx);
+    return sendEmail(adminEmail, subject, html);
+};
+
+/**
+ * 9. Account Activated
+ */
+export const sendAccountActivatedEmail = async (email, userName) => {
+    const ctx = await getSchoolContext();
+    const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    const subject = `Your Account is Activated - ${ctx.schoolName}`;
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 12px 0; color: #0F172A; font-size: 20px; font-weight: 700;">Your Account is Now Active</h2>
+      <p style="margin: 0 0 20px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Hello ${userName}, your account has been reviewed and activated by school administration. You now have full access to your assigned modules and services.
+      </p>
+
+      ${getButtonHtml(loginUrl, 'Go to Dashboard', '#4F46E5')}
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, '#4F46E5', contentHtml, ctx);
+    return sendEmail(email, subject, html);
+};
+
+/**
+ * 10. Role / Permission Updated
+ */
+export const sendPermissionUpdatedEmail = async (email, userName, assignedRoles) => {
+    const ctx = await getSchoolContext();
+    const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    const subject = `Account Permissions Updated - ${ctx.schoolName}`;
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 12px 0; color: #0F172A; font-size: 20px; font-weight: 700;">Account Permissions Updated</h2>
+      <p style="margin: 0 0 20px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Hello ${userName}, your portal access permissions and roles have been updated by an administrator.
+      </p>
+
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; margin-bottom: 20px;">
+        <tr>
+          <td style="padding: 16px 20px;">
+            <p style="margin: 0 0 6px 0; color: #64748B; font-size: 12px; font-weight: 700; text-transform: uppercase;">Active Assigned Roles</p>
+            <p style="margin: 0; color: #4F46E5; font-size: 15px; font-weight: 700;">${assignedRoles}</p>
+          </td>
+        </tr>
+      </table>
+
+      ${getButtonHtml(loginUrl, 'View Workspace', '#4F46E5')}
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, '#312E81', contentHtml, ctx);
+    return sendEmail(email, subject, html);
+};
+
+/**
+ * 11. Important System Notification
+ */
+export const sendSystemNotificationEmail = async (email, userName, title, bodyText, actionUrl) => {
+    const ctx = await getSchoolContext();
+    const targetUrl = actionUrl || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard`;
+    const subject = `${title} - ${ctx.schoolName}`;
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 16px 0; color: #0F172A; font-size: 21px; font-weight: 700; line-height: 1.3;">
+        ${title}
+      </h2>
+      <p style="margin: 0 0 16px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Dear ${userName},
+      </p>
+      
+      <div style="color: #334155; font-size: 15px; line-height: 1.7; margin-bottom: 24px;">
+        ${bodyText}
+      </div>
+
+      ${getButtonHtml(targetUrl, 'View Notice in Portal', '#4F46E5')}
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, '#4F46E5', contentHtml, ctx);
     return sendEmail(email, subject, html);
 };

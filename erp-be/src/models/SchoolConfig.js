@@ -116,6 +116,30 @@ const SchoolConfig = sequelize.define(
             type: DataTypes.STRING,
             allowNull: true,
             defaultValue: 'Asia/Kolkata',
+        },
+        smtpSettings: {
+            type: DataTypes.JSONB,
+            allowNull: true,
+            field: 'smtp_settings',
+            defaultValue: {
+                host: '',
+                port: 587,
+                encryption: 'TLS',
+                username: '',
+                password: '',
+                fromName: '',
+                fromEmail: '',
+                replyTo: '',
+                isConfigured: false,
+                lastTestedAt: null,
+                connectionStatus: 'UNTESTED',
+            },
+        },
+        activeTheme: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            defaultValue: 'royal-purple',
+            field: 'active_theme',
         }
     },
     {

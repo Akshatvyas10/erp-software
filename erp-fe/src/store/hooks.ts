@@ -73,3 +73,22 @@ export const usePermissions = () => {
         hasRole,
     };
 };
+
+// ─── Theme Mode Hook (persisted in Redux) ────────────────────────────────────
+import { setThemeMode, toggleThemeMode, type ThemeMode } from "./slices/uiSlice";
+
+export const useThemeMode = () => {
+    const dispatch = useAppDispatch();
+    const mode = useAppSelector((state) => state.ui?.mode ?? "light");
+    const isDark = mode === "dark";
+
+    const setMode = useCallback((newMode: ThemeMode) => {
+        dispatch(setThemeMode(newMode));
+    }, [dispatch]);
+
+    const toggleMode = useCallback(() => {
+        dispatch(toggleThemeMode());
+    }, [dispatch]);
+
+    return { mode, isDark, setMode, toggleMode };
+};

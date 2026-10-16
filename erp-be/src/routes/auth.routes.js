@@ -22,7 +22,15 @@ router.post('/refresh', refresh);
 router.post(
     '/forgot-password',
     authLimiter,
-    validateZod({ body: z.object({ email: z.string().email() }) }),
+    validateZod({
+        body: z.object({
+            identifier: z.string().trim().min(1, 'Please enter your username, email, or mobile number').optional(),
+            email: z.string().trim().optional(),
+        }).refine((data) => data.identifier || data.email, {
+            message: 'Username, email or mobile number is required',
+            path: ['identifier'],
+        }),
+    }),
     authController.forgotPassword
 );
 router.post(

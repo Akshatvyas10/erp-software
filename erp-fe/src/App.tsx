@@ -1,7 +1,10 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { Loader2 } from "lucide-react";
+import api from "./lib/api";
+import { useAppDispatch, useAppSelector } from "./store/hooks";
+import { updateToken, setInitialized } from "./store/slices/authSlice";
 
 // Auth (eagerly loaded for fast first paint)
 import Login from "./pages/Login";
@@ -60,6 +63,36 @@ function PageLoader() {
 }
 
 function App() {
+    const dispatch = useAppDispatch();
+    const token = useAppSelector((state) => state.auth.token);
+
+    useEffect(() => {
+        let isMounted = true;
+        const bootstrapAuth = async () => {
+            if (!token) {
+                try {
+                    // Attempt silent session recovery using httpOnly cookie
+                    const res = await api.post("/auth/refresh");
+                    if (isMounted && res.data?.data?.accessToken) {
+                        dispatch(updateToken(res.data.data.accessToken));
+                        return;
+                    }
+                } catch {
+                    // No active session or expired cookie
+                }
+            }
+            if (isMounted) {
+                dispatch(setInitialized());
+            }
+        };
+
+        bootstrapAuth();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [dispatch]);
+
     return (
         <BrowserRouter>
             <Toaster position="top-right" richColors closeButton duration={3000} />

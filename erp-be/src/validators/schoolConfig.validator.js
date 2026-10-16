@@ -22,3 +22,23 @@ export const updateSchoolConfigSchema = z.object({
     owners: z.string().optional().transform(val => val ? JSON.parse(val) : []), // Sent as JSON string in form-data
     bankDetails: z.string().optional().transform(val => val ? JSON.parse(val) : {}),
 });
+
+export const updateSmtpConfigSchema = z.object({
+    host: z.string().min(1, 'SMTP Host is required'),
+    port: z.coerce.number().int().min(1).max(65535, 'Invalid port'),
+    encryption: z.enum(['NONE', 'SSL', 'TLS']),
+    username: z.string().min(1, 'Username / Email is required'),
+    password: z.string().optional(), // If empty, existing encrypted password is retained
+    fromName: z.string().min(1, 'Sender Name is required'),
+    fromEmail: z.string().email('Valid sender email is required'),
+    replyTo: z.string().email('Valid reply-to email').optional().or(z.literal('')),
+});
+
+export const testEmailSchema = z.object({
+    recipientEmail: z.string().email('Valid recipient email address is required'),
+});
+
+export const updateThemeSchema = z.object({
+    activeTheme: z.string().min(1, 'Theme name is required'),
+});
+

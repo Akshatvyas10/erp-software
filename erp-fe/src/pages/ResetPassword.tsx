@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import AuthLayout from "@/layouts/AuthLayout";
-import { Lock, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Lock, Loader2, ArrowLeft, CheckCircle2, Eye, EyeOff } from "lucide-react";
 
 const resetPasswordSchema = z
   .object({
@@ -31,6 +31,8 @@ export default function ResetPassword() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const form = useForm<ResetPasswordValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -122,11 +124,19 @@ export default function ResetPassword() {
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       placeholder="Minimum 6 characters"
-                      className="pl-10 h-12 bg-secondary/50 border-none focus-visible:ring-primary"
+                      className="pl-10 pr-10 h-12 border-none focus-visible:ring-primary"
+                      autoComplete="new-password"
                       {...field}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 </FormControl>
                 <FormMessage />
@@ -144,11 +154,19 @@ export default function ResetPassword() {
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      type="password"
+                      type={showConfirmPassword ? "text" : "password"}
                       placeholder="Re-enter password"
-                      className="pl-10 h-12 bg-secondary/50 border-none focus-visible:ring-primary"
+                      className="pl-10 pr-10 h-12 border-none focus-visible:ring-primary"
+                      autoComplete="new-password"
                       {...field}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors focus:outline-none"
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 </FormControl>
                 <FormMessage />

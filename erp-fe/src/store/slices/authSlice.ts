@@ -5,11 +5,13 @@ import type { User } from "@/types/erp";
 interface AuthState {
     token: string | null;
     user: User | null;
+    isInitializing: boolean;
 }
 
 const initialState: AuthState = {
     token: null,
     user: null,
+    isInitializing: true,
 };
 
 const authSlice = createSlice({
@@ -27,18 +29,25 @@ const authSlice = createSlice({
         ) => {
             state.token = action.payload.token;
             state.user = action.payload.user;
+            state.isInitializing = false;
         },
 
         updateToken: (state, action: PayloadAction<string>) => {
             state.token = action.payload;
+            state.isInitializing = false;
+        },
+
+        setInitialized: (state) => {
+            state.isInitializing = false;
         },
 
         logout: (state) => {
             state.token = null;
             state.user = null;
+            state.isInitializing = false;
         },
     },
 });
 
-export const { loginSuccess, updateToken, logout } = authSlice.actions;
+export const { loginSuccess, updateToken, setInitialized, logout } = authSlice.actions;
 export default authSlice.reducer;

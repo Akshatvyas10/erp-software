@@ -23,6 +23,22 @@ export interface SchoolConfigData {
     timezone?: string;
     owners?: any[];
     bankDetails?: Record<string, any>;
+    smtpSettings?: SmtpSettings;
+    activeTheme?: string;
+}
+
+export interface SmtpSettings {
+    host: string;
+    port: number;
+    encryption: 'NONE' | 'SSL' | 'TLS';
+    username: string;
+    password?: string;
+    fromName: string;
+    fromEmail: string;
+    replyTo?: string;
+    isConfigured?: boolean;
+    lastTestedAt?: string | null;
+    connectionStatus?: 'SUCCESS' | 'FAILED' | 'UNTESTED';
 }
 
 export const getSchoolConfig = async (): Promise<SchoolConfigData> => {
@@ -38,3 +54,19 @@ export const updateSchoolConfig = async (formData: FormData): Promise<SchoolConf
     });
     return response.data.data;
 };
+
+export const updateSmtpConfig = async (data: SmtpSettings): Promise<SmtpSettings> => {
+    const response = await api.put("/school-config/smtp", data);
+    return response.data.data;
+};
+
+export const testEmailConnection = async (recipientEmail: string): Promise<{ connectionStatus: string; lastTestedAt: string }> => {
+    const response = await api.post("/school-config/test-email", { recipientEmail });
+    return response.data.data;
+};
+
+export const updateActiveTheme = async (activeTheme: string): Promise<{ activeTheme: string }> => {
+    const response = await api.put("/school-config/theme", { activeTheme });
+    return response.data.data;
+};
+

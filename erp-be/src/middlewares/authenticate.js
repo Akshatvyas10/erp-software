@@ -2,6 +2,7 @@ import { verifyAccessToken } from '../utils/tokenUtils.js';
 import db from '../models/index.js';
 const { User } = db;
 import { getPermissions } from '../services/permissionService.js';
+import { isAccessTokenBlacklisted } from '../services/session.service.js';
 import { error } from '../utils/apiResponse.js';
 
 /**
@@ -27,6 +28,11 @@ const authenticate = async (req, res, next) => {
             return error(res, 'Invalid access token', 401);
         }
 
+        // Fast-path token blacklist check (instant revocation on logout/password change)
+        if (decoded.jti && (await isAccessTokenBlacklisted(decoded.jti))) {
+            return error(res, 'Token has been revoked. Please log in again.', 401);
+        }
+
         // Lightweight user fetch — just status check, no joins needed
         const user = await User.findOne({
             where: { id: decoded.sub, isActive: true },
@@ -38,6 +44,8 @@ const authenticate = async (req, res, next) => {
         if (user.isLocked()) return error(res, 'Account is temporarily locked', 403);
 
         req.user = user;
+        req.tokenJti = decoded.jti;
+        req.tokenExp = decoded.exp;
         if (user.teacherProfile) {
             req.user.teacherId = user.teacherProfile.id;
         }

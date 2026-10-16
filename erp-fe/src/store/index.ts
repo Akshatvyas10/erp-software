@@ -3,16 +3,26 @@ import { persistStore, persistReducer, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, 
 import storage from "./storage";
 import authReducer from "./slices/authSlice";
 import permissionReducer, { permissionInitialState } from "./slices/permissionSlice";
+import uiReducer from "./slices/uiSlice";
 
-// Only persist auth — permissions are always re-fetched & decrypted on mount
+// Persist auth (Persist safe user info only, NEVER token or transient flags in localStorage)
 const authPersistConfig = {
     key: "erp-auth",
+    storage,
+    version: 1,
+    blacklist: ["token", "isInitializing"],
+};
+
+// Persist UI preferences (dark mode)
+const uiPersistConfig = {
+    key: "erp-ui",
     storage,
     version: 1,
 };
 
 const rootReducer = combineReducers({
     auth: persistReducer(authPersistConfig, authReducer),
+    ui: persistReducer(uiPersistConfig, uiReducer),
     // permissions is intentionally NOT persisted — always starts fresh
     permissions: permissionReducer,
 });

@@ -1,12 +1,20 @@
 'use strict';
 
 import bcrypt from 'bcryptjs';
+import { Op } from 'sequelize';
 import db from '../models/index.js';
 const { User, Role, Permission } = db;
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/tokenUtils.js';
+import { signAccessToken, signRefreshToken, verifyRefreshToken, signResetToken } from '../utils/tokenUtils.js';
 import { success, error } from '../utils/apiResponse.js';
 import logger from '../utils/logger.js';
 import permissionEmitter from '../events/permissionEmitter.js';
+import {
+    createSession,
+    validateSession,
+    revokeSession,
+    revokeAllUserSessions,
+    blacklistAccessToken
+} from '../services/session.service.js';
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 15 * 60 * 1000;
@@ -87,6 +95,13 @@ const login = async (req, res, next) => {
         const accessToken = signAccessToken(payload);
         const refreshToken = signRefreshToken({ sub: user.id });
 
+        // Decode refresh token to grab its unique JTI and persist in Redis session store
+        const decodedRefresh = verifyRefreshToken(refreshToken);
+        await createSession(user.id, decodedRefresh.jti, {
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+        });
+
         const hashedRefresh = await bcrypt.hash(refreshToken, 10);
         const existingTokens = user.refreshTokenHash
             ? user.refreshTokenHash.split('||').filter(Boolean)
@@ -113,9 +128,6 @@ const login = async (req, res, next) => {
 
         logger.info(`User logged in: ${user.userId}`);
 
-        // Return ONLY the access token and safe user profile.
-        // All permission data is served separately from GET /api/permissions/my
-        // as an AES-encrypted payload — never returned in plain text here.
         return success(res, {
             accessToken,
             user: fullUser.toSafeJSON(),
@@ -136,19 +148,17 @@ const refresh = async (req, res, next) => {
         try { decoded = verifyRefreshToken(token); }
         catch { return error(res, 'Invalid or expired refresh token', 401); }
 
+        // 1. Verify Redis session (or fallback)
+        const isSessionActive = await validateSession(decoded.sub, decoded.jti);
+        if (!isSessionActive) {
+            return error(res, 'Session expired or invalidated. Please log in again.', 401);
+        }
+
         const user = await User.findOne({ where: { id: decoded.sub, isActive: true } });
-        if (!user || !user.refreshTokenHash) return error(res, 'Session not found', 401);
+        if (!user) return error(res, 'User not found or deactivated', 401);
 
-        const storedHashes = user.refreshTokenHash.split('||').filter(Boolean);
-        let tokenValid = false;
-        for (const hash of storedHashes) {
-            if (await bcrypt.compare(token, hash)) { tokenValid = true; break; }
-        }
-
-        if (!tokenValid) {
-            await user.update({ refreshTokenHash: null });
-            return error(res, 'Refresh token reuse detected. Please log in again.', 401);
-        }
+        // 2. Rotate session in Redis: Revoke old refresh token, generate new paired tokens
+        await revokeSession(user.id, decoded.jti);
 
         const fullUser = await loadUserWithRoles(user.id);
         const roles = fullUser.Roles ? fullUser.Roles.map((r) => r.name) : [];
@@ -156,12 +166,27 @@ const refresh = async (req, res, next) => {
             ? [...new Set(fullUser.Roles.flatMap((r) => (r.Permissions || []).map((p) => p.name)))]
             : [];
 
-        const accessToken = signAccessToken(buildTokenPayload(fullUser, roles, permissions));
+        const newAccessToken = signAccessToken(buildTokenPayload(fullUser, roles, permissions));
+        const newRefreshToken = signRefreshToken({ sub: user.id });
+        const newDecodedRefresh = verifyRefreshToken(newRefreshToken);
+
+        await createSession(user.id, newDecodedRefresh.jti, {
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+        });
+
+        res.cookie('refreshToken', newRefreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            path: '/api/auth',
+        });
 
         // ── Fire refresh event → keep permission cache warm ────────────────────
         permissionEmitter.emit('user:refresh', { userId: user.id });
 
-        return success(res, { accessToken }, 'Token refreshed');
+        return success(res, { accessToken: newAccessToken }, 'Token refreshed');
     } catch (err) {
         next(err);
     }
@@ -170,18 +195,27 @@ const refresh = async (req, res, next) => {
 // ─── POST /api/auth/logout ────────────────────────────────────────────────────
 const logout = async (req, res, next) => {
     try {
-        const token = req.cookies?.refreshToken;
+        const refreshToken = req.cookies?.refreshToken;
 
-        if (token && req.user) {
-            const user = await User.findByPk(req.user.id);
-            if (user && user.refreshTokenHash) {
-                const hashes = user.refreshTokenHash.split('||').filter(Boolean);
-                const remaining = [];
-                for (const hash of hashes) {
-                    if (!await bcrypt.compare(token, hash)) remaining.push(hash);
+        // 1. Blacklist active access token in Redis
+        if (req.tokenJti && req.tokenExp) {
+            await blacklistAccessToken(req.tokenJti, req.tokenExp);
+        }
+
+        // 2. Revoke refresh token session in Redis
+        if (refreshToken) {
+            try {
+                const decoded = verifyRefreshToken(refreshToken);
+                if (decoded && decoded.jti) {
+                    await revokeSession(decoded.sub, decoded.jti);
                 }
-                await user.update({ refreshTokenHash: remaining.join('||') || null });
+            } catch {
+                // Ignore expired token decoding error on logout
             }
+        }
+
+        if (req.user) {
+            await User.update({ refreshTokenHash: null }, { where: { id: req.user.id } });
         }
 
         res.clearCookie('refreshToken', { path: '/api/auth' });
@@ -201,6 +235,11 @@ const logout = async (req, res, next) => {
 // ─── POST /api/auth/logout-all ────────────────────────────────────────────────
 const logoutAll = async (req, res, next) => {
     try {
+        if (req.tokenJti && req.tokenExp) {
+            await blacklistAccessToken(req.tokenJti, req.tokenExp);
+        }
+
+        await revokeAllUserSessions(req.user.id);
         await User.update({ refreshTokenHash: null }, { where: { id: req.user.id } });
         res.clearCookie('refreshToken', { path: '/api/auth' });
         permissionEmitter.emit('user:logout', { userId: req.user.id });
@@ -230,13 +269,39 @@ const me = async (req, res, next) => {
 // ─── POST /api/auth/forgot-password ──────────────────────────────────────────
 const forgotPassword = async (req, res, next) => {
     try {
-        const { email } = req.body;
-        if (!email) return error(res, 'Email is required', 422);
+        const rawIdentifier = (req.body.identifier || req.body.email || '').trim();
+        if (!rawIdentifier) {
+            return error(res, 'Username, email or mobile number is required', 422);
+        }
 
-        const user = await User.findOne({ where: { email: email.toLowerCase().trim(), isActive: true } });
-        // Return success even if user not found to prevent user enumeration attacks
+        // Look up by email, userId (username), or phone
+        const user = await User.findOne({
+            where: {
+                [Op.or]: [
+                    { email: rawIdentifier.toLowerCase() },
+                    { userId: rawIdentifier },
+                    { phone: rawIdentifier },
+                ],
+                isActive: true,
+            },
+        });
+
+        // If account does not exist, return an explicit 404 error message
         if (!user) {
-            return success(res, null, 'If an account exists with that email, a password reset link has been sent.');
+            return error(
+                res,
+                'No account found. Check your username, email or mobile number and try again.',
+                404
+            );
+        }
+
+        // Security check: verify the user has a valid registered email address
+        if (!user.email || !user.email.includes('@')) {
+            return error(
+                res,
+                'This account does not have a verified email address associated for password reset. Please contact administration.',
+                400
+            );
         }
 
         const resetToken = signResetToken({ sub: user.id, email: user.email });
@@ -248,9 +313,14 @@ const forgotPassword = async (req, res, next) => {
             await sendPasswordResetEmail(user.email, resetLink);
         } catch (emailErr) {
             logger.error(`[ForgotPassword] Failed to send email to ${user.email}: ${emailErr.message}`);
+            return error(res, 'Failed to send password reset email. Please try again later.', 500);
         }
 
-        return success(res, null, 'If an account exists with that email, a password reset link has been sent.');
+        return success(
+            res,
+            null,
+            `Password reset link has been sent to your registered email address (${user.email.replace(/(.{2})(.*)(?=@)/, '$1***')}).`
+        );
     } catch (err) {
         next(err);
     }
@@ -282,12 +352,15 @@ const resetPassword = async (req, res, next) => {
         }
 
         user.password = newPassword;
-        user.refreshTokenHash = null; // Invalidate existing sessions
+        user.refreshTokenHash = null; // Invalidate existing sessions in DB
         user.loginAttempts = 0;
         user.lockedUntil = null;
         await user.save();
 
-        logger.info(`[ResetPassword] Password reset successfully for user: ${user.userId}`);
+        // Revoke all active Redis sessions
+        await revokeAllUserSessions(user.id);
+
+        logger.info(`[ResetPassword] Password reset successfully and sessions invalidated for user: ${user.userId}`);
         return success(res, null, 'Password reset successfully. You can now login with your new password.');
     } catch (err) {
         next(err);

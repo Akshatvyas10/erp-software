@@ -10,6 +10,7 @@ import { apiLimiter } from './middlewares/rateLimiter.js';
 import errorHandler from './middlewares/errorHandler.js';
 import logger from './utils/logger.js';
 import xssSanitizer from './middlewares/xssSanitizer.js';
+import { getSessionStorageMode } from './services/session.service.js';
 
 // Routes
 import authRoutes from './routes/auth.routes.js';
@@ -32,9 +33,13 @@ import schoolConfigRoutes from './routes/schoolConfig.routes.js';
 
 const app = express();
 
-// ─── Security headers ────────────────────────────────────────────────────────
-app.use(helmet());
+// ─── Trust Proxy & Security headers ──────────────────────────────────────────
+// Crucial for running behind reverse proxies (Nginx, AWS ALB, Cloudflare, Docker).
+// Allows req.ip to read X-Forwarded-For instead of reverse proxy's internal IP.
+// MUST be set before any rate-limiter, auth, or IP-based middlewares.
 app.set('trust proxy', 1);
+
+app.use(helmet());
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',');
@@ -71,7 +76,16 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')
 
 // ─── Health check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    const sessionHealth = getSessionStorageMode();
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        redis: {
+            connected: sessionHealth.isDistributed,
+            mode: sessionHealth.mode,
+            inMemoryFallbackActive: !sessionHealth.isDistributed,
+        },
+    });
 });
 
 // ─── API Routes ───────────────────────────────────────────────────────────────

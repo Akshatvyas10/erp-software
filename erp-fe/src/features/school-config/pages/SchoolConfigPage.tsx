@@ -30,8 +30,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Building2, Save, MapPin, Building, CreditCard } from "lucide-react";
-import { Loader2 } from "lucide-react";
+import { Building2, Save, MapPin, Building, CreditCard, Mail, Palette, Loader2 } from "lucide-react";
+import { EmailServerTab } from "../components/EmailServerTab";
+import { ThemeConfigTab } from "../components/ThemeConfigTab";
 
 const formSchema = z.object({
     schoolName: z.string().min(2, "School name is required"),
@@ -182,7 +183,7 @@ export default function SchoolConfigPage() {
     if (isLoading) {
         return (
             <div className="flex justify-center items-center h-full">
-                <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -195,7 +196,7 @@ export default function SchoolConfigPage() {
         <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-purple-950 dark:text-zinc-50">School Configuration</h1>
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">School Configuration</h1>
                     <p className="text-muted-foreground mt-1 text-sm md:text-base">
                         Manage your institution's identity, contact details, and core settings.
                     </p>
@@ -204,7 +205,7 @@ export default function SchoolConfigPage() {
                     // @ts-ignore
                     onClick={form.handleSubmit(onSubmit, onError)}
                     disabled={mutation.isPending || !hasChanges}
-                    className="bg-purple-700 hover:bg-purple-800 text-white shadow-md gap-2"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm gap-2"
                 >
                     {mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                     Save Changes
@@ -215,25 +216,31 @@ export default function SchoolConfigPage() {
                 {/* @ts-ignore */}
                 <form onSubmit={form.handleSubmit(onSubmit, onError)} className="space-y-6">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:w-[600px] bg-purple-100/50 dark:bg-zinc-900">
-                            <TabsTrigger value="general" className="gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800">
+                        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 lg:w-[850px] bg-muted/60 p-1 rounded-2xl">
+                            <TabsTrigger value="general" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
                                 <Building2 className="w-4 h-4" /> <span className="hidden md:inline">General</span>
                             </TabsTrigger>
-                            <TabsTrigger value="contact" className="gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800">
+                            <TabsTrigger value="contact" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
                                 <MapPin className="w-4 h-4" /> <span className="hidden md:inline">Contact</span>
                             </TabsTrigger>
-                            <TabsTrigger value="board" className="gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800">
+                            <TabsTrigger value="board" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
                                 <Building className="w-4 h-4" /> <span className="hidden md:inline">Board</span>
                             </TabsTrigger>
-                            <TabsTrigger value="financial" className="gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800">
+                            <TabsTrigger value="financial" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
                                 <CreditCard className="w-4 h-4" /> <span className="hidden md:inline">Financial</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="email" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
+                                <Mail className="w-4 h-4" /> <span className="hidden md:inline">Email Server</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="theme" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
+                                <Palette className="w-4 h-4" /> <span className="hidden md:inline">Theme</span>
                             </TabsTrigger>
                         </TabsList>
 
                         <div className="mt-6">
                             {/* General Tab */}
                             <TabsContent value="general" className="m-0">
-                                <Card className="border-purple-100 dark:border-zinc-800 shadow-sm">
+                                <Card className="border-border/60 shadow-sm">
                                     <CardHeader>
                                         <CardTitle>Identity & Branding</CardTitle>
                                         <CardDescription>Primary information about the school and branding assets.</CardDescription>
@@ -258,7 +265,7 @@ export default function SchoolConfigPage() {
                                                 name="tagline"
                                                 render={({ field }) => (
                                                     <FormItem>
-                                                        <FormLabel>Tagline</FormLabel>
+                                                        <FormLabel>Tagline / Motto</FormLabel>
                                                         <FormControl>
                                                             <Input placeholder="Excellence in Education" {...field} />
                                                         </FormControl>
@@ -268,18 +275,18 @@ export default function SchoolConfigPage() {
                                             />
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-purple-50 dark:border-zinc-800">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border/60">
                                             {/* Logo Upload */}
                                             <div className="space-y-3">
                                                 <FormLabel>School Logo</FormLabel>
                                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                                                    <div className="h-24 w-24 rounded-xl border-2 border-dashed border-purple-200 dark:border-zinc-700 flex items-center justify-center bg-purple-50 dark:bg-zinc-900/50 overflow-hidden shrink-0">
+                                                    <div className="h-24 w-24 rounded-xl border-2 border-dashed border-border flex items-center justify-center bg-muted/40 overflow-hidden shrink-0">
                                                         {logoFile ? (
-                                                            <img src={URL.createObjectURL(logoFile)} alt="Logo Preview" className="w-full h-full object-contain p-2" />
+                                                             <img src={URL.createObjectURL(logoFile)} alt="Logo Preview" className="w-full h-full object-contain p-2" />
                                                         ) : config?.logoUrl ? (
                                                             <img src={`${API_URL}${config.logoUrl}`} alt="Current Logo" className="w-full h-full object-contain p-2" />
                                                         ) : (
-                                                            <Building2 className="w-8 h-8 text-purple-300 dark:text-zinc-600" />
+                                                            <Building2 className="w-8 h-8 text-muted-foreground" />
                                                         )}
                                                     </div>
                                                     <div className="flex-1 space-y-2 w-full">
@@ -287,7 +294,7 @@ export default function SchoolConfigPage() {
                                                             type="file" 
                                                             accept="image/png, image/jpeg, image/webp" 
                                                             onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
-                                                            className="cursor-pointer file:cursor-pointer file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 dark:file:bg-zinc-800 dark:file:text-purple-400 border-purple-200 dark:border-zinc-800"
+                                                            className="cursor-pointer file:cursor-pointer file:bg-muted file:text-foreground hover:file:bg-muted/80 border-border"
                                                         />
                                                         <p className="text-xs text-muted-foreground">Max 2MB. PNG, JPG, or WebP.</p>
                                                     </div>
@@ -298,13 +305,13 @@ export default function SchoolConfigPage() {
                                             <div className="space-y-3">
                                                 <FormLabel>Document Watermark</FormLabel>
                                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                                                    <div className="h-24 w-24 rounded-xl border-2 border-dashed border-purple-200 dark:border-zinc-700 flex items-center justify-center bg-purple-50 dark:bg-zinc-900/50 overflow-hidden shrink-0">
+                                                    <div className="h-24 w-24 rounded-xl border-2 border-dashed border-border flex items-center justify-center bg-muted/40 overflow-hidden shrink-0">
                                                         {watermarkFile ? (
                                                             <img src={URL.createObjectURL(watermarkFile)} alt="Watermark Preview" className="w-full h-full object-contain p-2 opacity-50" />
                                                         ) : config?.watermarkUrl ? (
                                                             <img src={`${API_URL}${config.watermarkUrl}`} alt="Current Watermark" className="w-full h-full object-contain p-2 opacity-50" />
                                                         ) : (
-                                                            <Building2 className="w-8 h-8 text-purple-300 dark:text-zinc-600 opacity-50" />
+                                                            <Building2 className="w-8 h-8 text-muted-foreground opacity-50" />
                                                         )}
                                                     </div>
                                                     <div className="flex-1 space-y-2 w-full">
@@ -312,7 +319,7 @@ export default function SchoolConfigPage() {
                                                             type="file" 
                                                             accept="image/png, image/jpeg, image/webp" 
                                                             onChange={(e) => setWatermarkFile(e.target.files?.[0] || null)}
-                                                            className="cursor-pointer file:cursor-pointer file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 dark:file:bg-zinc-800 dark:file:text-purple-400 border-purple-200 dark:border-zinc-800"
+                                                            className="cursor-pointer file:cursor-pointer file:bg-muted file:text-foreground hover:file:bg-muted/80 border-border"
                                                         />
                                                         <p className="text-xs text-muted-foreground">Used for certificates and reports. Max 2MB.</p>
                                                     </div>
@@ -325,7 +332,7 @@ export default function SchoolConfigPage() {
 
                             {/* Contact & Address Tab */}
                             <TabsContent value="contact" className="m-0">
-                                <Card className="border-purple-100 dark:border-zinc-800 shadow-sm">
+                                <Card className="border-border/60 shadow-sm">
                                     <CardHeader>
                                         <CardTitle>Contact & Location</CardTitle>
                                         <CardDescription>Public contact information and physical address.</CardDescription>
@@ -585,6 +592,16 @@ export default function SchoolConfigPage() {
                                         </div>
                                     </CardContent>
                                 </Card>
+                            </TabsContent>
+
+                            {/* Email Server (SMTP) Tab */}
+                            <TabsContent value="email" className="m-0">
+                                <EmailServerTab initialSmtp={config?.smtpSettings} />
+                            </TabsContent>
+
+                            {/* Theme Configuration Tab */}
+                            <TabsContent value="theme" className="m-0">
+                                <ThemeConfigTab />
                             </TabsContent>
                         </div>
                     </Tabs>
