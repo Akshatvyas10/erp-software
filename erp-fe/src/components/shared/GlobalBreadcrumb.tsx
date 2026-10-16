@@ -60,8 +60,8 @@ export function GlobalBreadcrumb() {
     const showBack = hasId && parentHref !== "";
 
     return (
-        <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <nav className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground bg-card/40 backdrop-blur-md px-3 py-1.5 rounded-xl border border-border/50 w-fit shadow-sm overflow-hidden">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 mb-4 pointer-events-none">
+            <nav className="pointer-events-auto flex items-center gap-1.5 text-sm font-medium text-muted-foreground bg-card/40 backdrop-blur-md px-3 py-1.5 rounded-xl border border-border/50 w-fit shadow-sm overflow-hidden">
                 <Link to="/dashboard" className="hover:text-primary transition-colors flex items-center p-0.5 rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                     <Home className="h-4 w-4" />
                 </Link>
@@ -91,7 +91,7 @@ export function GlobalBreadcrumb() {
                 <Button 
                     variant="outline" 
                     size="sm" 
-                    className="h-8 gap-2 rounded-full px-4 border-border/80 bg-background/50 backdrop-blur hover:bg-accent hover:text-accent-foreground text-xs font-bold shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] w-fit"
+                    className="pointer-events-auto h-8 gap-2 rounded-full px-4 border-border/80 bg-background/50 backdrop-blur hover:bg-accent hover:text-accent-foreground text-xs font-bold shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] w-fit"
                     onClick={() => navigate(parentHref)}
                 >
                     <ArrowLeft className="h-3.5 w-3.5" />

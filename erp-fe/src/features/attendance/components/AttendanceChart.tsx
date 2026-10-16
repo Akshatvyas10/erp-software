@@ -8,12 +8,23 @@ interface AttendanceChartProps {
 }
 
 export function AttendanceChart({ attendance }: AttendanceChartProps) {
+    // Deduplicate attendance records by studentId (keeping the latest record) to guarantee accurate summary
+    const uniqueAttendance = useMemo(() => {
+        const studentMap = new Map<string, any>();
+        attendance.forEach(record => {
+            if (record.studentId) {
+                studentMap.set(record.studentId, record);
+            }
+        });
+        return Array.from(studentMap.values());
+    }, [attendance]);
+
     const data = useMemo(() => {
         let present = 0;
         let absent = 0;
         let late = 0;
 
-        attendance.forEach(record => {
+        uniqueAttendance.forEach(record => {
             if (record.status === 'PRESENT') present++;
             else if (record.status === 'LATE') late++;
             else absent++; // Treats LEAVE, HALF_DAY, ABSENT all as absent in the simplified view
@@ -24,9 +35,9 @@ export function AttendanceChart({ attendance }: AttendanceChartProps) {
             { name: 'Absent', value: absent, color: 'var(--color-rose-500, #ef4444)', icon: UserX },
             { name: 'Late', value: late, color: 'var(--color-amber-500, #f59e0b)', icon: AlertTriangle }
         ];
-    }, [attendance]);
+    }, [uniqueAttendance]);
 
-    const total = attendance.length;
+    const total = uniqueAttendance.length;
 
     if (total === 0) {
         return (

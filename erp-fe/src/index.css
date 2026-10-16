@@ -145,3 +145,17 @@
     @apply shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)];
   }
 }
+
+/* 
+ * Radix UI / Shadcn Unfreeze Guard:
+ * When closing Dialogs/Popovers/Selects, Radix locks body pointer-events and scroll.
+ * In React 19 / rapid navigation, body pointer-events occasionally remains 'none'.
+ * This ensures the page never becomes unclickable.
+ */
+body {
+  pointer-events: auto !important;
+}
+
+body[data-scroll-locked] {
+  pointer-events: auto !important;
+}

@@ -16,8 +16,8 @@ const StudentAttendance = sequelize.define('StudentAttendance', {
         references: { model: 'students', key: 'id' }, onDelete: 'CASCADE'
     },
     teacherId: {
-        type: DataTypes.UUID, allowNull: false, field: 'teacher_id',
-        references: { model: 'teachers', key: 'id' }, onDelete: 'RESTRICT'
+        type: DataTypes.UUID, allowNull: true, field: 'teacher_id',
+        references: { model: 'teachers', key: 'id' }, onDelete: 'SET NULL'
     },
     subjectId: {
         type: DataTypes.UUID, allowNull: true, field: 'subject_id',

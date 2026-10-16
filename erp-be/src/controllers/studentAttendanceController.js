@@ -77,14 +77,19 @@ export const bulkCreateAttendance = async (req, res) => {
     const t = await db.sequelize.transaction();
     try {
         const { classroomId, academicYearId, date, records } = req.body;
-        const teacherId = req.user.teacherProfileId || req.user.teacherId;
+        const classroom = await Classroom.findByPk(classroomId);
+        if (!classroom) {
+            return res.status(404).json({ success: false, message: "Classroom not found" });
+        }
+
+        const userTeacherId = req.user.teacherProfileId || req.user.teacherId;
+        const effectiveTeacherId = userTeacherId || classroom.classTeacherId || null;
 
         const isStandardTeacher = req.userRoles && req.userRoles.includes('TEACHER') && !req.userRoles.some(r => ['ADMIN', 'SUPER_ADMIN'].includes(r));
         if (isStandardTeacher) {
-            const classroom = await Classroom.findByPk(classroomId);
-            const subject = await ClassroomSubject.findOne({ where: { classroomId, teacherId } });
+            const subject = await ClassroomSubject.findOne({ where: { classroomId, teacherId: userTeacherId } });
             
-            if (classroom?.classTeacherId !== teacherId && !subject) {
+            if (classroom.classTeacherId !== userTeacherId && !subject) {
                 return res.status(403).json({ success: false, message: "Forbidden: You cannot take attendance for this classroom" });
             }
 
@@ -126,22 +131,32 @@ export const bulkCreateAttendance = async (req, res) => {
             classroomId,
             academicYearId,
             attendanceDate: date,
-            teacherId,
+            teacherId: effectiveTeacherId,
             createdBy: req.user.id,
             updatedBy: req.user.id
         };
 
-        const upsertPromises = records.map(record => {
-            return StudentAttendance.upsert({
-                ...basePayload,
-                studentId: record.studentId,
-                subjectId: record.subjectId || null,
-                status: record.status,
-                remarks: record.remarks
-            }, { transaction: t });
+        // Remove any prior records for this classroom, date and subjectId to prevent duplicate rows on edit
+        const studentIds = records.map(r => r.studentId);
+        await StudentAttendance.destroy({
+            where: {
+                classroomId,
+                attendanceDate: date,
+                studentId: { [Op.in]: studentIds },
+                subjectId: null
+            },
+            transaction: t
         });
 
-        await Promise.all(upsertPromises);
+        const insertPayloads = records.map(record => ({
+            ...basePayload,
+            studentId: record.studentId,
+            subjectId: record.subjectId || null,
+            status: record.status,
+            remarks: record.remarks
+        }));
+
+        await StudentAttendance.bulkCreate(insertPayloads, { transaction: t });
         await t.commit();
 
         return res.json({ success: true, message: "Attendance saved successfully." });
