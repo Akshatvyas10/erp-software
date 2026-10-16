@@ -71,7 +71,7 @@ export default function RequestAccess() {
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="e.g. Jane Doe"
-                      className="pl-10 h-12 bg-secondary/50 border-none focus-visible:ring-primary"
+                      className="pl-10 h-12 border-none focus-visible:ring-primary"
                       {...field}
                     />
                   </div>
@@ -92,7 +92,7 @@ export default function RequestAccess() {
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="e.g. jane.doe@school.edu"
-                      className="pl-10 h-12 bg-secondary/50 border-none focus-visible:ring-primary"
+                      className="pl-10 h-12 border-none focus-visible:ring-primary"
                       {...field}
                     />
                   </div>

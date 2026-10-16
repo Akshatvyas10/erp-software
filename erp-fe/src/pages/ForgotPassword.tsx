@@ -74,7 +74,7 @@ export default function ForgotPassword() {
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="e.g. yourname@school.edu"
-                      className="pl-10 h-12 bg-secondary/50 border-none focus-visible:ring-primary"
+                      className="pl-10 h-12 border-none focus-visible:ring-primary"
                       {...field}
                     />
                   </div>

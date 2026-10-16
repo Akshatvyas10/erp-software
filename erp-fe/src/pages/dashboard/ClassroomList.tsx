@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -666,8 +667,37 @@ export default function ClassroomList() {
 
             {/* Classroom Grid */}
             {isLoading ? (
-                <div className="flex justify-center py-16">
-                    <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {Array.from({ length: 8 }).map((_, i) => (
+                        <Card key={i} className="border-border/60 bg-card rounded-2xl shadow-sm overflow-hidden p-5 space-y-4">
+                            <div className="flex items-start justify-between">
+                                <div className="space-y-2">
+                                    <Skeleton className="h-5 w-32" />
+                                    <Skeleton className="h-4 w-20 rounded-md" />
+                                </div>
+                                <Skeleton className="h-8 w-8 rounded-lg" />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 space-y-1">
+                                    <Skeleton className="h-3 w-14" />
+                                    <Skeleton className="h-5 w-8" />
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 space-y-1">
+                                    <Skeleton className="h-3 w-14" />
+                                    <Skeleton className="h-5 w-8" />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-3 border-t border-border/60">
+                                <Skeleton className="h-4 w-16" />
+                                <Skeleton className="h-4 w-24" />
+                                <Skeleton className="h-4 w-14 rounded-md" />
+                            </div>
+
+                            <Skeleton className="h-9 w-full rounded-xl mt-2" />
+                        </Card>
+                    ))}
                 </div>
             ) : classrooms.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
