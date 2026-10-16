@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     ArrowLeft, User, Mail, Shield, Calendar, Clock,
     UserCheck, UserX, Loader2, CheckCircle2, XCircle,
@@ -14,13 +14,9 @@ import api from "@/lib/api";
 import { usePermissions } from "@/store/hooks";
 import PermissionGate from "@/components/auth/PermissionGate";
 import AccessDenied from "@/components/auth/AccessDenied";
-import type { User as UserType } from "@/types/erp";
 import { SectionCard, DetailRow } from "@/components/shared/DetailCards";
-
-const fetchUser = async (id: string): Promise<UserType> => {
-    const { data } = await api.get(`/users/${id}`);
-    return data.data.user;
-};
+import { DetailsPageSkeleton } from "@/components/common/skeletons/DetailsPageSkeleton";
+import { useUserDetailQuery } from "@/features/users/api/useUserDetailQuery";
 
 export default function UserDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -28,11 +24,7 @@ export default function UserDetailPage() {
     const { can } = usePermissions();
     const qc = useQueryClient();
 
-    const { data: user, isLoading, error } = useQuery({
-        queryKey: ["user", id],
-        queryFn: () => fetchUser(id!),
-        enabled: !!id && can("users", "read"),
-    });
+    const { data: user, isLoading, error } = useUserDetailQuery(id, can("users", "read"));
 
     const toggleActive = useMutation({
         mutationFn: (active: boolean) => api.patch(`/users/${id}/${active ? "activate" : "deactivate"}`),
@@ -43,7 +35,7 @@ export default function UserDetailPage() {
     });
 
     if (!can("users", "read")) return <AccessDenied />;
-    if (isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+    if (isLoading) return <DetailsPageSkeleton />;
     if (error || !user) return (
         <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
             <User className="h-10 w-10 text-muted-foreground/40" />

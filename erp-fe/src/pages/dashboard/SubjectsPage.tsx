@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -275,41 +276,41 @@ export default function SubjectsPage() {
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="bg-muted/40 border-b border-border/60">
-                                    <th className="pl-6 py-4 text-left font-bold text-xs uppercase tracking-wider text-muted-foreground">Code</th>
-                                    <th className="py-4 text-left font-bold text-xs uppercase tracking-wider text-muted-foreground">Name</th>
-                                    <th className="py-4 text-left font-bold text-xs uppercase tracking-wider text-muted-foreground hidden sm:table-cell">Type</th>
-                                    <th className="py-4 text-left font-bold text-xs uppercase tracking-wider text-muted-foreground hidden md:table-cell">Description</th>
-                                    <th className="py-4 text-left font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                                    <th className="pr-6 py-4 text-right font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/60">
+                                    <TableHead className="pl-6 font-bold text-xs uppercase tracking-wider text-muted-foreground">Code</TableHead>
+                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Name</TableHead>
+                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground hidden sm:table-cell">Type</TableHead>
+                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground hidden md:table-cell">Description</TableHead>
+                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</TableHead>
+                                    <TableHead className="pr-6 text-right font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
                                 <AnimatePresence>
                                     {subjects.map(s => (
-                                        <motion.tr key={s.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                        <TableRow key={s.id}
                                             className="border-b border-border/40 hover:bg-muted/30 transition-colors">
-                                            <td className="pl-6 py-4 font-mono font-medium text-[13px]">{s.code}</td>
-                                            <td className="py-4 font-semibold text-foreground">{s.name}</td>
-                                            <td className="py-4 hidden sm:table-cell">
+                                            <TableCell className="pl-6 py-4 font-mono font-medium text-[13px]">{s.code}</TableCell>
+                                            <TableCell className="py-4 font-semibold text-foreground">{s.name}</TableCell>
+                                            <TableCell className="py-4 hidden sm:table-cell">
                                                 <Badge variant="outline" className={cn("text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md", typeColor[s.type] || typeColor.THEORY)}>
                                                     {s.type}
                                                 </Badge>
-                                            </td>
-                                            <td className="py-4 hidden md:table-cell text-muted-foreground max-w-[200px] truncate">
+                                            </TableCell>
+                                            <TableCell className="py-4 hidden md:table-cell text-muted-foreground max-w-[200px] truncate">
                                                 {s.description || "—"}
-                                            </td>
-                                            <td className="py-4">
+                                            </TableCell>
+                                            <TableCell className="py-4">
                                                 <Badge variant="outline" className={cn("text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md",
                                                     s.isActive ? "border-emerald-500/20 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
                                                         : "border-border text-muted-foreground bg-muted/40"
                                                 )}>
                                                     {s.isActive ? "Active" : "Inactive"}
                                                 </Badge>
-                                            </td>
-                                            <td className="pr-6 py-4 text-right">
+                                            </TableCell>
+                                            <TableCell className="pr-6 py-4 text-right">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
                                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
@@ -330,12 +331,12 @@ export default function SubjectsPage() {
                                                         </PermissionGate>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
-                                            </td>
-                                        </motion.tr>
+                                            </TableCell>
+                                        </TableRow>
                                     ))}
                                 </AnimatePresence>
-                            </tbody>
-                        </table>
+                            </TableBody>
+                        </Table>
                     </div>
                 )}
             </Card>

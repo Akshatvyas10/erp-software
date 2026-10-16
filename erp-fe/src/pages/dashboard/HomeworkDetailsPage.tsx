@@ -23,6 +23,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { DetailsPageSkeleton } from "@/components/common/skeletons/DetailsPageSkeleton";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import HomeworkFormDialog from "@/components/homework/HomeworkFormDialog";
@@ -76,14 +77,7 @@ export default function HomeworkDetailsPage() {
     });
 
     if (isLoading) {
-        return (
-            <div className="flex justify-center items-center h-[50vh]">
-                <div className="flex flex-col items-center gap-4">
-                    <span className="animate-spin h-10 w-10 rounded-full border-4 border-primary border-t-transparent shadow-lg" />
-                    <p className="text-muted-foreground font-medium animate-pulse">Loading homework details...</p>
-                </div>
-            </div>
-        );
+        return <DetailsPageSkeleton />;
     }
 
     const homework = details?.homework || (details as any)?.data?.homework;

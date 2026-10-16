@@ -21,6 +21,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { DetailsPageSkeleton } from "@/components/common/skeletons/DetailsPageSkeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -233,29 +235,29 @@ function RosterTab({ classroomId, enrollments, canEdit, onRefresh, monitorMaleId
                 </div>
             ) : (
                 <div className="rounded-xl border border-border overflow-hidden">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-muted/40 border-b border-border/60">
-                                <th className="pl-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Student</th>
-                                <th className="py-3 text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Student ID</th>
-                                <th className="py-3 text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground hidden md:table-cell">Grade</th>
-                                <th className="py-3 text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground hidden lg:table-cell">Email</th>
-                                {canEdit && <th className="pr-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Actions</th>}
-                            </tr>
-                        </thead>
-                        <tbody>
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="bg-muted/40 hover:bg-muted/40">
+                                <TableHead className="pl-5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Student</TableHead>
+                                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Student ID</TableHead>
+                                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground hidden md:table-cell">Grade</TableHead>
+                                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground hidden lg:table-cell">Email</TableHead>
+                                {canEdit && <TableHead className="pr-5 text-right text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Actions</TableHead>}
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {filteredEnrollments.map((enr, i) => {
                                 const account = enr.student?.account || { firstName: "Unknown", lastName: "Student", email: "N/A" };
                                 const { firstName, lastName, email } = account;
                                 const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase();
                                 const isMonitor = enr.student.id === monitorMaleId || enr.student.id === monitorFemaleId;
                                 return (
-                                    <tr key={enr.id}
+                                    <TableRow key={enr.id}
                                         className={cn(
                                             "border-b border-border/40 last:border-0 hover:bg-muted/50 transition-colors",
                                             i % 2 === 0 ? "" : "bg-muted/20"
                                         )}>
-                                        <td className="pl-5 py-3.5">
+                                        <TableCell className="pl-5 py-3.5">
                                             <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate(`/dashboard/students/${enr.student.id}`)}>
                                                 <Avatar className="h-8 w-8 border border-primary/20 shadow-sm shrink-0 transition-transform group-hover:scale-105">
                                                     <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
@@ -273,20 +275,20 @@ function RosterTab({ classroomId, enrollments, canEdit, onRefresh, monitorMaleId
                                                     </span>
                                                 </div>
                                             </div>
-                                        </td>
-                                        <td className="py-3.5">
+                                        </TableCell>
+                                        <TableCell className="py-3.5">
                                             <Badge variant="outline" className="font-mono text-[11px] bg-muted/60 border-border/60 px-2">
                                                 {enr.student.studentId}
                                             </Badge>
-                                        </td>
-                                        <td className="py-3.5 text-muted-foreground font-medium hidden md:table-cell">
+                                        </TableCell>
+                                        <TableCell className="py-3.5 text-muted-foreground font-medium hidden md:table-cell">
                                             {enr.student.grade ?? "—"}
-                                        </td>
-                                        <td className="py-3.5 text-muted-foreground text-[12px] hidden lg:table-cell">
+                                        </TableCell>
+                                        <TableCell className="py-3.5 text-muted-foreground text-[12px] hidden lg:table-cell">
                                             {email}
-                                        </td>
+                                        </TableCell>
                                         {canEdit && (
-                                            <td className="pr-5 py-3.5 text-right">
+                                            <TableCell className="pr-5 py-3.5 text-right">
                                                 <Button
                                                     variant="ghost" size="icon"
                                                     className="h-8 w-8 rounded-lg text-destructive/60 hover:text-destructive hover:bg-destructive/10"
@@ -294,13 +296,13 @@ function RosterTab({ classroomId, enrollments, canEdit, onRefresh, monitorMaleId
                                                 >
                                                     <Trash2 className="h-3.5 w-3.5" />
                                                 </Button>
-                                            </td>
+                                            </TableCell>
                                         )}
-                                    </tr>
+                                    </TableRow>
                                 );
                             })}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </div>
             )}
 
@@ -923,33 +925,33 @@ function TimetableTab({ classroomId, subjects, periods, canEdit, onRefresh }: Ti
             ) : (
                 <div className="rounded-2xl border border-border overflow-hidden shadow-sm">
                     <div className="overflow-x-auto custom-scrollbar">
-                        <table className="w-full min-w-[800px] text-sm border-collapse">
-                            <thead>
-                                <tr className="bg-muted/40 border-b border-border/60">
-                                    <th className="pl-5 py-3.5 text-left min-w-[120px] text-[11px] font-bold uppercase tracking-wider text-muted-foreground sticky left-0 bg-background/95 z-10 backdrop-blur-sm">
+                        <Table className="min-w-[800px] border-collapse">
+                            <TableHeader>
+                                <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/60">
+                                    <TableHead className="pl-5 py-3.5 text-left min-w-[120px] text-[11px] font-bold uppercase tracking-wider text-muted-foreground sticky left-0 bg-background/95 z-10 backdrop-blur-sm">
                                         Day
-                                    </th>
+                                    </TableHead>
                                     {sortedPeriods.map(p => (
-                                        <th key={p.id} className="py-3.5 px-3 text-center min-w-[140px] border-l border-border/50">
+                                        <TableHead key={p.id} className="py-3.5 px-3 text-center min-w-[140px] border-l border-border/50">
                                             <div className="text-[11px] font-bold uppercase tracking-wider text-primary">{p.name}</div>
                                             <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">{p.startTime.substring(0, 5)} - {p.endTime.substring(0, 5)}</div>
-                                        </th>
+                                        </TableHead>
                                     ))}
-                                </tr>
-                            </thead>
-                            <tbody>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
                                 {WEEKDAYS.map((day) => (
-                                    <tr key={day} className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors">
-                                        <td className="pl-5 py-4 font-bold text-[12px] text-foreground sticky left-0 bg-background/95 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] backdrop-blur-sm">
+                                    <TableRow key={day} className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors">
+                                        <TableCell className="pl-5 py-4 font-bold text-[12px] text-foreground sticky left-0 bg-background/95 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] backdrop-blur-sm">
                                             {day}
-                                        </td>
+                                        </TableCell>
                                         {sortedPeriods.map(p => {
                                             const existing = slotMatrix[day]?.[p.id];
                                             const colorCls = existing ? SUBJECT_COLORS[(subjects.findIndex(s => s.id === existing.subject.id) || 0) % SUBJECT_COLORS.length] : "";
                                             const isBreak = p.name.toLowerCase().includes('lunch') || p.name.toLowerCase().includes('break');
 
                                             return (
-                                                <td key={p.id} className="py-2 px-2 border-l border-border/50 align-middle">
+                                                <TableCell key={p.id} className="py-2 px-2 border-l border-border/50 align-middle">
                                                     {isBreak ? (
                                                         <div className="h-16 rounded-xl flex items-center justify-center bg-muted/40 border border-border/50">
                                                             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
@@ -983,13 +985,13 @@ function TimetableTab({ classroomId, subjects, periods, canEdit, onRefresh }: Ti
                                                             )}
                                                         </div>
                                                     )}
-                                                </td>
+                                                </TableCell>
                                             );
                                         })}
-                                    </tr>
+                                    </TableRow>
                                 ))}
-                            </tbody>
-                        </table>
+                            </TableBody>
+                        </Table>
                     </div>
                 </div>
             )}
@@ -1184,11 +1186,7 @@ export default function ClassroomDetails() {
     if (!can("classrooms", "read")) return <AccessDenied />;
 
     if (isLoading) {
-        return (
-            <div className="flex justify-center items-center h-64">
-                <Loader2 className="h-7 w-7 animate-spin text-[#7f39c2]" />
-            </div>
-        );
+        return <DetailsPageSkeleton />;
     }
 
     if (!classroom) {

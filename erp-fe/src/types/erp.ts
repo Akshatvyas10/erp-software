@@ -502,3 +502,27 @@ export interface AdmissionApplication {
     createdAt: string;
     updatedAt: string;
 }
+
+export type AttendanceStatusType = 'PRESENT' | 'ABSENT' | 'LATE' | 'HALF_DAY' | 'LEAVE';
+
+export interface StudentAttendanceRecord {
+    id: string;
+    studentId: string;
+    classroomId: string;
+    academicYearId?: string | null;
+    attendanceDate: string;
+    status: AttendanceStatusType;
+    remarks?: string | null;
+    student?: Student;
+}
+
+export interface AttendanceSummary {
+    present: number;
+    absent: number;
+    late: number;
+    halfDay: number;
+    leave: number;
+    total: number;
+    percentage: number;
+}
+

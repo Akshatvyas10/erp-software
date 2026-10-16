@@ -21,6 +21,7 @@ import AccessDenied from "@/components/auth/AccessDenied";
 import AdmissionFormDialog from "./AdmissionFormDialog";
 import type { Student, StudentStatus, TransportMode, FeeQuota } from "@/types/erp";
 import { SectionCard, DetailRow } from "@/components/shared/DetailCards";
+import { ProfilePageSkeleton } from "@/components/common/skeletons/ProfilePageSkeleton";
 import { useNavigate, useParams } from "react-router-dom";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -395,11 +396,7 @@ export default function StudentDetailsPage() {
     if (!can("students", "read")) return <AccessDenied />;
 
     if (isLoading) {
-        return (
-            <div className="flex justify-center items-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        );
+        return <ProfilePageSkeleton />;
     }
 
     if (fetchError || !student) {

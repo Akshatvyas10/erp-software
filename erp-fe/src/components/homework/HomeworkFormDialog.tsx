@@ -141,7 +141,7 @@ export default function HomeworkFormDialog({ open, onOpenChange, homeworkId }: H
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="w-[95vw] max-w-[600px] max-h-[90vh] overflow-y-auto sm:max-w-[600px] p-4 sm:p-6 border border-border/80 shadow-2xl rounded-2xl bg-background dark:bg-zinc-950 custom-scrollbar">
                 <DialogHeader>
-                    <DialogTitle className="text-xl md:text-2xl font-extrabold tracking-tight text-[#5513a1] dark:text-[#8e44ad]">
+                    <DialogTitle className="text-xl md:text-2xl font-extrabold tracking-tight text-primary">
                         {isEdit ? "Edit Homework" : "Assign New Homework"}
                     </DialogTitle>
                 </DialogHeader>

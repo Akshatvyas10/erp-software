@@ -7,6 +7,7 @@ import { BulkHolidayDialog } from '../../components/calendar/BulkHolidayDialog';
 import { usePermissions } from '../../store/hooks';
 import { Button } from '../../components/ui/button';
 import { CalendarDays } from 'lucide-react';
+import { CalendarSkeleton } from '@/components/common/skeletons/CalendarSkeleton';
 
 export default function CalendarPage() {
     const { data: events, isLoading, isError } = useEvents();
@@ -46,7 +47,7 @@ export default function CalendarPage() {
         }
     };
 
-    if (isLoading) return <div className="p-8">Loading calendar...</div>;
+    if (isLoading) return <div className="p-4 sm:p-6 md:p-8"><CalendarSkeleton /></div>;
     if (isError) return <div className="p-8 text-destructive">Failed to load calendar events.</div>;
 
     return (

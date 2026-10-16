@@ -237,7 +237,7 @@ export default function UserFormDialog({ isOpen, onOpenChange, editUser, onSucce
                                             <FormControl>
                                                 <div className="relative">
                                                     <Input type={showPw ? "text" : "password"} className="h-10 md:h-11 pr-10 rounded-lg bg-background border-border/80 focus-visible:ring-purple-500" placeholder="Minimum 8 characters" {...field} />
-                                                    <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-[#7f39c2] transition-colors">
+                                                    <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors">
                                                         {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                                     </button>
                                                 </div>

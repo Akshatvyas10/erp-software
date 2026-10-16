@@ -89,8 +89,8 @@ export function TeacherForm({
 
                         {/* Login Section */}
                         <div className="space-y-4">
-                            <h3 className="text-xs font-semibold text-[#7f39c2] tracking-wide uppercase flex items-center gap-2">
-                                <span className="h-4 w-1 rounded-full bg-[#7f39c2]"></span> Login Account
+                            <h3 className="text-xs font-semibold text-primary tracking-wide uppercase flex items-center gap-2">
+                                <span className="h-4 w-1 rounded-full bg-primary"></span> Login Account
                             </h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <FormField control={form.control} name="firstName" render={({ field }) => (
@@ -134,8 +134,8 @@ export function TeacherForm({
 
                         {/* Profile Section */}
                         <div className="space-y-4 pt-4 border-t border-border/60">
-                            <h3 className="text-xs font-semibold text-[#7f39c2] tracking-wide uppercase flex items-center gap-2">
-                                <span className="h-4 w-1 rounded-full bg-[#7f39c2]"></span> Teacher Profile
+                            <h3 className="text-xs font-semibold text-primary tracking-wide uppercase flex items-center gap-2">
+                                <span className="h-4 w-1 rounded-full bg-primary"></span> Teacher Profile
                             </h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {isEditMode && (
@@ -264,7 +264,7 @@ export function TeacherForm({
                                 {subjects.length > 0 && (
                                     <div className="flex flex-wrap gap-2 pt-2">
                                         {subjects.map(s => (
-                                            <Badge key={s} variant="secondary" className="text-xs bg-[#5513a1]/10 dark:bg-purple-500/20 text-[#5513a1] dark:text-purple-400 border-none gap-1 pr-1.5 py-1">
+                                            <Badge key={s} variant="secondary" className="text-xs bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary-foreground border-none gap-1 pr-1.5 py-1">
                                                 {s}
                                                 <button type="button" onClick={() => setSubjects(subjects.filter(x => x !== s))} className="ml-1 hover:bg-black/10 dark:hover:bg-white/10 rounded-full p-0.5 transition-colors">
                                                     <X className="h-3 w-3" />

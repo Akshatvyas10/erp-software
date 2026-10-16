@@ -20,9 +20,9 @@ export function AttendanceChart({ attendance }: AttendanceChartProps) {
         });
 
         return [
-            { name: 'Present', value: present, color: '#10b981', icon: UserCheck },
-            { name: 'Absent', value: absent, color: '#ef4444', icon: UserX },
-            { name: 'Late', value: late, color: '#f59e0b', icon: AlertTriangle }
+            { name: 'Present', value: present, color: 'var(--color-emerald-500, #10b981)', icon: UserCheck },
+            { name: 'Absent', value: absent, color: 'var(--color-rose-500, #ef4444)', icon: UserX },
+            { name: 'Late', value: late, color: 'var(--color-amber-500, #f59e0b)', icon: AlertTriangle }
         ];
     }, [attendance]);
 

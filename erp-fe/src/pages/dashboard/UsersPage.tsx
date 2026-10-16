@@ -1,43 +1,60 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import {
-    Users, Plus, Search, Eye, UserCheck, UserX,
-    Loader2, RefreshCw, MoreVertical, Trash2, Edit
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-    Table, TableBody, TableCell, TableHead,
-    TableHeader, TableRow,
-} from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import {
-    AlertDialog, AlertDialogAction, AlertDialogCancel,
-    AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-    AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
-import { toast } from "sonner";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
+import type { User, Role } from "@/types/erp";
 import { usePermissions } from "@/store/hooks";
 import PermissionGate from "@/components/auth/PermissionGate";
-import AccessDenied from "@/components/auth/AccessDenied";
-import type { User, Pagination } from "@/types/erp";
-import { motion } from "framer-motion";
 
-const fetchUsers = async (page: number, search: string, status: string) => {
-    const params = new URLSearchParams({ page: String(page), limit: "15" });
-    if (search) params.set("search", search);
-    if (status) params.set("status", status);
-    const { data } = await api.get(`/users?${params}`);
-    return data.data as { users: User[]; pagination: Pagination };
-};
-
+// Reusable Components
+import { DataTable, type Column } from "@/components/common/DataTable";
+import { PageHeader } from "@/components/common/PageHeader";
 import UserFormDialog from "@/components/users/UserFormDialog";
+
+// UI Components
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Card } from "@/components/ui/card";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+// Icons
+import {
+    Plus,
+    Search,
+    MoreHorizontal,
+    Edit,
+    Trash2,
+    Eye,
+    Shield,
+    Users,
+    RefreshCw,
+    UserCheck,
+    UserX,
+    Loader2,
+} from "lucide-react";
+import { toast } from "sonner";
+import AccessDenied from "@/components/auth/AccessDenied";
+import { motion } from "framer-motion";
+import { useUsersQuery } from "@/features/users/api/useUsersQuery";
 
 export default function UsersPage() {
     const { can } = usePermissions();
@@ -54,138 +71,305 @@ export default function UsersPage() {
     const [confirmState, setConfirmState] = useState<{ isOpen: boolean; userId: string | null; userName: string }>({
         isOpen: false,
         userId: null,
-        userName: ""
+        userName: "",
     });
 
-    const { data, isLoading, isFetching, refetch } = useQuery({
-        queryKey: ["users", page, search, status],
-        queryFn: () => fetchUsers(page, search, status),
-        enabled: can("users", "read"),
-        staleTime: 60_000,
-    });
+    const { data, isLoading, isFetching, refetch } = useUsersQuery(
+        { page, limit: 15, search, role: status },
+        can("users", "read")
+    );
 
     const toggleActive = useMutation({
         mutationFn: ({ id, active }: { id: string; active: boolean }) =>
             api.patch(`/users/${id}/${active ? "activate" : "deactivate"}`),
         onSuccess: (_, { active }) => {
+            toast.success(`User ${active ? "activated" : "deactivated"} successfully`);
             qc.invalidateQueries({ queryKey: ["users"] });
-            toast.success(`User ${active ? "activated" : "deactivated"}`);
         },
-        onError: () => toast.error("Failed to update status"),
+        onError: (err: any) => {
+            toast.error(err.response?.data?.message || "Failed to update user status");
+        },
     });
 
     const deleteUserMutation = useMutation({
         mutationFn: (id: string) => api.delete(`/users/${id}`),
         onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ["users"] });
             toast.success("User deleted successfully");
             setConfirmState({ isOpen: false, userId: null, userName: "" });
+            qc.invalidateQueries({ queryKey: ["users"] });
         },
-        onError: () => toast.error("Failed to delete user"),
+        onError: (err: any) => {
+            toast.error(err.response?.data?.message || "Failed to delete user");
+        },
     });
-
-    const openEditDialog = (user: User) => {
-        setEditUser(user);
-        setIsCreateOpen(true);
-    };
 
     if (!can("users", "read")) return <AccessDenied />;
 
     const users = data?.users ?? [];
     const pagination = data?.pagination ?? { total: 0, page: 1, limit: 15, pages: 1 };
 
-    const pageVariants = {
-        hidden: { opacity: 0, y: 10 },
-        visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
-    };
-
-    return (
-        <motion.div
-            className="mx-auto  text-foreground transition-colors duration-200"
-            variants={pageVariants}
-            initial="hidden"
-            animate="visible"
-        >
-            {/* Header Section */}
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between pb-4 border-b border-border/40 bg-transparent">
-                <div>
-                    <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-primary flex items-center gap-3">
-                        Users Management
-                    </h1>
-                    <p className="text-muted-foreground text-xs md:text-sm lg:text-base mt-1.5 max-w-2xl">
-                        Manage and assign roles for all institution profiles and system members.
-                    </p>
+    // Columns Definition for Generic DataTable
+    const columns: Column<User>[] = [
+        {
+            header: "User Profile",
+            cell: (user) => (
+                <div
+                    className="flex items-center gap-3 cursor-pointer"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/dashboard/users/${user.id}`);
+                    }}
+                >
+                    <Avatar className="h-9 w-9 border border-primary/20 shadow-xs shrink-0">
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                            {user.firstName[0]?.toUpperCase()}{user.lastName[0]?.toUpperCase()}
+                        </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                        <p className="font-semibold text-sm tracking-tight text-foreground hover:text-primary transition-colors truncate">
+                            {user.firstName} {user.lastName}
+                        </p>
+                        <p className="text-xs text-muted-foreground font-mono">{user.userId}</p>
+                    </div>
                 </div>
-                <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-10 w-10 border-border/80 bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none transition-all duration-200 rounded-xl"
-                        onClick={() => refetch()}
-                        disabled={isFetching}
-                    >
-                        <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetching ? "animate-spin text-primary" : ""}`} />
-                    </Button>
-                    <PermissionGate resource="users" action="create">
-                        <Button onClick={() => setIsCreateOpen(true)} variant="primary" className="w-full md:w-auto gap-2 h-10 px-5 transition-all hover:scale-[1.02] active:scale-[0.98]">
-                            <Plus className="h-4 w-4 stroke-[2.5]" /> New User
-                        </Button>
-                        <UserFormDialog 
-                            isOpen={isCreateOpen}
-                            onOpenChange={(v) => {
-                                setIsCreateOpen(v);
-                                if (!v) setEditUser(null);
-                            }}
-                            editUser={editUser}
-                            onSuccess={() => qc.invalidateQueries({ queryKey: ["users"] })}
-                        />
-                    </PermissionGate>
+            ),
+        },
+        {
+            header: "Email Address",
+            accessorKey: "email",
+            className: "text-muted-foreground text-xs",
+            mobileHide: true,
+        },
+        {
+            header: "Assigned Roles",
+            cell: (user) => (
+                <div className="flex flex-wrap gap-1.5">
+                    {user.Roles && user.Roles.length > 0 ? (
+                        user.Roles.map((role: Role) => (
+                            <Badge
+                                key={role.id}
+                                variant="secondary"
+                                className="bg-muted text-foreground border border-border/60 text-[11px] font-medium"
+                            >
+                                <Shield className="h-3 w-3 mr-1 text-primary opacity-80" />
+                                {role.name.replace(/_/g, " ")}
+                            </Badge>
+                        ))
+                    ) : (
+                        <span className="text-xs text-muted-foreground italic">No roles</span>
+                    )}
+                </div>
+            ),
+        },
+        {
+            header: "Last Active",
+            cell: (user) => (
+                <span className="text-xs text-muted-foreground">
+                    {user.lastLoginAt
+                        ? new Date(user.lastLoginAt).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                          })
+                        : "Never"}
+                </span>
+            ),
+            mobileHide: true,
+        },
+        {
+            header: "Status",
+            cell: (user) => (
+                <Badge
+                    variant="outline"
+                    className={`font-semibold text-[11px] px-2.5 py-0.5 rounded-full ${
+                        user.isActive
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                            : "bg-destructive/10 text-destructive border-destructive/20"
+                    }`}
+                >
+                    {user.isActive ? "Active" : "Disabled"}
+                </Badge>
+            ),
+        },
+        {
+            header: "Actions",
+            className: "text-right",
+            cell: (user) => (
+                <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon-sm" className="h-8 w-8 rounded-lg hover:bg-muted">
+                                <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-lg border-border">
+                            <DropdownMenuLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                                Actions
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem
+                                className="text-xs font-semibold gap-2 p-2 cursor-pointer"
+                                onClick={() => navigate(`/dashboard/users/${user.id}`)}
+                            >
+                                <Eye className="h-4 w-4 text-primary" /> View Details
+                            </DropdownMenuItem>
+                            <PermissionGate resource="users" action="update">
+                                <DropdownMenuItem
+                                    className="text-xs font-semibold gap-2 p-2 cursor-pointer"
+                                    onClick={() => {
+                                        setEditUser(user);
+                                        setIsCreateOpen(true);
+                                    }}
+                                >
+                                    <Edit className="h-4 w-4" /> Edit Account
+                                </DropdownMenuItem>
+                            </PermissionGate>
+                            <PermissionGate resource="users" action="manage">
+                                <DropdownMenuSeparator className="border-border/60" />
+                                <DropdownMenuItem
+                                    className={`text-xs font-semibold gap-2 p-2 cursor-pointer ${
+                                        user.isActive
+                                            ? "text-amber-600 dark:text-amber-400 focus:bg-amber-500/10"
+                                            : "text-emerald-600 dark:text-emerald-400 focus:bg-emerald-500/10"
+                                    }`}
+                                    onClick={() => toggleActive.mutate({ id: user.id, active: !user.isActive })}
+                                    disabled={toggleActive.isPending}
+                                >
+                                    {user.isActive ? (
+                                        <><UserX className="h-4 w-4" /> Deactivate</>
+                                    ) : (
+                                        <><UserCheck className="h-4 w-4" /> Activate</>
+                                    )}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator className="border-border/60" />
+                                <DropdownMenuItem
+                                    className="text-xs font-semibold gap-2 p-2 text-destructive focus:bg-destructive/10 cursor-pointer"
+                                    onClick={() =>
+                                        setConfirmState({
+                                            isOpen: true,
+                                            userId: user.id,
+                                            userName: `${user.firstName} ${user.lastName}`,
+                                        })
+                                    }
+                                >
+                                    <Trash2 className="h-4 w-4" /> Delete User
+                                </DropdownMenuItem>
+                            </PermissionGate>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+            ),
+        },
+    ];
+
+    // Mobile Card renderer for small viewports (< 768px)
+    const renderMobileCard = (user: User) => (
+        <div className="flex items-center justify-between gap-3">
+            <div
+                className="flex items-center gap-3 min-w-0 cursor-pointer"
+                onClick={() => navigate(`/dashboard/users/${user.id}`)}
+            >
+                <Avatar className="h-10 w-10 border border-primary/20 shrink-0">
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                        {user.firstName[0]?.toUpperCase()}{user.lastName[0]?.toUpperCase()}
+                    </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                    <p className="font-bold text-sm text-foreground truncate">
+                        {user.firstName} {user.lastName}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                        <Badge
+                            variant="outline"
+                            className={`text-[10px] px-2 py-0.2 rounded-full ${
+                                user.isActive
+                                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                    : "bg-destructive/10 text-destructive border-destructive/20"
+                            }`}
+                        >
+                            {user.isActive ? "Active" : "Disabled"}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                            {user.Roles?.[0]?.name.replace(/_/g, " ") || "No Role"}
+                        </span>
+                    </div>
                 </div>
             </div>
 
-            {/* Metrics Snapshot Grid */}
-            {/* <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {[
-                    { label: "Total Managed Profiles", value: pagination.total, color: "text-[#7f39c2]", bg: "bg-[#5513a1]/10 dark:bg-purple-500/20" },
-                    { label: "Active Operations", value: users.filter(u => u.isActive).length, color: "text-emerald-500", bg: "bg-emerald-500/10 dark:bg-emerald-500/20" },
-                    { label: "Disabled Accounts", value: users.filter(u => !u.isActive).length, color: "text-rose-500", bg: "bg-rose-500/10 dark:bg-rose-500/20" },
-                ].map(({ label, value, color, bg }) => (
-                    <Card key={label} className="border-border/60 bg-card dark:bg-zinc-900/50 rounded-xl hover:shadow-sm dark:hover:border-purple-500/30 transition-all group duration-200">
-                        <CardContent className="p-3 flex items-center gap-3">
-                            <div className={`p-2 rounded-xl ${bg} transition-transform group-hover:scale-105 duration-200 shrink-0`}>
-                                <Users className={`h-4 w-4 ${color}`} />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground truncate">{label}</p>
-                                <p className="text-xl font-bold tracking-tight text-foreground leading-none mt-0.5">{value}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div> */}
+            <Button
+                variant="ghost"
+                size="icon-xs"
+                className="h-8 w-8 shrink-0"
+                onClick={() => navigate(`/dashboard/users/${user.id}`)}
+            >
+                <Eye className="h-4 w-4 text-muted-foreground" />
+            </Button>
+        </div>
+    );
 
-            {/* Filters Dashboard Toolbar */}
-            <Card className="p-3 lg:p-4 border-border/60 shadow-sm bg-card rounded-2xl">
-                <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center">
-                    <div className="relative flex-1 max-w-full lg:max-w-xl">
+    return (
+        <motion.div
+            className="space-y-6 text-foreground"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+        >
+            {/* Standardized Page Header */}
+            <PageHeader
+                title="Users Management"
+                description="Manage and assign roles for all institution profiles and system members."
+            >
+                <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 rounded-xl"
+                    onClick={() => refetch()}
+                    disabled={isFetching}
+                >
+                    <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin text-primary" : "text-muted-foreground"}`} />
+                </Button>
+                <PermissionGate resource="users" action="create">
+                    <Button onClick={() => setIsCreateOpen(true)} className="gap-2 h-10 px-4 rounded-xl font-semibold shadow-sm">
+                        <Plus className="h-4 w-4" /> New User
+                    </Button>
+                    <UserFormDialog
+                        isOpen={isCreateOpen}
+                        onOpenChange={(v) => {
+                            setIsCreateOpen(v);
+                            if (!v) setEditUser(null);
+                        }}
+                        editUser={editUser}
+                        onSuccess={() => qc.invalidateQueries({ queryKey: ["users"] })}
+                    />
+                </PermissionGate>
+            </PageHeader>
+
+            {/* Filter & Search Bar */}
+            <Card className="p-4 border-border/60 bg-card rounded-2xl shadow-xs">
+                <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+                    <div className="relative w-full sm:w-80">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="Search by profile name, ERP identity, or email..."
+                            placeholder="Search by name, ID or email..."
+                            className="pl-9 h-10 bg-muted/40 border-border/60 rounded-xl text-sm"
                             value={search}
-                            onChange={e => { setSearch(e.target.value); setPage(1); }}
-                            className="pl-9 h-11 border-none shadow-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none bg-muted/60 rounded-xl hover:bg-muted transition-colors duration-200 text-sm"
+                            onChange={(e) => {
+                                setSearch(e.target.value);
+                                setPage(1);
+                            }}
                         />
                     </div>
-                    <div className="hidden lg:block w-px h-6 bg-border/80"></div>
-                    <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
-                        {["", "active", "inactive"].map(s => (
+                    <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                        {["", "ACTIVE", "INACTIVE"].map((s) => (
                             <Button
-                                key={s} size="sm" variant={status === s ? "default" : "ghost"}
-                                className={`h-9 px-4 text-xs font-bold capitalize rounded-xl transition-all duration-200 shrink-0 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none
-                                    ${status !== s
-                                        ? "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                                        : "bg-primary hover:bg-primary/90 border-0 text-primary-foreground shadow-sm"}`}
-                                onClick={() => { setStatus(s); setPage(1); }}
+                                key={s}
+                                variant={status === s ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => {
+                                    setStatus(s);
+                                    setPage(1);
+                                }}
+                                className="h-9 px-3 text-xs rounded-xl font-medium shrink-0"
                             >
                                 {s === "" ? "All Statuses" : s}
                             </Button>
@@ -194,173 +378,48 @@ export default function UsersPage() {
                 </div>
             </Card>
 
-            {/* Main Institutional Directory Table */}
-            <Card className="shadow-md overflow-hidden border-border/60 bg-card rounded-2xl">
-                <CardHeader className="py-4 lg:py-5 px-6 border-b border-border/60 bg-muted/20">
-                    <CardTitle className="text-xs md:text-sm font-bold uppercase tracking-wider text-foreground flex items-center justify-between">
-                        <span>Institutional Directory</span>
-                        <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20">
-                            {pagination.total} records total
-                        </span>
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                    {isLoading ? (
-                        <div className="flex flex-col items-center justify-center py-28 gap-3 text-muted-foreground">
-                            <Loader2 className="h-9 w-9 animate-spin text-primary" />
-                            <p className="text-sm font-medium animate-pulse">Loading core system directory...</p>
-                        </div>
-                    ) : users.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-28 text-muted-foreground px-4 text-center">
-                            <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mb-4 border border-border/40">
-                                <Users className="h-8 w-8 text-muted-foreground/40" />
-                            </div>
-                            <p className="text-base font-bold text-foreground">No account matching filters</p>
-                            <p className="text-xs lg:text-sm mt-1 max-w-xs text-muted-foreground">Try modifying your text criteria search or switching context metrics toggles.</p>
-                        </div>
-                    ) : (
-                        <div className="w-full overflow-x-auto custom-scrollbar">
-                            <Table className="shadow-md rounded-xl w-full min-w-[950px]">
-                                <TableHeader className="bg-muted/40 border-b border-border/60">
-                                    <TableRow className="hover:bg-transparent border-border/60">
-                                        <TableHead className="pl-6 text-[11px] font-bold uppercase tracking-wider text-muted-foreground h-12">User Profile</TableHead>
-                                        <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground h-12">System ID</TableHead>
-                                        <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground h-12">Email Address</TableHead>
-                                        <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground h-12">Assigned Roles</TableHead>
-                                        <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground h-12">Last Active</TableHead>
-                                        <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground h-12">Status</TableHead>
-                                        <TableHead className="text-right pr-6 text-[11px] font-bold uppercase tracking-wider text-muted-foreground h-12">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {users.map((user) => (
-                                        <TableRow key={user.id} className="hover:bg-muted/30 transition-colors border-border/40 group">
-                                            <TableCell className="pl-6 py-4.5">
-                                                <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/dashboard/users/${user.id}`)}>
-                                                    <Avatar className="h-9 w-9 border border-primary/20 shadow-sm transition-transform group-hover:scale-105 duration-200">
-                                                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                                                            {user.firstName[0].toUpperCase()}{user.lastName[0].toUpperCase()}
-                                                        </AvatarFallback>
-                                                    </Avatar>
-                                                    <div>
-                                                        <p className="font-bold text-sm tracking-tight text-foreground group-hover:text-primary transition-colors">
-                                                            {user.firstName} {user.lastName}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="py-4.5">
-                                                <Badge variant="outline" className="font-mono bg-muted/60 text-foreground border-border/60 px-2.5 py-0.5 rounded-md text-xs tracking-wide">
-                                                    {user.userId}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-sm font-medium text-muted-foreground py-4.5 truncate max-w-[220px]">
-                                                {user.email}
-                                            </TableCell>
-                                            <TableCell className="py-4.5">
-                                                <div className="flex flex-wrap gap-1.5 max-w-[260px]">
-                                                    {(user.Roles ?? []).map(r => (
-                                                        <Badge key={r.id} variant="secondary" className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-md">
-                                                            {r.name.replace(/_/g, " ")}
-                                                        </Badge>
-                                                    ))}
-                                                    {(user.Roles ?? []).length === 0 && <span className="text-xs text-muted-foreground/60 font-medium italic">No roles assigned</span>}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-xs font-medium text-muted-foreground py-4.5">
-                                                {user.lastLoginAt
-                                                    ? new Date(user.lastLoginAt).toLocaleDateString(undefined, { dateStyle: 'medium' })
-                                                    : <span className="text-muted-foreground/40 italic">Never logged in</span>}
-                                            </TableCell>
-                                            <TableCell className="py-4.5">
-                                                <Badge variant="outline"
-                                                    className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 border border-transparent rounded-md
-                                                        ${user.isActive
-                                                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                                            : "bg-muted text-muted-foreground border-border"}`}>
-                                                    {user.isActive ? "Active" : "Disabled"}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right pr-6 py-4.5">
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring hover:bg-accent rounded-lg">
-                                                            <MoreVertical className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end" className="w-44 rounded-xl shadow-xl border-border/80 bg-background">
-                                                        <DropdownMenuItem className="text-xs font-semibold gap-2 p-2.5 cursor-pointer focus:bg-accent" onClick={() => navigate(`/dashboard/users/${user.id}`)}>
-                                                            <Eye className="h-4 w-4 text-muted-foreground" /> View Details
-                                                        </DropdownMenuItem>
-                                                        <PermissionGate resource="users" action="update">
-                                                            <DropdownMenuSeparator className="border-border/60" />
-                                                            <DropdownMenuItem className="text-xs font-semibold gap-2 p-2.5 cursor-pointer focus:bg-accent" onClick={() => openEditDialog(user)}>
-                                                                <Edit className="h-4 w-4 text-muted-foreground" /> Edit Profile
-                                                            </DropdownMenuItem>
-                                                        </PermissionGate>
-                                                        <PermissionGate resource="users" action="manage">
-                                                            <DropdownMenuSeparator className="border-border/60" />
-                                                            <DropdownMenuItem
-                                                                className={`text-xs font-semibold gap-2 p-2.5 cursor-pointer 
-                                                                    ${user.isActive
-                                                                        ? "text-amber-600 dark:text-amber-400 focus:bg-amber-500/10"
-                                                                        : "text-emerald-600 dark:text-emerald-400 focus:bg-emerald-500/10"}`}
-                                                                onClick={() => toggleActive.mutate({ id: user.id, active: !user.isActive })}
-                                                                disabled={toggleActive.isPending}
-                                                            >
-                                                                {user.isActive ? (
-                                                                    <><UserX className="h-4 w-4" /> Deactivate</>
-                                                                ) : (
-                                                                    <><UserCheck className="h-4 w-4" /> Activate</>
-                                                                )}
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuSeparator className="border-border/60" />
-                                                            <DropdownMenuItem
-                                                                className="text-xs font-semibold gap-2 p-2.5 text-destructive focus:bg-destructive/10 cursor-pointer"
-                                                                onClick={() => setConfirmState({
-                                                                    isOpen: true,
-                                                                    userId: user.id,
-                                                                    userName: `${user.firstName} ${user.lastName}`
-                                                                })}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" /> Delete User
-                                                            </DropdownMenuItem>
-                                                        </PermissionGate>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+            {/* Generic DataTable Component */}
+            <DataTable
+                columns={columns}
+                data={users}
+                keyExtractor={(u) => u.id}
+                isLoading={isLoading}
+                pagination={{
+                    page: pagination.page,
+                    totalPages: pagination.pages,
+                    total: pagination.total,
+                    limit: pagination.limit,
+                    onPageChange: (newPage) => setPage(newPage),
+                }}
+                emptyTitle="No users found"
+                emptyDescription="No account matches your search criteria or status filter."
+                emptyIcon={Users}
+                emptyActionLabel={can("users", "create") ? "Create New User" : undefined}
+                onEmptyAction={() => setIsCreateOpen(true)}
+                renderMobileCard={renderMobileCard}
+            />
 
-            <AlertDialog open={confirmState.isOpen} onOpenChange={v => !v && setConfirmState(prev => ({ ...prev, isOpen: false }))}>
+            {/* Centralized Delete Confirmation Modal */}
+            <AlertDialog
+                open={confirmState.isOpen}
+                onOpenChange={(v) => !v && setConfirmState((prev) => ({ ...prev, isOpen: false }))}
+            >
                 <AlertDialogContent className="w-[95vw] sm:max-w-lg mx-auto rounded-3xl p-6 border-border shadow-2xl bg-background">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="text-xl font-bold text-foreground">
-                            Delete User?
-                        </AlertDialogTitle>
+                        <AlertDialogTitle className="text-xl font-bold text-foreground">Delete User?</AlertDialogTitle>
                         <AlertDialogDescription className="text-muted-foreground mt-2">
-                            This will permanently delete the account of <span className="font-bold text-foreground">{confirmState.userName}</span> and all associated data.
+                            This will permanently delete the account of{" "}
+                            <span className="font-bold text-foreground">{confirmState.userName}</span> and all associated data.
                             This action cannot be undone.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="mt-6 gap-3">
-                        <AlertDialogCancel className="h-11 rounded-xl font-semibold border-border/50 bg-background hover:bg-accent text-foreground transition-colors">
-                            Cancel
-                        </AlertDialogCancel>
+                        <AlertDialogCancel className="h-11 rounded-xl font-semibold">Cancel</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => confirmState.userId && deleteUserMutation.mutate(confirmState.userId)}
-                            className="h-11 rounded-xl font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                            className="h-11 rounded-xl font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
-                            {deleteUserMutation.isPending
-                                ? <Loader2 className="h-4 w-4 animate-spin" />
-                                : "Delete User"
-                            }
+                            {deleteUserMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete User"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
