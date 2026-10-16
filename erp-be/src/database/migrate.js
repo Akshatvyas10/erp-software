@@ -10,7 +10,8 @@ const {
     sequelize, Role, Permission, User,
     Student, Teacher, TeacherAttendance, SalarySlip, Department,
     Classroom, ClassroomStudent, ClassroomPeriod, ClassroomSubject, Timetable, Subject,
-    Homework, HomeworkSubmission, CalendarEvent, EventType, StudentAttendance, PermissionAuditLog, ExamSchedule, Exam, ExamResult
+    Homework, HomeworkSubmission, CalendarEvent, EventType, StudentAttendance, PermissionAuditLog, ExamSchedule, Exam, ExamResult,
+    AdmissionForm, AdmissionApplication
 } = db;
 import logger from '../utils/logger.js';
 
@@ -102,6 +103,12 @@ import logger from '../utils/logger.js';
 
         await ExamResult.sync({ force: false, alter: true });
         logger.info('✓ exam_results');
+
+        await AdmissionForm.sync({ force: false, alter: true });
+        logger.info('✓ admission_forms');
+
+        await AdmissionApplication.sync({ force: false, alter: true });
+        logger.info('✓ admission_applications');
 
         logger.info('All tables synchronized with Neon DB.');
         process.exit(0);

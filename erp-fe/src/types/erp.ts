@@ -416,3 +416,89 @@ export interface HomeworkSubmission {
     };
     homework?: Homework;
 }
+
+// =============================================================================
+// Admission Feature Types
+// =============================================================================
+
+export type CustomFieldType = 'text' | 'number' | 'email' | 'date' | 'dropdown' | 'checkbox' | 'textarea';
+
+export interface CustomFieldDefinition {
+    name: string;
+    label: string;
+    type: CustomFieldType;
+    required: boolean;
+    options?: string[]; // for dropdowns
+}
+
+export interface AdmissionForm {
+    id: string;
+    classroomId: string;
+    token: string;
+    isActive: boolean;
+    expiresAt: string | null;
+    createdBy: string;
+    customFields: CustomFieldDefinition[];
+    classroom?: {
+        name: string;
+        section: string;
+        academicYear: string;
+    };
+    createdAt: string;
+    updatedAt: string;
+}
+
+export type AdmissionStatus = 'Pending' | 'Admitted' | 'Rejected';
+
+export interface AdmissionApplication {
+    id: string;
+    formId: string;
+    
+    // Student Info
+    studentFirstName: string;
+    studentLastName: string;
+    dateOfBirth: string;
+    gender: string;
+    bloodGroup?: string | null;
+    aadhaarNumber?: string | null;
+    previousSchoolName?: string | null;
+    previousClass?: string | null;
+    currentAddress: string;
+    permanentAddress: string;
+    
+    // Parent Info
+    fatherName: string;
+    motherName: string;
+    guardianName?: string | null;
+    primaryContactNumber: string;
+    alternateContactNumber?: string | null;
+    parentEmail: string;
+    fatherOccupation?: string | null;
+    motherOccupation?: string | null;
+    annualFamilyIncome?: string | null;
+    
+    // Additional
+    preferredClassId?: string | null;
+    medicalNotes?: string | null;
+    declarationAccepted: boolean;
+    
+    // Bank Details
+    bankAccountNumber?: string | null;
+    bankIfscCode?: string | null;
+    bankName?: string | null;
+    bankBranch?: string | null;
+    bankMicrNumber?: string | null;
+    
+    // Custom Fields
+    customFieldResponses: Record<string, any>;
+    
+    // System
+    status: AdmissionStatus;
+    rejectionReason?: string | null;
+    actionBy?: string | null;
+    actionAt?: string | null;
+    
+    form?: AdmissionForm;
+    createdAt: string;
+    updatedAt: string;
+}

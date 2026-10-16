@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 // Auth
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import RequestAccess from "./pages/RequestAccess";
 
 // Guards
@@ -31,6 +32,14 @@ import HomeworkPage from "./pages/dashboard/HomeworkPage";
 import HomeworkDetailsPage from "./pages/dashboard/HomeworkDetailsPage";
 import CalendarPage from "./pages/dashboard/CalendarPage";
 
+// Admissions
+import { PublicAdmissionFormPage } from "./features/admissions/pages/PublicAdmissionFormPage";
+import { GenerateFormPage } from "./features/admissions/pages/GenerateFormPage";
+import { ApplicationsListPage } from "./features/admissions/pages/ApplicationsListPage";
+
+// School Config
+import SchoolConfigPage from "./features/school-config/pages/SchoolConfigPage";
+
 import "./App.css";
 
 function App() {
@@ -40,10 +49,14 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
 
+        {/* Public Admission Form (Standalone, no dashboard) */}
+        <Route path="/public/admissions/:token" element={<PublicAdmissionFormPage />} />
+
         {/* Public — redirect to dashboard if already logged in */}
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/request-access" element={<RequestAccess />} />
         </Route>
 
@@ -83,6 +96,13 @@ function App() {
 
             {/* Calendar */}
             <Route path="/dashboard/calendar" element={<CalendarPage />} />
+
+            {/* Admissions */}
+            <Route path="/dashboard/admissions" element={<ApplicationsListPage />} />
+            <Route path="/dashboard/admissions/generate" element={<GenerateFormPage />} />
+            
+            {/* School Config */}
+            <Route path="/dashboard/school-config" element={<SchoolConfigPage />} />
           </Route>
         </Route>
 

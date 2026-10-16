@@ -201,7 +201,7 @@ const createStudent = async (req, res, next) => {
     try {
         const {
             email, password, firstName, lastName,
-            rollNumber, grade, section,
+            admissionNumber, rollNumber, grade, section,
             dateOfBirth, gender, bloodGroup, medicalNotes,
             permanentAddress, currentAddress,
             transportationMode,
@@ -209,11 +209,14 @@ const createStudent = async (req, res, next) => {
             governmentId, feeQuota,
             previousSchoolDetails, transferCertificateUrl,
             status,
-            classroomId,          // optional classroom junction
+            customFieldResponses,
+            classroomId,
         } = req.body;
 
-        // ── 1. Year-scoped admission number ──────────────────────────────────
-        const admissionNumber = await generateAdmissionNumber(t);
+        // ── 1. Year-scoped admission number (or provided manual one) ──────────
+        const finalAdmissionNumber = admissionNumber && admissionNumber.trim() !== '' 
+            ? admissionNumber 
+            : await generateAdmissionNumber(t);
 
         // ── 2. Internal ERP identifiers ───────────────────────────────────────
         const erpUserId = await generateUserId(t);
@@ -239,7 +242,7 @@ const createStudent = async (req, res, next) => {
             {
                 userId: user.id,
                 studentId: erpStudentId,
-                admissionNumber,                       // ← auto-generated
+                admissionNumber: finalAdmissionNumber,
                 dateOfBirth: dateOfBirth || null,
                 gender: gender || null,
                 bloodGroup: bloodGroup || null,
@@ -257,6 +260,7 @@ const createStudent = async (req, res, next) => {
                 previousSchoolDetails: previousSchoolDetails || null,
                 transferCertificateUrl: transferCertificateUrl || null,
                 status: status || 'ACTIVE',
+                customFieldResponses: customFieldResponses || {}, // ← new
             },
             { transaction: t }
         );
@@ -331,7 +335,7 @@ const updateStudent = async (req, res, next) => {
             'permanentAddress', 'currentAddress', 'transportationMode',
             'guardianName', 'guardianRelationship', 'guardianPhone', 'guardianEmail',
             'governmentId', 'feeQuota', 'previousSchoolDetails',
-            'transferCertificateUrl', 'status',
+            'transferCertificateUrl', 'status', 'customFieldResponses', // ← new
         ];
         const studentUpdates = {};
         for (const key of allowedFields) {

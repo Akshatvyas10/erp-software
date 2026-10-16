@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
     LayoutDashboard, Users, GraduationCap, BookOpen,
     ShieldCheck, KeyRound, X, School, Building2, LayoutGrid,
-    LogOut, User, ChevronsUpDown, Calendar
+    LogOut, User, ChevronsUpDown, Calendar, ClipboardList
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermissions, useAuth } from "@/store/hooks";
@@ -37,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Classrooms", to: "/dashboard/classrooms", icon: LayoutGrid, resource: "classrooms", action: "read" },
     { label: "Homework", to: "/dashboard/homework", icon: BookOpen, resource: "homework", action: "read" },
     { label: "Calendar", to: "/dashboard/calendar", icon: Calendar, resource: "events", action: "read" },
+    { label: "Admissions", to: "/dashboard/admissions", icon: ClipboardList, resource: "users", action: "read" },
     { label: "Roles", to: "/dashboard/roles", icon: ShieldCheck, resource: "roles", action: "read" },
     { label: "Permissions", to: "/dashboard/permissions", icon: KeyRound, resource: "permissions", action: "read" },
 ];
@@ -241,6 +242,15 @@ export default function Sidebar({ mobileOpen, onMobileClose, isCollapsed }: Side
                                 <User className="h-4 w-4 text-purple-700 dark:text-purple-400" />
                                 <span>View Profile</span>
                             </DropdownMenuItem>
+                            {(roleName.toLowerCase() === "super admin" || roleName.toLowerCase() === "admin") && (
+                                <DropdownMenuItem
+                                    className="cursor-pointer gap-2 py-2 text-purple-950 dark:text-zinc-300 focus:bg-purple-600/10 dark:focus:bg-purple-500/10 font-medium"
+                                    onClick={() => navigate("/dashboard/school-config")}
+                                >
+                                    <Building2 className="h-4 w-4 text-purple-700 dark:text-purple-400" />
+                                    <span>School Configuration</span>
+                                </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator className="bg-purple-100 dark:bg-zinc-800" />
                             <DropdownMenuItem
                                 className="cursor-pointer gap-2 py-2 text-destructive dark:text-red-400 focus:bg-destructive/10 dark:focus:bg-red-500/10 font-medium"

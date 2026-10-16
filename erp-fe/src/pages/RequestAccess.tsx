@@ -19,8 +19,12 @@ const requestAccessSchema = z.object({
 
 type RequestAccessValues = z.infer<typeof requestAccessSchema>;
 
+import { useState } from "react";
+import { toast } from "sonner";
+
 export default function RequestAccess() {
   const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<RequestAccessValues>({
     resolver: zodResolver(requestAccessSchema),
@@ -30,11 +34,15 @@ export default function RequestAccess() {
     },
   });
 
-  const onSubmit = async (values: RequestAccessValues) => {
-    console.log("Request Access data:", values);
-    // API logic here
-    await new Promise((r) => setTimeout(r, 1500));
-    navigate("/login");
+  const onSubmit = async (_values: RequestAccessValues) => {
+    try {
+      setIsSubmitting(true);
+      await new Promise((r) => setTimeout(r, 1000));
+      toast.success("Access request received. The administrator will contact you soon.");
+      navigate("/login");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -99,9 +107,9 @@ export default function RequestAccess() {
           <Button
             type="submit"
             className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl transition-all shadow-lg shadow-primary/20 mt-4"
-            disabled={form.formState.isSubmitting}
+            disabled={isSubmitting || form.formState.isSubmitting}
           >
-            {form.formState.isSubmitting ? (
+            {isSubmitting || form.formState.isSubmitting ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
               <span className="flex items-center gap-2">

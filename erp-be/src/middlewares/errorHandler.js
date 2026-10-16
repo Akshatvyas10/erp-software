@@ -13,6 +13,17 @@ const errorHandler = (err, req, res, next) => {
         });
     }
 
+    // Zod validation errors
+    if (err.name === 'ZodError') {
+        const issues = err.errors || err.issues || [];
+        const errorMessages = issues.map((e) => `${e.path?.join('.') || 'field'}: ${e.message}`).join(', ');
+        return res.status(400).json({
+            success: false,
+            message: errorMessages,
+            errors: issues,
+        });
+    }
+
     // JWT errors (shouldn't reach here normally, handled in authenticate)
     if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
         return res.status(401).json({ success: false, message: 'Invalid or expired token' });

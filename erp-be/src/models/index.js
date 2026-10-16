@@ -24,6 +24,9 @@ import PermissionAuditLogInit from './PermissionAuditLog.js';
 import ExamSchedule from './ExamSchedule.js';
 import Exam from './Exam.js';
 import ExamResult from './ExamResult.js';
+import AdmissionForm from './AdmissionForm.js';
+import AdmissionApplication from './AdmissionApplication.js';
+import SchoolConfig from './SchoolConfig.js';
 
 const PermissionAuditLog = PermissionAuditLogInit(sequelize);
 
@@ -126,7 +129,8 @@ export default {
     TeacherAttendance, SalarySlip, Department,
     Classroom, ClassroomStudent, ClassroomPeriod, ClassroomSubject, Timetable,
     Subject, Homework, HomeworkSubmission, CalendarEvent, EventType, StudentAttendance,
-    PermissionAuditLog, ExamSchedule, Exam, ExamResult
+    PermissionAuditLog, ExamSchedule, Exam, ExamResult,
+    AdmissionForm, AdmissionApplication, SchoolConfig
 };
 
 // Homework <-> User (Creator)
@@ -170,3 +174,12 @@ Classroom.hasMany(ClassroomPeriod, { foreignKey: 'classroom_id', as: 'periods' }
 // ─── Classroom Monitors (Student) ─────────────────────────────────────────────
 Classroom.belongsTo(Student, { foreignKey: 'monitor_male_id', as: 'maleMonitor' });
 Classroom.belongsTo(Student, { foreignKey: 'monitor_female_id', as: 'femaleMonitor' });
+
+// ─── AdmissionForm ↔ Classroom ───────────────────────────────────────────────
+AdmissionForm.belongsTo(Classroom, { foreignKey: 'classroomId', as: 'classroom' });
+Classroom.hasMany(AdmissionForm, { foreignKey: 'classroomId', as: 'admissionForms' });
+
+// ─── AdmissionApplication ↔ AdmissionForm ────────────────────────────────────
+AdmissionApplication.belongsTo(AdmissionForm, { foreignKey: 'formId', as: 'form' });
+AdmissionForm.hasMany(AdmissionApplication, { foreignKey: 'formId', as: 'applications' });
+

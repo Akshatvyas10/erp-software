@@ -19,6 +19,23 @@ const loginSchema = {
 // Public routes
 router.post('/login', authLimiter, validateZod(loginSchema), login);
 router.post('/refresh', refresh);
+router.post(
+    '/forgot-password',
+    authLimiter,
+    validateZod({ body: z.object({ email: z.string().email() }) }),
+    authController.forgotPassword
+);
+router.post(
+    '/reset-password',
+    authLimiter,
+    validateZod({
+        body: z.object({
+            token: z.string().min(1, 'Token is required'),
+            newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+        }),
+    }),
+    authController.resetPassword
+);
 
 // Protected routes
 router.use(authenticate);

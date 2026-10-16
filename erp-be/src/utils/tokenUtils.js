@@ -41,3 +41,25 @@ export const verifyRefreshToken = (token) => {
         audience: 'erp-client',
     });
 };
+
+/**
+ * Sign a password reset token (15 mins expiry)
+ */
+export const signResetToken = (payload) => {
+    return jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: '15m',
+        issuer: 'erp-system',
+        audience: 'erp-reset',
+    });
+};
+
+/**
+ * Verify a password reset token
+ */
+export const verifyResetToken = (token) => {
+    return jwt.verify(token, process.env.JWT_SECRET, {
+        issuer: 'erp-system',
+        audience: 'erp-reset',
+    });
+};
+

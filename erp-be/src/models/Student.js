@@ -125,6 +125,12 @@ const Student = sequelize.define(
             type: DataTypes.TEXT,
             allowNull: true,
         },
+        customFieldResponses: {
+            type: DataTypes.JSONB,
+            allowNull: false,
+            defaultValue: {},
+            field: 'custom_field_responses',
+        },
         // ─── Status ───────────────────────────────────────────────────────────
         status: {
             type: DataTypes.ENUM('ACTIVE', 'SUSPENDED', 'GRADUATED', 'TRANSFERRED'),

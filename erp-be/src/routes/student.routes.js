@@ -33,9 +33,10 @@ const createStudentValidation = [
     body('lastName')
         .trim().notEmpty().withMessage('Last name is required')
         .isLength({ max: 100 }),
-    // NOTE: admissionNumber is now auto-generated — do NOT accept it from client
+    body('admissionNumber')
+        .optional({ checkFalsy: true }).trim().isLength({ max: 50 }),
     body('rollNumber')
-        .optional().trim().isLength({ max: 20 }),
+        .optional({ checkFalsy: true }).trim().isLength({ max: 20 }),
     body('grade')
         .optional().trim().isLength({ max: 20 }),
     body('section')
@@ -71,7 +72,8 @@ const updateStudentValidation = [
     body('email').optional().isEmail(),
     body('firstName').optional().trim().isLength({ max: 100 }),
     body('lastName').optional().trim().isLength({ max: 100 }),
-    body('rollNumber').optional().trim().isLength({ max: 20 }),
+    body('admissionNumber').optional({ checkFalsy: true }).trim().isLength({ max: 50 }),
+    body('rollNumber').optional({ checkFalsy: true }).trim().isLength({ max: 20 }),
     body('grade').optional().trim().isLength({ max: 20 }),
     body('section').optional().trim().isLength({ max: 10 }),
     body('dateOfBirth').optional().isISO8601(),

@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 // Components
 import { Input } from "@/components/ui/input";
@@ -18,8 +18,13 @@ const forgotPasswordSchema = z.object({
 
 type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>;
 
+import { useState } from "react";
+import api from "@/lib/api";
+import { toast } from "sonner";
+
 export default function ForgotPassword() {
-  const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const form = useForm<ForgotPasswordValues>({
     resolver: zodResolver(forgotPasswordSchema),
@@ -29,21 +34,29 @@ export default function ForgotPassword() {
   });
 
   const onSubmit = async (values: ForgotPasswordValues) => {
-    console.log("Forgot Password data:", values);
-    // API logic here
-    await new Promise((r) => setTimeout(r, 1500));
-    navigate("/login");
+    try {
+      setIsSubmitting(true);
+      const res = await api.post("/auth/forgot-password", values);
+      setEmailSent(true);
+      toast.success(res.data.message || "Password reset link sent to your email!");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to process password reset request");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <AuthLayout>
-      <div className="mb-6 h-[150px]">
+      <div className="mb-6">
         <Link to="/login" className="inline-flex items-center text-sm text-muted-foreground hover:text-primary mb-4 transition-colors">
           <ArrowLeft className="h-4 w-4 mr-1" /> Back to login
         </Link>
         <h2 className="text-2xl font-bold">Reset Password</h2>
         <p className="text-muted-foreground text-sm mt-1">
-          Enter your registered email address and we'll send you instructions to reset your password.
+          {emailSent
+            ? "We've dispatched a reset link to your email address. Please check your inbox and spam folder."
+            : "Enter your registered email address and we'll send you instructions to reset your password."}
         </p>
       </div>
 
@@ -74,9 +87,9 @@ export default function ForgotPassword() {
           <Button
             type="submit"
             className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl transition-all shadow-lg shadow-primary/20 mt-8"
-            disabled={form.formState.isSubmitting}
+            disabled={isSubmitting || form.formState.isSubmitting}
           >
-            {form.formState.isSubmitting ? (
+            {isSubmitting || form.formState.isSubmitting ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
               <span className="flex items-center gap-2">

@@ -227,4 +227,72 @@ const me = async (req, res, next) => {
     }
 };
 
-export { login, refresh, logout, logoutAll, me };
+// ─── POST /api/auth/forgot-password ──────────────────────────────────────────
+const forgotPassword = async (req, res, next) => {
+    try {
+        const { email } = req.body;
+        if (!email) return error(res, 'Email is required', 422);
+
+        const user = await User.findOne({ where: { email: email.toLowerCase().trim(), isActive: true } });
+        // Return success even if user not found to prevent user enumeration attacks
+        if (!user) {
+            return success(res, null, 'If an account exists with that email, a password reset link has been sent.');
+        }
+
+        const resetToken = signResetToken({ sub: user.id, email: user.email });
+        const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+        const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+        try {
+            const { sendPasswordResetEmail } = await import('../services/email.service.js');
+            await sendPasswordResetEmail(user.email, resetLink);
+        } catch (emailErr) {
+            logger.error(`[ForgotPassword] Failed to send email to ${user.email}: ${emailErr.message}`);
+        }
+
+        return success(res, null, 'If an account exists with that email, a password reset link has been sent.');
+    } catch (err) {
+        next(err);
+    }
+};
+
+// ─── POST /api/auth/reset-password ───────────────────────────────────────────
+const resetPassword = async (req, res, next) => {
+    try {
+        const { token, newPassword } = req.body;
+        if (!token || !newPassword) {
+            return error(res, 'Token and new password are required', 422);
+        }
+
+        if (newPassword.length < 6) {
+            return error(res, 'Password must be at least 6 characters', 422);
+        }
+
+        let decoded;
+        try {
+            const { verifyResetToken } = await import('../utils/tokenUtils.js');
+            decoded = verifyResetToken(token);
+        } catch (err) {
+            return error(res, 'Invalid or expired reset token', 400);
+        }
+
+        const user = await User.findByPk(decoded.sub);
+        if (!user || !user.isActive) {
+            return error(res, 'User not found or inactive', 404);
+        }
+
+        user.password = newPassword;
+        user.refreshTokenHash = null; // Invalidate existing sessions
+        user.loginAttempts = 0;
+        user.lockedUntil = null;
+        await user.save();
+
+        logger.info(`[ResetPassword] Password reset successfully for user: ${user.userId}`);
+        return success(res, null, 'Password reset successfully. You can now login with your new password.');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export { login, refresh, logout, logoutAll, me, forgotPassword, resetPassword };
+

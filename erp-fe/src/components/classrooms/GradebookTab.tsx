@@ -239,8 +239,8 @@ export default function GradebookTab({ classroomId, enrollments, subjects, canEd
                 const allStudentIds = new Set([...Object.keys(marksDraft), ...Object.keys(overallRemarksDraft)]);
                 for (const studentId of allStudentIds) {
                     if (marksDraft[studentId]?.[examId] !== undefined || overallRemarksDraft[studentId] !== undefined) {
-                        let draft = marksDraft[studentId]?.[examId] || {};
-                        let existingResult = resultsMatrix[studentId]?.[examId];
+                        const draft = marksDraft[studentId]?.[examId] || {};
+                        const existingResult = resultsMatrix[studentId]?.[examId];
 
                         let val = draft.marksObtained;
                         let isAbsent = draft.isAbsent;
