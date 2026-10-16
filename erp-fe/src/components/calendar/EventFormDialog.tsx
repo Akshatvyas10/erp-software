@@ -8,12 +8,7 @@ import { format } from 'date-fns';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
 import { Calendar } from '../ui/calendar';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from '../ui/dialog';
+import { ResponsiveModal } from '../common/ResponsiveModal';
 import {
     Form,
     FormControl,
@@ -156,13 +151,15 @@ export function EventFormDialog({ open, onOpenChange, event, onSubmit }: EventFo
     };
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="w-[95vw] sm:max-w-xl mx-auto max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-                <DialogHeader>
-                    <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">{event ? 'Edit Event' : 'Create Event'}</DialogTitle>
-                </DialogHeader>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 sm:space-y-8">
+        <ResponsiveModal
+            open={open}
+            onOpenChange={onOpenChange}
+            title={event ? 'Edit Event' : 'Create Event'}
+            description="Specify the schedule, type, audience, and details."
+            maxWidth="sm:max-w-xl"
+        >
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 sm:space-y-8">
                         {/* BASIC INFORMATION */}
                         <div className="space-y-3 sm:space-y-4">
                             <h3 className="text-lg sm:text-xl font-semibold text-foreground border-b border-border pb-2">Basic Information</h3>
@@ -467,7 +464,6 @@ export function EventFormDialog({ open, onOpenChange, event, onSubmit }: EventFo
                         </div>
                     </form>
                 </Form>
-            </DialogContent>
-        </Dialog>
+        </ResponsiveModal>
     );
 }

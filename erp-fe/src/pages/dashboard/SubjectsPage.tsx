@@ -6,19 +6,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
     BookText, Search, Plus, Trash2, Edit2, Loader2, RefreshCw, MoreVertical
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-    Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { DataTable, type Column } from "@/components/common/DataTable";
+import { ResponsiveModal } from "@/components/common/ResponsiveModal";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel,
     AlertDialogContent, AlertDialogDescription,
@@ -102,75 +98,83 @@ function SubjectFormDialog({ open, onOpenChange, editTarget, onSuccess }: Subjec
     const labelCls = "text-[10px] font-bold uppercase tracking-wider text-muted-foreground";
 
     return (
-        <Dialog open={open} onOpenChange={(val) => { if (!val) form.reset(); onOpenChange(val); }}>
-            <DialogContent className="sm:max-w-md p-0 rounded-2xl border border-border/80 shadow-2xl bg-background overflow-hidden">
-                <DialogHeader className="px-6 py-5 bg-muted/40 border-b border-border">
-                    <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
-                        {isEdit ? "Edit Subject" : "Create Subject"}
-                    </DialogTitle>
-                </DialogHeader>
-                <div className="p-6">
-                    <Form {...form}>
-                        <form id="subject-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                            <div className="grid grid-cols-1 gap-4">
-                                <FormField control={form.control} name="type" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className={labelCls}>Type *</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger className={inputCls}>
-                                                    <SelectValue placeholder="Select type" />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="THEORY">Theory</SelectItem>
-                                                <SelectItem value="PRACTICAL">Practical</SelectItem>
-                                                <SelectItem value="LAB">Lab</SelectItem>
-                                                <SelectItem value="ELECTIVE">Elective</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage className="text-[11px]" />
-                                    </FormItem>
-                                )} />
-                            </div>
-                            <FormField control={form.control} name="name" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className={labelCls}>Name *</FormLabel>
-                                    <FormControl><Input placeholder="e.g. Mathematics" className={inputCls} {...field} /></FormControl>
-                                    <FormMessage className="text-[11px]" />
-                                </FormItem>
-                            )} />
-                            <FormField control={form.control} name="description" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className={labelCls}>Description</FormLabel>
-                                    <FormControl><Input placeholder="Optional details..." className={inputCls} {...field} value={field.value || ""} /></FormControl>
-                                    <FormMessage className="text-[11px]" />
-                                </FormItem>
-                            )} />
-                            <FormField control={form.control} name="isActive" render={({ field }) => (
-                                <FormItem className="flex flex-row items-center justify-between rounded-xl border border-border p-4 shadow-sm bg-muted/20">
-                                    <div className="space-y-0.5">
-                                        <FormLabel className="text-sm font-semibold">Active Subject</FormLabel>
-                                        <div className="text-[11px] text-muted-foreground">Subject is available for classrooms</div>
-                                    </div>
-                                    <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                    </FormControl>
-                                </FormItem>
-                            )} />
-                        </form>
-                    </Form>
-                </div>
-                <div className="px-6 py-4 bg-muted/40 border-t border-border flex justify-end gap-3">
-                    <Button variant="outline" className="rounded-xl font-medium border-border/80 transition-colors"
-                        onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button type="submit" form="subject-form"
-                        className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+        <ResponsiveModal
+            open={open}
+            onOpenChange={(val) => { if (!val) form.reset(); onOpenChange(val); }}
+            title={isEdit ? "Edit Subject" : "Create Subject"}
+            description="Configure subject designation, curriculum delivery type, and availability."
+            maxWidth="sm:max-w-md"
+            footer={
+                <>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-xl font-medium border-border/80 transition-colors h-10 px-5"
+                        onClick={() => onOpenChange(false)}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="submit"
+                        form="subject-form"
+                        className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none h-10 px-5"
+                    >
                         {form.formState.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isEdit ? "Save Changes" : "Create"}
                     </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
+                </>
+            }
+        >
+            <Form {...form}>
+                <form id="subject-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4">
+                        <FormField control={form.control} name="type" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className={labelCls}>Type *</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger className={inputCls}>
+                                            <SelectValue placeholder="Select type" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="THEORY">Theory</SelectItem>
+                                        <SelectItem value="PRACTICAL">Practical</SelectItem>
+                                        <SelectItem value="LAB">Lab</SelectItem>
+                                        <SelectItem value="ELECTIVE">Elective</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage className="text-[11px]" />
+                            </FormItem>
+                        )} />
+                    </div>
+                    <FormField control={form.control} name="name" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className={labelCls}>Name *</FormLabel>
+                            <FormControl><Input placeholder="e.g. Mathematics" className={inputCls} {...field} /></FormControl>
+                            <FormMessage className="text-[11px]" />
+                        </FormItem>
+                    )} />
+                    <FormField control={form.control} name="description" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className={labelCls}>Description</FormLabel>
+                            <FormControl><Input placeholder="Optional details..." className={inputCls} {...field} value={field.value || ""} /></FormControl>
+                            <FormMessage className="text-[11px]" />
+                        </FormItem>
+                    )} />
+                    <FormField control={form.control} name="isActive" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-xl border border-border p-3.5 shadow-sm bg-muted/20">
+                            <div className="space-y-0.5">
+                                <FormLabel className="text-sm font-semibold">Active Subject</FormLabel>
+                                <div className="text-[11px] text-muted-foreground">Subject is available for classrooms</div>
+                            </div>
+                            <FormControl>
+                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                        </FormItem>
+                    )} />
+                </form>
+            </Form>
+        </ResponsiveModal>
     );
 }
 
@@ -221,6 +225,113 @@ export default function SubjectsPage() {
         ELECTIVE: "bg-accent/20 text-accent-foreground border-accent/20",
     };
 
+    const columns: Column<Subject>[] = [
+        {
+            header: "Code",
+            cell: (s) => <span className="font-mono font-medium text-[13px]">{s.code}</span>,
+            className: "pl-6 w-[120px]",
+        },
+        {
+            header: "Name",
+            cell: (s) => <span className="font-semibold text-foreground">{s.name}</span>,
+        },
+        {
+            header: "Type",
+            cell: (s) => (
+                <Badge variant="outline" className={cn("text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md", typeColor[s.type] || typeColor.THEORY)}>
+                    {s.type}
+                </Badge>
+            ),
+            mobileHide: true,
+        },
+        {
+            header: "Description",
+            cell: (s) => <span className="text-muted-foreground text-xs line-clamp-1 max-w-[240px]">{s.description || "—"}</span>,
+            mobileHide: true,
+        },
+        {
+            header: "Status",
+            cell: (s) => (
+                <Badge variant="outline" className={cn("text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md",
+                    s.isActive ? "border-emerald-500/20 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                        : "border-border text-muted-foreground bg-muted/40"
+                )}>
+                    {s.isActive ? "Active" : "Inactive"}
+                </Badge>
+            ),
+        },
+        {
+            header: "Actions",
+            className: "pr-6 text-right",
+            cell: (s) => (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground rounded-xl">
+                            <MoreVertical className="h-4 w-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40 rounded-xl border-border shadow-lg">
+                        <PermissionGate resource="subjects" action="update">
+                            <DropdownMenuItem className="gap-2 text-[13px] font-medium cursor-pointer py-2.5 sm:py-2" onClick={() => handleEdit(s)}>
+                                <Edit2 className="h-3.5 w-3.5" /> Edit
+                            </DropdownMenuItem>
+                        </PermissionGate>
+                        <PermissionGate resource="subjects" action="delete">
+                            <DropdownMenuSeparator className="bg-border" />
+                            <DropdownMenuItem className="gap-2 text-[13px] font-medium text-destructive cursor-pointer focus:bg-destructive/10 py-2.5 sm:py-2" onClick={() => setDeleteId(s.id)}>
+                                <Trash2 className="h-3.5 w-3.5" /> Delete
+                            </DropdownMenuItem>
+                        </PermissionGate>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            ),
+        },
+    ];
+
+    const renderMobileCard = (s: Subject) => (
+        <div className="flex items-center justify-between gap-3 p-4">
+            <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm text-foreground">{s.name}</span>
+                    <Badge variant="outline" className={cn("text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-md", typeColor[s.type] || typeColor.THEORY)}>
+                        {s.type}
+                    </Badge>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-mono">{s.code}</span>
+                    <span>•</span>
+                    <span className={s.isActive ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-muted-foreground"}>
+                        {s.isActive ? "Active" : "Inactive"}
+                    </span>
+                </div>
+                {s.description && (
+                    <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">{s.description}</p>
+                )}
+            </div>
+
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-foreground shrink-0 rounded-xl">
+                        <MoreVertical className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40 rounded-xl border-border shadow-lg">
+                    <PermissionGate resource="subjects" action="update">
+                        <DropdownMenuItem className="gap-2 text-[13px] font-medium cursor-pointer py-2.5" onClick={() => handleEdit(s)}>
+                            <Edit2 className="h-3.5 w-3.5" /> Edit
+                        </DropdownMenuItem>
+                    </PermissionGate>
+                    <PermissionGate resource="subjects" action="delete">
+                        <DropdownMenuSeparator className="bg-border" />
+                        <DropdownMenuItem className="gap-2 text-[13px] font-medium text-destructive cursor-pointer focus:bg-destructive/10 py-2.5" onClick={() => setDeleteId(s.id)}>
+                            <Trash2 className="h-3.5 w-3.5" /> Delete
+                        </DropdownMenuItem>
+                    </PermissionGate>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
+    );
+
     return (
         <motion.div
             className="mx-auto text-foreground transition-colors duration-200 space-y-5"
@@ -262,108 +373,18 @@ export default function SubjectsPage() {
                 </div>
             </div>
 
-            <Card className="rounded-2xl border-border bg-card shadow-sm overflow-hidden">
-                {isLoading ? (
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="bg-muted/40 border-b border-border/60">
-                                    <TableHead className="pl-6 font-bold text-xs uppercase tracking-wider text-muted-foreground">Code</TableHead>
-                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Name</TableHead>
-                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground hidden sm:table-cell">Type</TableHead>
-                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground hidden md:table-cell">Description</TableHead>
-                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</TableHead>
-                                    <TableHead className="pr-6 text-right font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {Array.from({ length: 6 }).map((_, i) => (
-                                    <TableRow key={i} className="border-b border-border/40">
-                                        <TableCell className="pl-6 py-4"><Skeleton className="h-5 w-16" /></TableCell>
-                                        <TableCell className="py-4"><Skeleton className="h-5 w-36" /></TableCell>
-                                        <TableCell className="py-4 hidden sm:table-cell"><Skeleton className="h-5 w-20 rounded-md" /></TableCell>
-                                        <TableCell className="py-4 hidden md:table-cell"><Skeleton className="h-5 w-48" /></TableCell>
-                                        <TableCell className="py-4"><Skeleton className="h-5 w-16 rounded-md" /></TableCell>
-                                        <TableCell className="pr-6 py-4 text-right"><Skeleton className="h-8 w-8 rounded-lg ml-auto" /></TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                ) : subjects.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-24 text-center">
-                        <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mb-4 text-primary">
-                            <BookText className="h-8 w-8" />
-                        </div>
-                        <h3 className="font-semibold text-lg">No subjects found</h3>
-                        <p className="text-muted-foreground text-sm mt-1">Try adjusting your search filters or create a new subject.</p>
-                    </div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/60">
-                                    <TableHead className="pl-6 font-bold text-xs uppercase tracking-wider text-muted-foreground">Code</TableHead>
-                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Name</TableHead>
-                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground hidden sm:table-cell">Type</TableHead>
-                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground hidden md:table-cell">Description</TableHead>
-                                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</TableHead>
-                                    <TableHead className="pr-6 text-right font-bold text-xs uppercase tracking-wider text-muted-foreground">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                <AnimatePresence>
-                                    {subjects.map(s => (
-                                        <TableRow key={s.id}
-                                            className="border-b border-border/40 hover:bg-muted/30 transition-colors">
-                                            <TableCell className="pl-6 py-4 font-mono font-medium text-[13px]">{s.code}</TableCell>
-                                            <TableCell className="py-4 font-semibold text-foreground">{s.name}</TableCell>
-                                            <TableCell className="py-4 hidden sm:table-cell">
-                                                <Badge variant="outline" className={cn("text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md", typeColor[s.type] || typeColor.THEORY)}>
-                                                    {s.type}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="py-4 hidden md:table-cell text-muted-foreground max-w-[200px] truncate">
-                                                {s.description || "—"}
-                                            </TableCell>
-                                            <TableCell className="py-4">
-                                                <Badge variant="outline" className={cn("text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md",
-                                                    s.isActive ? "border-emerald-500/20 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
-                                                        : "border-border text-muted-foreground bg-muted/40"
-                                                )}>
-                                                    {s.isActive ? "Active" : "Inactive"}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="pr-6 py-4 text-right">
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                                                            <MoreVertical className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end" className="w-40 rounded-xl border-border shadow-lg">
-                                                        <PermissionGate resource="subjects" action="update">
-                                                            <DropdownMenuItem className="gap-2 text-[13px] font-medium cursor-pointer" onClick={() => handleEdit(s)}>
-                                                                <Edit2 className="h-3.5 w-3.5" /> Edit
-                                                            </DropdownMenuItem>
-                                                        </PermissionGate>
-                                                        <PermissionGate resource="subjects" action="delete">
-                                                            <DropdownMenuSeparator className="bg-border" />
-                                                            <DropdownMenuItem className="gap-2 text-[13px] font-medium text-destructive cursor-pointer focus:bg-destructive/10" onClick={() => setDeleteId(s.id)}>
-                                                                <Trash2 className="h-3.5 w-3.5" /> Delete
-                                                            </DropdownMenuItem>
-                                                        </PermissionGate>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </AnimatePresence>
-                            </TableBody>
-                        </Table>
-                    </div>
-                )}
-            </Card>
+            <DataTable<Subject>
+                columns={columns}
+                data={subjects}
+                keyExtractor={(s) => s.id}
+                isLoading={isLoading}
+                renderMobileCard={renderMobileCard}
+                emptyTitle="No subjects found"
+                emptyDescription="Try adjusting your search filters or create a new subject."
+                emptyIcon={BookText}
+                emptyActionLabel="New Subject"
+                onEmptyAction={handleCreate}
+            />
 
             {isFormOpen && (
                 <SubjectFormDialog open={isFormOpen} onOpenChange={setIsFormOpen} editTarget={editTarget} onSuccess={() => { qc.invalidateQueries({ queryKey: ["subjects"] }); setIsFormOpen(false); }} />

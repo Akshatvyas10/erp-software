@@ -51,17 +51,21 @@ export default function CalendarPage() {
     if (isError) return <div className="p-8 text-destructive">Failed to load calendar events.</div>;
 
     return (
-        <div className="h-full flex flex-col p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 md:gap-6">
+        <div className="h-full flex flex-col p-3 sm:p-6 md:p-8 space-y-4 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 md:gap-6 pb-2 border-b border-border/40 sm:border-none sm:pb-0">
                 <div>
-                    <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight text-foreground">Academic Calendar</h1>
+                    <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-foreground">Academic Calendar</h1>
                     <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                         Manage institutional events, exams, holidays, and milestones.
                     </p>
                 </div>
                 {canManageEvents && (
-                    <Button variant="outline" className="w-full sm:w-auto transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" onClick={() => setIsBulkHolidayOpen(true)}>
-                        <CalendarDays className="mr-2 h-4 w-4" />
+                    <Button
+                        variant="outline"
+                        className="w-full sm:w-auto h-10 px-4 rounded-xl border-border/80 font-semibold shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        onClick={() => setIsBulkHolidayOpen(true)}
+                    >
+                        <CalendarDays className="mr-2 h-4 w-4 text-primary" />
                         Session Setup
                     </Button>
                 )}

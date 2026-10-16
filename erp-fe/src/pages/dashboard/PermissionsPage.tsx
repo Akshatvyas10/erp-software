@@ -7,10 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-    Dialog, DialogContent, DialogHeader,
-    DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
+import { ResponsiveModal } from "@/components/common/ResponsiveModal";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { usePermissions } from "@/store/hooks";
@@ -63,36 +60,58 @@ export default function PermissionsPage() {
     }, {});
 
     return (
-        <div className="space-y-6 max-w-5xl mx-auto">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <KeyRound className="h-6 w-6 text-primary" />
-                        Permissions
-                        {data && <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">{data.length}</Badge>}
+        <div className="space-y-5 md:space-y-6 max-w-5xl mx-auto">
+            {/* Responsive Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/40">
+                <div className="min-w-0">
+                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5 flex-wrap">
+                        <KeyRound className="h-6 w-6 text-primary shrink-0" />
+                        <span>Permissions</span>
+                        {data && (
+                            <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full font-semibold">
+                                {data.length}
+                            </Badge>
+                        )}
                     </h1>
-                    <p className="text-muted-foreground text-sm mt-1">All system permissions grouped by resource.</p>
+                    <p className="text-muted-foreground text-xs sm:text-sm mt-1">
+                        All system permissions grouped by institutional resource.
+                    </p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" className="gap-1.5 h-9 border-border/80 hover:bg-muted" onClick={() => refetch()} disabled={isFetching}>
-                        <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
-                        Refresh
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10 border-border/80 rounded-xl hover:bg-accent shrink-0 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        onClick={() => refetch()}
+                        disabled={isFetching}
+                        title="Refresh permissions"
+                    >
+                        <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetching ? "animate-spin text-primary" : ""}`} />
                     </Button>
+
                     <PermissionGate resource="permissions" action="manage">
-                        <Button variant="primary" onClick={() => setCreateOpen(true)} className="w-full md:w-auto gap-2 h-10 px-5 transition-all hover:scale-[1.02] active:scale-[0.98]">
-                            <Plus className="h-4 w-4 stroke-[2.5]" /> New Permission
+                        <Button
+                            variant="primary"
+                            onClick={() => setCreateOpen(true)}
+                            className="flex-1 sm:flex-none gap-2 h-10 px-5 rounded-xl font-semibold shadow-sm transition-transform active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        >
+                            <Plus className="h-4 w-4 stroke-[2.5]" />
+                            <span>New Permission</span>
                         </Button>
                     </PermissionGate>
                 </div>
             </div>
 
-            {/* Search */}
-            <Input
-                placeholder="Search permissions..."
-                value={searchInput}
-                onChange={e => setSearchInput(e.target.value)}
-                className="max-w-sm h-9 border-border bg-background shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            />
+            {/* Search Bar */}
+            <div className="w-full sm:max-w-sm">
+                <Input
+                    placeholder="Search permissions or resources..."
+                    value={searchInput}
+                    onChange={e => setSearchInput(e.target.value)}
+                    className="w-full h-10 border-border bg-background shadow-xs rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none text-sm"
+                />
+            </div>
 
             {isLoading ? (
                 <div className="w-full space-y-4">
@@ -188,56 +207,84 @@ function CreatePermissionDialog({ open, onClose, onSaved }: {
     };
 
     return (
-        <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-md p-0 overflow-hidden border-border/80 shadow-2xl rounded-2xl bg-background dark:bg-zinc-950">
-                <DialogHeader className="px-6 py-5 bg-muted/40 dark:bg-primary/5 border-b border-border shrink-0">
-                    <DialogTitle className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground">
-                        <KeyRound className="h-5 w-5 text-primary" />
-                        New Permission
-                    </DialogTitle>
-                </DialogHeader>
+        <ResponsiveModal
+            open={open}
+            onOpenChange={(v) => !v && onClose()}
+            title="New Permission"
+            description="Declare a resource permission string to assign across access roles."
+            maxWidth="sm:max-w-md"
+            footer={
+                <>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={onClose}
+                        disabled={saving}
+                        className="h-10 px-5 font-semibold border-border/80 hover:bg-muted rounded-xl"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="h-10 px-6 gap-2 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-md transition-transform active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    >
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                        Create Permission
+                    </Button>
+                </>
+            }
+        >
+            <div className="space-y-4">
+                <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Name *</Label>
+                    <Input
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        placeholder="students:read"
+                        className="h-10 font-mono text-sm rounded-xl"
+                    />
+                    <p className="text-[11px] text-muted-foreground">Convention: resource:action</p>
+                </div>
 
-                <div className="space-y-4 px-6 py-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Name *</Label>
-                        <Input value={name} onChange={e => setName(e.target.value)} placeholder="students:read" className="h-10 font-mono" />
-                        <p className="text-[11px] text-muted-foreground">Convention: resource:action</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Resource *</Label>
-                            <Input value={resource} onChange={e => setResource(e.target.value)} placeholder="students" className="h-10" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Action *</Label>
-                            <div className="flex flex-wrap gap-1.5">
-                                {ACTIONS.map(a => (
-                                    <Badge
-                                        key={a}
-                                        variant="outline"
-                                        onClick={() => setAction(a)}
-                                        className={`cursor-pointer capitalize text-xs transition-all font-bold tracking-tight focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${action === a ? "bg-primary text-primary-foreground border-transparent" : ACTION_COLOR[a]}`}
-                                    >
-                                        {a}
-                                    </Badge>
-                                ))}
-                            </div>
-                        </div>
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Resource *</Label>
+                        <Input
+                            value={resource}
+                            onChange={e => setResource(e.target.value)}
+                            placeholder="students"
+                            className="h-10 rounded-xl"
+                        />
                     </div>
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</Label>
-                        <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" className="h-10" />
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Action *</Label>
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                            {ACTIONS.map(a => (
+                                <Badge
+                                    key={a}
+                                    variant="outline"
+                                    onClick={() => setAction(a)}
+                                    className={`cursor-pointer capitalize text-xs transition-all font-bold tracking-tight px-2.5 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${action === a ? "bg-primary text-primary-foreground border-transparent" : ACTION_COLOR[a]}`}
+                                >
+                                    {a}
+                                </Badge>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
-                <DialogFooter className="px-6 py-5 bg-muted/40 dark:bg-primary/5 border-t border-border mt-6">
-                    <Button variant="outline" onClick={onClose} disabled={saving} className="h-10 px-6 font-semibold border-border/80 hover:bg-muted rounded-xl">Cancel</Button>
-                    <Button onClick={handleSave} disabled={saving} className="h-10 px-8 gap-2 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-md transition-transform active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                        Create
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</Label>
+                    <Input
+                        value={description}
+                        onChange={e => setDescription(e.target.value)}
+                        placeholder="Optional description"
+                        className="h-10 rounded-xl"
+                    />
+                </div>
+            </div>
+        </ResponsiveModal>
     );
 }

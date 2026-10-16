@@ -17,13 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog";
+import { ResponsiveModal } from "@/components/common/ResponsiveModal";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -275,29 +269,27 @@ export default function TeachersPage() {
                     <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin text-primary" : "text-muted-foreground"}`} />
                 </Button>
                 <PermissionGate resource="teachers" action="create">
-                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                        <DialogTrigger asChild>
-                            <Button className="gap-2 h-10 px-4 rounded-xl font-semibold shadow-sm">
-                                <Plus className="h-4 w-4" /> New Teacher
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-2xl md:max-w-3xl flex flex-col p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl bg-background max-h-[90vh]">
-                            <DialogHeader className="px-6 py-5 bg-muted/40 border-b border-border">
-                                <DialogTitle className="text-lg md:text-xl font-bold tracking-tight text-foreground">
-                                    Add New Teacher
-                                </DialogTitle>
-                            </DialogHeader>
-                            <div className="overflow-y-auto p-6 max-h-[calc(90vh-80px)]">
-                                <TeacherForm
-                                    onSubmit={(values: TeacherFormValues, subjects: string[]) =>
-                                        createTeacher.mutate({ ...values, subjects })
-                                    }
-                                    onCancel={() => setIsCreateOpen(false)}
-                                    isSubmitting={createTeacher.isPending}
-                                />
-                            </div>
-                        </DialogContent>
-                    </Dialog>
+                    <Button
+                        className="gap-2 h-10 px-4 rounded-xl font-semibold shadow-sm"
+                        onClick={() => setIsCreateOpen(true)}
+                    >
+                        <Plus className="h-4 w-4" /> New Teacher
+                    </Button>
+                    <ResponsiveModal
+                        open={isCreateOpen}
+                        onOpenChange={setIsCreateOpen}
+                        title="Add New Teacher"
+                        description="Register a new academic staff member with institutional designations."
+                        maxWidth="sm:max-w-2xl md:max-w-3xl"
+                    >
+                        <TeacherForm
+                            onSubmit={(values: TeacherFormValues, subjects: string[]) =>
+                                createTeacher.mutate({ ...values, subjects })
+                            }
+                            onCancel={() => setIsCreateOpen(false)}
+                            isSubmitting={createTeacher.isPending}
+                        />
+                    </ResponsiveModal>
                 </PermissionGate>
             </PageHeader>
 

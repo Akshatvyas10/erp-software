@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Users, Mail, Eye, EyeOff, CalendarIcon, ShieldCheck, Loader2, CheckCircle2 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ResponsiveModal } from "@/components/common/ResponsiveModal";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -112,17 +112,35 @@ export default function UserFormDialog({ isOpen, onOpenChange, editUser, onSucce
         setSelectedRoles(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
     return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="w-[95vw] sm:max-w-2xl md:max-w-3xl mx-auto flex flex-col p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl bg-background">
-                <DialogHeader className="px-6 py-5 bg-muted/40 border-b border-border">
-                    <DialogTitle className="text-lg md:text-xl font-bold tracking-tight text-foreground">
-                        {editUser ? "Edit User Profile" : "Create New User Profile"}
-                    </DialogTitle>
-                </DialogHeader>
-
-                <div className="flex-1 overflow-y-auto max-h-[70vh] custom-scrollbar p-6 lg:p-8 bg-background">
-                    <Form {...form}>
-                        <form id="create-user-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 md:space-y-8">
+        <ResponsiveModal
+            open={isOpen}
+            onOpenChange={onOpenChange}
+            title={editUser ? "Edit User Profile" : "Create New User Profile"}
+            description="Manage staff, administrator, or guardian profile credentials & system access roles."
+            maxWidth="sm:max-w-2xl md:max-w-3xl"
+            footer={
+                <>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="border-border/80 bg-background hover:bg-accent hover:text-accent-foreground font-medium rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none transition-colors h-10 px-5"
+                        onClick={() => onOpenChange(false)}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="submit"
+                        form="create-user-form"
+                        variant="primary"
+                        className="gap-2 h-10 px-6 font-semibold"
+                    >
+                        {form.formState?.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle2 className="h-4 w-4" /> {editUser ? "Save Changes" : "Create Profile"}</>}
+                    </Button>
+                </>
+            }
+        >
+            <Form {...form}>
+                <form id="create-user-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 md:space-y-8">
                             {/* Identity Details Row */}
                             <div className="space-y-4">
                                 <div className="flex items-center gap-2 pb-2 border-b border-border/60">
@@ -294,7 +312,7 @@ export default function UserFormDialog({ isOpen, onOpenChange, editUser, onSucce
                                                             {role.name.replace(/_/g, " ")}
                                                         </p>
                                                         {role.description && <p className="text-[11px] lg:text-xs leading-snug text-muted-foreground line-clamp-2">{role.description}</p>}
-                                                    </div>
+                                                     </div>
                                                 </label>
                                             );
                                         })}
@@ -303,14 +321,6 @@ export default function UserFormDialog({ isOpen, onOpenChange, editUser, onSucce
                             </div>
                         </form>
                     </Form>
-                </div>
-                <div className="p-4 px-6 bg-muted/40 border-t border-border flex justify-end gap-3">
-                    <Button type="button" variant="outline" className="border-border/80 bg-background hover:bg-accent hover:text-accent-foreground font-medium rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none transition-colors" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button type="submit" form="create-user-form" variant="primary" className="gap-2 h-10 px-6">
-                        {form.formState?.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle2 className="h-4 w-4" /> {editUser ? "Save Changes" : "Create Profile"}</>}
-                    </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
+        </ResponsiveModal>
     );
 }

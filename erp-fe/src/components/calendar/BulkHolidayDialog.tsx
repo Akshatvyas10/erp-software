@@ -7,13 +7,7 @@ import { format } from 'date-fns';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
 import { Calendar } from '../ui/calendar';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-} from '../ui/dialog';
+import { ResponsiveModal } from '../common/ResponsiveModal';
 import {
     Form,
     FormControl,
@@ -118,20 +112,17 @@ export function BulkHolidayDialog({ open, onOpenChange }: BulkHolidayDialogProps
     const inputCls = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 
     return (
-        <Dialog open={open} onOpenChange={(isOpen) => {
-            onOpenChange(isOpen);
-            if (!isOpen) form.reset();
-        }}>
-            <DialogContent className="sm:max-w-[425px] w-[95vw]">
-                <DialogHeader>
-                    <DialogTitle>Auto-Generate Holidays</DialogTitle>
-                    <DialogDescription>
-                        Set your academic session dates. Days outside this period will be marked as Summer Vacation.
-                        Weekend rules will auto-generate holidays within the session.
-                    </DialogDescription>
-                </DialogHeader>
-
-                <Form {...form}>
+        <ResponsiveModal
+            open={open}
+            onOpenChange={(isOpen) => {
+                onOpenChange(isOpen);
+                if (!isOpen) form.reset();
+            }}
+            title="Auto-Generate Holidays"
+            description="Set your academic session dates. Days outside this period will be marked as Summer Vacation. Weekend rules will auto-generate holidays within the session."
+            maxWidth="sm:max-w-[450px]"
+        >
+            <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <FormField control={form.control} name="sessionStartDate" render={({ field }) => (
@@ -252,7 +243,6 @@ export function BulkHolidayDialog({ open, onOpenChange }: BulkHolidayDialogProps
                         </div>
                     </form>
                 </Form>
-            </DialogContent>
-        </Dialog>
+        </ResponsiveModal>
     );
 }
