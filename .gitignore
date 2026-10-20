@@ -48,3 +48,10 @@ Thumbs.db
 
 # Typescript
 *.tsbuildinfo
+
+# Database Backups & Export Scripts
+backups/
+*.sql
+*.dump
+erp-be/src/database/exportDb.js
+exportDb.js

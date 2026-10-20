@@ -38,18 +38,23 @@ import api from "@/lib/api";
 import { usePermissions } from "@/store/hooks";
 import PermissionGate from "@/components/auth/PermissionGate";
 import AccessDenied from "@/components/auth/AccessDenied";
-import type { Classroom, CreateClassroomPayload } from "@/types/erp";
+import { CLASSROOM_SECTIONS, type Classroom, type CreateClassroomPayload } from "@/types/erp";
+import { getBuildingBlocks, getClassroomRooms, getTestExamRules } from "@/features/school-config/api/classroomConfigApi";
+import { CalendarCheck } from "lucide-react";
 
 // ─── Validation schema ────────────────────────────────────────────────────────
 const classroomSchema = z.object({
     name: z.string().min(1, "Class name is required").max(80),
-    section: z.string().min(1, "Section is required").max(10),
+    section: z.enum(CLASSROOM_SECTIONS, { message: "Section must be A, B, C, D, E, F, or G" }),
     academicYear: z.string().min(1, "Academic year is required").max(20),
     roomNumber: z.string().max(20).optional(),
     classTeacherId: z.string().uuid("Invalid Teacher ID").optional().or(z.literal("")),
     status: z.enum(["ACTIVE", "INACTIVE"]),
     department: z.string().max(50).optional(),
+    departmentId: z.string().optional(),
     buildingBlock: z.string().max(100).optional(),
+    blockId: z.string().optional(),
+    roomId: z.string().optional(),
     maxCapacity: z.coerce.number().min(1).default(40),
     monitorMaleId: z.string().uuid("Invalid Student ID").optional().or(z.literal("")),
     monitorFemaleId: z.string().uuid("Invalid Student ID").optional().or(z.literal("")),
@@ -255,13 +260,16 @@ function ClassroomFormDialog({ open, onOpenChange, editTarget, onSuccess }: Clas
         resolver: zodResolver(classroomSchema),
         defaultValues: {
             name: editTarget?.name ?? "",
-            section: editTarget?.section ?? "",
+            section: (editTarget?.section as any) || "A",
             academicYear: editTarget?.academicYear ?? "",
             roomNumber: editTarget?.roomNumber ?? "",
             classTeacherId: editTarget?.classTeacherId ?? "",
             status: editTarget?.status ?? "ACTIVE",
             department: editTarget?.department ?? "",
+            departmentId: editTarget?.departmentId ?? "",
             buildingBlock: editTarget?.buildingBlock ?? "",
+            blockId: editTarget?.blockId ?? "",
+            roomId: editTarget?.roomId ?? "",
             maxCapacity: editTarget?.maxCapacity ?? 40,
             monitorMaleId: editTarget?.monitorMaleId ?? "",
             monitorFemaleId: editTarget?.monitorFemaleId ?? "",
@@ -282,18 +290,51 @@ function ClassroomFormDialog({ open, onOpenChange, editTarget, onSuccess }: Clas
         staleTime: 60_000,
     });
 
+    const { data: departments = [] } = useQuery({
+        queryKey: ["departments-list"],
+        queryFn: async () => {
+            const res = await api.get("/departments");
+            return res.data.data.departments || [];
+        },
+        enabled: open,
+    });
+
+    const { data: buildingBlocks = [] } = useQuery({
+        queryKey: ["building-blocks"],
+        queryFn: getBuildingBlocks,
+        enabled: open,
+    });
+
+    const selectedBlockId = form.watch("blockId");
+    const { data: availableRooms = [] } = useQuery({
+        queryKey: ["classroom-rooms", selectedBlockId],
+        queryFn: () => getClassroomRooms(selectedBlockId || undefined),
+        enabled: open,
+    });
+
+    const selectedDeptId = form.watch("departmentId");
+    const selectedAcademicYear = form.watch("academicYear") || "2026-2027";
+    const { data: deptRules = [] } = useQuery({
+        queryKey: ["test-exam-rules", selectedDeptId, selectedAcademicYear],
+        queryFn: () => getTestExamRules(selectedDeptId, selectedAcademicYear),
+        enabled: open && !!selectedDeptId,
+    });
+
     // Reset form whenever dialog opens or edit target changes
     useEffect(() => {
         if (open) {
             form.reset({
                 name: editTarget?.name ?? "",
-                section: editTarget?.section ?? "",
+                section: (editTarget?.section as any) || "A",
                 academicYear: editTarget?.academicYear ?? "",
                 roomNumber: editTarget?.roomNumber ?? "",
                 classTeacherId: editTarget?.classTeacherId ?? "",
                 status: editTarget?.status ?? "ACTIVE",
                 department: editTarget?.department ?? "",
+                departmentId: editTarget?.departmentId ?? "",
                 buildingBlock: editTarget?.buildingBlock ?? "",
+                blockId: editTarget?.blockId ?? "",
+                roomId: editTarget?.roomId ?? "",
                 maxCapacity: editTarget?.maxCapacity ?? 40,
                 monitorMaleId: editTarget?.monitorMaleId ?? "",
                 monitorFemaleId: editTarget?.monitorFemaleId ?? "",
@@ -315,7 +356,10 @@ function ClassroomFormDialog({ open, onOpenChange, editTarget, onSuccess }: Clas
             classTeacherId: values.classTeacherId || undefined,
             status: values.status,
             department: values.department || undefined,
+            departmentId: values.departmentId || undefined,
             buildingBlock: values.buildingBlock || undefined,
+            blockId: values.blockId || undefined,
+            roomId: values.roomId || undefined,
             maxCapacity: values.maxCapacity,
             monitorMaleId: values.monitorMaleId || undefined,
             monitorFemaleId: values.monitorFemaleId || undefined,
@@ -383,7 +427,20 @@ function ClassroomFormDialog({ open, onOpenChange, editTarget, onSuccess }: Clas
                         <FormField control={form.control} name="section" render={({ field }) => (
                             <FormItem>
                                 <FormLabel className={labelCls}>Section *</FormLabel>
-                                <FormControl><Input placeholder="e.g. A" className={inputCls} {...field} /></FormControl>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger className={inputCls}>
+                                            <SelectValue placeholder="Select Section" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {CLASSROOM_SECTIONS.map((sec) => (
+                                            <SelectItem key={sec} value={sec}>
+                                                Section {sec}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                                 <FormMessage className="text-[11px]" />
                             </FormItem>
                         )} />
@@ -408,37 +465,114 @@ function ClassroomFormDialog({ open, onOpenChange, editTarget, onSuccess }: Clas
                                 <FormMessage className="text-[11px]" />
                             </FormItem>
                         )} />
-                        <FormField control={form.control} name="roomNumber" render={({ field }) => (
-                            <FormItem>
-                                <FormLabel className={labelCls}>Room Number</FormLabel>
-                                <FormControl><Input placeholder="e.g. R-101" className={inputCls} {...field} /></FormControl>
-                                <FormMessage className="text-[11px]" />
-                            </FormItem>
-                        )} />
+
                     </div>
+                    {/* Configuration Driven: Department, Block, Room */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <FormField control={form.control} name="department" render={({ field }) => (
+                        <FormField control={form.control} name="departmentId" render={({ field }) => (
                             <FormItem>
-                                <FormLabel className={labelCls}>Department</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value || ""}>
+                                <FormLabel className={labelCls}>Department (Configured)</FormLabel>
+                                <Select
+                                    onValueChange={(val) => {
+                                        field.onChange(val);
+                                        const dept = departments.find((d: any) => d.id === val);
+                                        if (dept) form.setValue("department", dept.name);
+                                    }}
+                                    value={field.value || ""}
+                                >
                                     <FormControl>
                                         <SelectTrigger className={inputCls}>
-                                            <SelectValue placeholder="Select Dept" />
+                                            <SelectValue placeholder="Select Department" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="PRIMARY">Primary</SelectItem>
-                                        <SelectItem value="MIDDLE">Middle</SelectItem>
-                                        <SelectItem value="HIGH_SCHOOL">High School</SelectItem>
+                                        {departments.length === 0 ? (
+                                            <SelectItem value="_empty" disabled>No departments configured</SelectItem>
+                                        ) : (
+                                            departments.map((d: any) => (
+                                                <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                                            ))
+                                        )}
                                     </SelectContent>
                                 </Select>
                                 <FormMessage className="text-[11px]" />
                             </FormItem>
                         )} />
-                        <FormField control={form.control} name="buildingBlock" render={({ field }) => (
+
+                        <FormField control={form.control} name="blockId" render={({ field }) => (
                             <FormItem>
-                                <FormLabel className={labelCls}>Building / Block</FormLabel>
-                                <FormControl><Input placeholder="e.g. Science Block" className={inputCls} {...field} /></FormControl>
+                                <FormLabel className={labelCls}>Building Block (Configured)</FormLabel>
+                                <Select
+                                    onValueChange={(val) => {
+                                        field.onChange(val);
+                                        const blk = buildingBlocks.find((b: any) => b.id === val);
+                                        if (blk) form.setValue("buildingBlock", blk.name);
+                                        form.setValue("roomId", "");
+                                        form.setValue("roomNumber", "");
+                                    }}
+                                    value={field.value || ""}
+                                >
+                                    <FormControl>
+                                        <SelectTrigger className={inputCls}>
+                                            <SelectValue placeholder="Select Block" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {buildingBlocks.length === 0 ? (
+                                            <SelectItem value="_empty" disabled>No blocks configured</SelectItem>
+                                        ) : (
+                                            buildingBlocks.map((b: any) => (
+                                                <SelectItem key={b.id} value={b.id}>{b.name} ({b.code})</SelectItem>
+                                            ))
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage className="text-[11px]" />
+                            </FormItem>
+                        )} />
+
+                        <FormField control={form.control} name="roomId" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className={labelCls}>Room (Configured)</FormLabel>
+                                <Select
+                                    disabled={!selectedBlockId}
+                                    onValueChange={(val) => {
+                                        field.onChange(val);
+                                        const rm = availableRooms.find((r: any) => r.id === val);
+                                        if (rm) {
+                                            form.setValue("roomNumber", rm.roomNumber);
+                                            if (rm.capacity) form.setValue("maxCapacity", rm.capacity);
+                                        }
+                                    }}
+                                    value={field.value || ""}
+                                >
+                                    <FormControl>
+                                        <SelectTrigger className={inputCls}>
+                                            <SelectValue placeholder={selectedBlockId ? "Select Room" : "Select Block first"} />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {availableRooms.length === 0 ? (
+                                            <SelectItem value="_empty" disabled>No rooms in this block</SelectItem>
+                                        ) : (
+                                            availableRooms.map((r: any) => (
+                                                <SelectItem key={r.id} value={r.id}>
+                                                    Room {r.roomNumber} (Cap: {r.capacity})
+                                                </SelectItem>
+                                            ))
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage className="text-[11px]" />
+                            </FormItem>
+                        )} />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <FormField control={form.control} name="roomNumber" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className={labelCls}>Room Number (Display)</FormLabel>
+                                <FormControl><Input placeholder="e.g. 101" className={inputCls} {...field} /></FormControl>
                                 <FormMessage className="text-[11px]" />
                             </FormItem>
                         )} />
@@ -450,6 +584,24 @@ function ClassroomFormDialog({ open, onOpenChange, editTarget, onSuccess }: Clas
                             </FormItem>
                         )} />
                     </div>
+
+                    {/* Department Test & Exam Configuration Info Badge */}
+                    {deptRules && deptRules.length > 0 && (
+                        <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                                <CalendarCheck className="w-4 h-4 text-primary" />
+                                <div>
+                                    <p className="font-bold text-foreground">Department Academic Schedule Rules</p>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        {deptRules[0].totalTestsPerYear} Tests ({deptRules[0].testFrequency}) &bull; {deptRules[0].totalExamsPerYear} Exams ({deptRules[0].examFrequency})
+                                    </p>
+                                </div>
+                            </div>
+                            <Badge variant="outline" className="bg-background text-primary border-primary/30 font-bold">
+                                Configured
+                            </Badge>
+                        </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <FormField control={form.control} name="classTeacherId" render={({ field }) => (
                             <FormItem>

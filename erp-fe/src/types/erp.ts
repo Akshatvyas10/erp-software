@@ -93,6 +93,9 @@ export interface Pagination {
 export type ClassroomStatus = 'ACTIVE' | 'INACTIVE';
 export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
 
+export const CLASSROOM_SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'] as const;
+export type ClassroomSection = (typeof CLASSROOM_SECTIONS)[number];
+
 export interface Classroom {
     id: string;
     name: string;
@@ -102,6 +105,9 @@ export interface Classroom {
     status: ClassroomStatus;
     department?: string | null;
     buildingBlock?: string | null;
+    blockId?: string | null;
+    roomId?: string | null;
+    departmentId?: string | null;
     maxCapacity?: number;
     monitorMaleId?: string | null;
     monitorFemaleId?: string | null;
@@ -346,6 +352,9 @@ export interface CreateClassroomPayload {
     status: ClassroomStatus;
     department?: string;
     buildingBlock?: string;
+    blockId?: string;
+    roomId?: string;
+    departmentId?: string;
     maxCapacity?: number;
     monitorMaleId?: string;
     monitorFemaleId?: string;

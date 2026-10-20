@@ -30,9 +30,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Building2, Save, MapPin, Building, CreditCard, Mail, Palette, Loader2 } from "lucide-react";
+import { Building2, Save, MapPin, Building, CreditCard, Mail, Palette, Loader2, School } from "lucide-react";
 import { EmailServerTab } from "../components/EmailServerTab";
 import { ThemeConfigTab } from "../components/ThemeConfigTab";
+import { ClassroomConfigTab } from "../components/ClassroomConfigTab";
 
 const formSchema = z.object({
     schoolName: z.string().min(2, "School name is required"),
@@ -216,9 +217,12 @@ export default function SchoolConfigPage() {
                 {/* @ts-ignore */}
                 <form onSubmit={form.handleSubmit(onSubmit, onError)} className="space-y-6">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 lg:w-[850px] bg-muted/60 p-1 rounded-2xl">
+                        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-7 lg:w-[980px] bg-muted/60 p-1 rounded-2xl">
                             <TabsTrigger value="general" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
                                 <Building2 className="w-4 h-4" /> <span className="hidden md:inline">General</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="classroom" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
+                                <School className="w-4 h-4 text-primary" /> <span className="hidden md:inline font-bold">Classroom Config</span>
                             </TabsTrigger>
                             <TabsTrigger value="contact" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
                                 <MapPin className="w-4 h-4" /> <span className="hidden md:inline">Contact</span>
@@ -602,6 +606,11 @@ export default function SchoolConfigPage() {
                             {/* Theme Configuration Tab */}
                             <TabsContent value="theme" className="m-0">
                                 <ThemeConfigTab />
+                            </TabsContent>
+
+                            {/* Classroom Configuration Tab */}
+                            <TabsContent value="classroom" className="m-0">
+                                <ClassroomConfigTab />
                             </TabsContent>
                         </div>
                     </Tabs>

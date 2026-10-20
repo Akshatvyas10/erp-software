@@ -10,8 +10,10 @@ const Classroom = sequelize.define('Classroom', {
         comment: 'e.g. Grade 10'
     },
     section: {
-        type: DataTypes.STRING(10), allowNull: false,
-        comment: 'e.g. A, B, C'
+        type: DataTypes.ENUM('A', 'B', 'C', 'D', 'E', 'F', 'G'),
+        allowNull: false,
+        defaultValue: 'A',
+        comment: 'Classroom Section Enum A-G'
     },
     academicYear: {
         type: DataTypes.STRING(20), allowNull: false,
@@ -30,10 +32,31 @@ const Classroom = sequelize.define('Classroom', {
         allowNull: true,
         comment: 'e.g. PRIMARY, MIDDLE, HIGH_SCHOOL'
     },
+    departmentId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        field: 'department_id',
+        references: { model: 'departments', key: 'id' },
+        onDelete: 'SET NULL'
+    },
     buildingBlock: {
         type: DataTypes.STRING(100),
         allowNull: true,
         field: 'building_block'
+    },
+    blockId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        field: 'block_id',
+        references: { model: 'building_blocks', key: 'id' },
+        onDelete: 'SET NULL'
+    },
+    roomId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        field: 'room_id',
+        references: { model: 'classroom_rooms', key: 'id' },
+        onDelete: 'SET NULL'
     },
     maxCapacity: {
         type: DataTypes.INTEGER,

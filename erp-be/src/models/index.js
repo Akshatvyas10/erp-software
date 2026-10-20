@@ -27,6 +27,9 @@ import ExamResult from './ExamResult.js';
 import AdmissionForm from './AdmissionForm.js';
 import AdmissionApplication from './AdmissionApplication.js';
 import SchoolConfig from './SchoolConfig.js';
+import BuildingBlock from './BuildingBlock.js';
+import ClassroomRoom from './ClassroomRoom.js';
+import TestExamConfig from './TestExamConfig.js';
 
 const PermissionAuditLog = PermissionAuditLogInit(sequelize);
 
@@ -130,8 +133,27 @@ export default {
     Classroom, ClassroomStudent, ClassroomPeriod, ClassroomSubject, Timetable,
     Subject, Homework, HomeworkSubmission, CalendarEvent, EventType, StudentAttendance,
     PermissionAuditLog, ExamSchedule, Exam, ExamResult,
-    AdmissionForm, AdmissionApplication, SchoolConfig
+    AdmissionForm, AdmissionApplication, SchoolConfig,
+    BuildingBlock, ClassroomRoom, TestExamConfig
 };
+
+// ─── BuildingBlock ↔ ClassroomRoom (1:many) ──────────────────────────────────
+BuildingBlock.hasMany(ClassroomRoom, { foreignKey: 'blockId', as: 'rooms', onDelete: 'CASCADE' });
+ClassroomRoom.belongsTo(BuildingBlock, { foreignKey: 'blockId', as: 'block' });
+
+// ─── Classroom ↔ BuildingBlock / ClassroomRoom / Department ──────────────────
+Classroom.belongsTo(BuildingBlock, { foreignKey: 'blockId', as: 'buildingBlockRef' });
+BuildingBlock.hasMany(Classroom, { foreignKey: 'blockId', as: 'classrooms' });
+
+Classroom.belongsTo(ClassroomRoom, { foreignKey: 'roomId', as: 'room' });
+ClassroomRoom.hasMany(Classroom, { foreignKey: 'roomId', as: 'classrooms' });
+
+Classroom.belongsTo(Department, { foreignKey: 'departmentId', as: 'departmentRef' });
+Department.hasMany(Classroom, { foreignKey: 'departmentId', as: 'classrooms' });
+
+// ─── Department ↔ TestExamConfig (1:many) ────────────────────────────────────
+Department.hasMany(TestExamConfig, { foreignKey: 'departmentId', as: 'testExamConfigs', onDelete: 'CASCADE' });
+TestExamConfig.belongsTo(Department, { foreignKey: 'departmentId', as: 'department' });
 
 // Homework <-> User (Creator)
 User.hasMany(Homework, { foreignKey: 'createdById', as: 'createdHomeworks' });

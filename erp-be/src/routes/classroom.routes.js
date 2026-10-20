@@ -15,7 +15,11 @@ const isUUID = (name) => param(name).isUUID().withMessage(`${name} must be a UUI
 router.get('/', requirePermission('classrooms', 'read'), C.listClassrooms);
 router.get('/:id', [isUUID('id')], validate, requirePermission('classrooms', 'read'), C.getClassroom);
 router.post('/',
-    [body('name').trim().notEmpty(), body('section').trim().notEmpty(), body('academicYear').trim().notEmpty()],
+    [
+        body('name').trim().notEmpty().withMessage('Class name is required'),
+        body('section').trim().toUpperCase().isIn(['A', 'B', 'C', 'D', 'E', 'F', 'G']).withMessage('Section must be between A and G'),
+        body('academicYear').trim().notEmpty().withMessage('Academic year is required')
+    ],
     validate, requirePermission('classrooms', 'create'), C.createClassroom);
 router.put('/:id', [isUUID('id')], validate, requirePermission('classrooms', 'update'), C.updateClassroom);
 router.delete('/:id', [isUUID('id')], validate, requirePermission('classrooms', 'delete'), C.deleteClassroom);

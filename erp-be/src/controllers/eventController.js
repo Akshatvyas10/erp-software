@@ -1,5 +1,5 @@
 import db from '../models/index.js';
-const { CalendarEvent, User, Classroom, EventType } = db;
+const { CalendarEvent, User, Classroom, EventType, Student, ClassroomStudent } = db;
 import { success, error } from '../utils/apiResponse.js';
 import { Op } from 'sequelize';
 import {
@@ -34,9 +34,7 @@ export const getEvents = async (req, res, next) => {
             // Admins see everything
             where = {};
         } else if (isTeacher(roles)) {
-            // Teachers see:
-            // 1. All published events
-            // 2. Draft events they created
+            // Teachers see all published events and draft events they created
             where = {
                 [Op.or]: [
                     { status: 'PUBLISHED' },
@@ -44,14 +42,39 @@ export const getEvents = async (req, res, next) => {
                 ]
             };
         } else if (isStudent(roles)) {
-            // Students only see PUBLISHED events that are ALL, STUDENTS, or their specific CLASS
-            // Note: In a real system, you'd fetch the student's current classroom ID and include it here.
-            // For now, we allow ALL and STUDENTS.
+            // Find student profile and their enrolled classrooms
+            let studentClassroomIds = [];
+            const studentProfile = await Student.findOne({
+                where: { userId },
+                include: [{
+                    model: ClassroomStudent,
+                    as: 'classroomEnrollments',
+                    attributes: ['classroomId']
+                }]
+            });
+
+            if (studentProfile && studentProfile.classroomEnrollments) {
+                studentClassroomIds = studentProfile.classroomEnrollments.map(e => e.classroomId);
+            }
+
+            // Students see events targeted to ALL, STUDENTS, or specifically their enrolled CLASS
+            const audienceConditions = [
+                { target_audience: 'ALL' },
+                { target_audience: 'STUDENTS' }
+            ];
+
+            if (studentClassroomIds.length > 0) {
+                audienceConditions.push({
+                    [Op.and]: [
+                        { target_audience: 'CLASS' },
+                        { target_class_id: { [Op.in]: studentClassroomIds } }
+                    ]
+                });
+            }
+
             where = {
                 status: 'PUBLISHED',
-                target_audience: {
-                    [Op.in]: ['ALL', 'STUDENTS', 'CLASS']
-                }
+                [Op.or]: audienceConditions
             };
         }
 

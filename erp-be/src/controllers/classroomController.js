@@ -159,7 +159,11 @@ const getClassroom = async (req, res, next) => {
 const createClassroom = async (req, res, next) => {
     const t = await db.sequelize.transaction();
     try {
-        const { name, section, academicYear, roomNumber, classTeacherId, status = 'ACTIVE', department, buildingBlock, maxCapacity = 40, monitorMaleId, monitorFemaleId } = req.body;
+        const {
+            name, section, academicYear, roomNumber, classTeacherId, status = 'ACTIVE',
+            department, departmentId, buildingBlock, blockId, roomId,
+            maxCapacity = 40, monitorMaleId, monitorFemaleId
+        } = req.body;
 
         const existing = await Classroom.findOne({ where: { name, section, academicYear }, transaction: t });
         if (existing) {
@@ -183,7 +187,11 @@ const createClassroom = async (req, res, next) => {
             }
         }
 
-        const classroom = await Classroom.create({ name, section, academicYear, roomNumber, classTeacherId, status, department, buildingBlock, maxCapacity, monitorMaleId, monitorFemaleId }, { transaction: t });
+        const classroom = await Classroom.create({
+            name, section, academicYear, roomNumber, classTeacherId, status,
+            department, departmentId, buildingBlock, blockId, roomId,
+            maxCapacity, monitorMaleId, monitorFemaleId
+        }, { transaction: t });
         await t.commit();
         return success(res, { classroom }, 'Classroom created', 201);
     } catch (err) { 
@@ -202,7 +210,11 @@ const updateClassroom = async (req, res, next) => {
             return error(res, 'Classroom not found', 404);
         }
         
-        const { name, section, academicYear, roomNumber, classTeacherId, status, department, buildingBlock, maxCapacity, monitorMaleId, monitorFemaleId } = req.body;
+        const {
+            name, section, academicYear, roomNumber, classTeacherId, status,
+            department, departmentId, buildingBlock, blockId, roomId,
+            maxCapacity, monitorMaleId, monitorFemaleId
+        } = req.body;
         
         if (classTeacherId && status !== 'INACTIVE') {
             const existingAssignment = await Classroom.findOne({
@@ -228,8 +240,11 @@ const updateClassroom = async (req, res, next) => {
             }
         }
 
-        
-        await classroom.update({ name, section, academicYear, roomNumber, classTeacherId, status, department, buildingBlock, maxCapacity, monitorMaleId, monitorFemaleId }, { transaction: t });
+        await classroom.update({
+            name, section, academicYear, roomNumber, classTeacherId, status,
+            department, departmentId, buildingBlock, blockId, roomId,
+            maxCapacity, monitorMaleId, monitorFemaleId
+        }, { transaction: t });
         await t.commit();
         return success(res, { classroom }, 'Classroom updated');
     } catch (err) { 
