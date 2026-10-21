@@ -5,6 +5,14 @@ import sequelize from '../config/database.js';
 const Classroom = sequelize.define('Classroom', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
 
+    classId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        field: 'class_id',
+        references: { model: 'academic_classes', key: 'id' },
+        onDelete: 'SET NULL',
+        comment: 'Parent Academic Class'
+    },
     name: {
         type: DataTypes.STRING(80), allowNull: false,
         comment: 'e.g. Grade 10'
@@ -87,6 +95,7 @@ const Classroom = sequelize.define('Classroom', {
     indexes: [
         { unique: true, fields: ['name', 'section', 'academic_year'], name: 'unique_classroom' },
         { unique: true, fields: ['class_teacher_id'], where: { status: 'ACTIVE' }, name: 'unique_class_teacher_active' },
+        { fields: ['class_id'], name: 'idx_classrooms_class_id' },
     ],
 });
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { ClipboardCheck, CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,7 @@ export interface ClassroomAttendanceTabProps {
     canEdit: boolean;
 }
 
-export function ClassroomAttendanceTab({ classroomId }: ClassroomAttendanceTabProps) {
+export function ClassroomAttendanceTab({ classroomId, canEdit }: ClassroomAttendanceTabProps) {
     const { can } = usePermissions();
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [isEditing, setIsEditing] = useState(false);
@@ -28,13 +28,14 @@ export function ClassroomAttendanceTab({ classroomId }: ClassroomAttendanceTabPr
     const { data: existingAttendance, isLoading: attendanceLoading, refetch } = useClassroomAttendance(classroomId, dateStr);
 
     // Auto-switch mode based on whether attendance exists for the selected date
-    useMemo(() => {
+    useEffect(() => {
         if (existingAttendance) {
             setIsEditing(existingAttendance.length === 0);
         }
     }, [dateStr, existingAttendance]);
 
     const hasAttendance = existingAttendance && existingAttendance.length > 0;
+    const isAllowedToEdit = canEdit || (hasAttendance ? can("attendance", "update") : can("attendance", "create"));
 
     return (
         <div className="space-y-4">
@@ -47,7 +48,7 @@ export function ClassroomAttendanceTab({ classroomId }: ClassroomAttendanceTabPr
                     <p className="text-xs text-muted-foreground mt-0.5">Manage student attendance for the selected date.</p>
                 </div>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
-                    {hasAttendance && !isEditing && can("attendance", "update") && (
+                    {hasAttendance && !isEditing && isAllowedToEdit && (
                         <Button 
                             variant="outline" 
                             size="sm" 
@@ -93,7 +94,7 @@ export function ClassroomAttendanceTab({ classroomId }: ClassroomAttendanceTabPr
                 <AttendanceGrid 
                     classroomId={classroomId} 
                     date={dateStr} 
-                    canEdit={hasAttendance ? can("attendance", "update") : can("attendance", "create")} 
+                    canEdit={isAllowedToEdit} 
                     existingAttendance={existingAttendance || []}
                     attendanceLoading={attendanceLoading}
                     onSaveSuccess={() => {

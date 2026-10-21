@@ -96,14 +96,74 @@ export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Frida
 export const CLASSROOM_SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'] as const;
 export type ClassroomSection = (typeof CLASSROOM_SECTIONS)[number];
 
+export interface DepartmentIncharge {
+    id: string;
+    teacherId: string;
+    employeeNumber?: string;
+    account?: {
+        firstName: string;
+        lastName: string;
+        email?: string;
+    };
+}
+
+export interface Department {
+    id: string;
+    name: string;
+    code?: string;
+    headId?: string | null;
+    inchargeTeacherId?: string | null;
+    inchargeStaffId?: string | null;
+    head?: DepartmentIncharge | null;
+    incharge?: DepartmentIncharge | null;
+    inchargeTeacher?: DepartmentIncharge | null;
+}
+
+export interface AcademicClass {
+    id: string;
+    name: string;
+    code: string;
+    orderIndex: number;
+    departmentId?: string | null;
+    department?: Department | null;
+    status: 'ACTIVE' | 'INACTIVE';
+    sections?: Classroom[];
+    totalStudents?: number;
+    sectionCount?: number;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface ClassSetupStatus {
+    isInitialized: boolean;
+    classCount: number;
+}
+
+export interface BulkSetupClassItem {
+    name: string;
+    code?: string;
+    orderIndex?: number;
+    departmentId?: string;
+    sections?: string[];
+}
+
+export interface BulkSetupPayload {
+    classes: BulkSetupClassItem[];
+    defaultSections?: string[];
+    academicYear?: string;
+}
+
 export interface Classroom {
     id: string;
+    classId?: string | null;
+    academicClass?: AcademicClass | null;
     name: string;
     section: string;
     academicYear: string;
     roomNumber: string | null;
     status: ClassroomStatus;
     department?: string | null;
+    departmentRef?: Department | null;
     buildingBlock?: string | null;
     blockId?: string | null;
     roomId?: string | null;
@@ -114,6 +174,7 @@ export interface Classroom {
     maleMonitor?: {
         id: string;
         studentId: string;
+        admissionNumber?: string | null;
         account: {
             id: string;
             userId: string;
@@ -124,6 +185,7 @@ export interface Classroom {
     femaleMonitor?: {
         id: string;
         studentId: string;
+        admissionNumber?: string | null;
         account: {
             id: string;
             userId: string;
@@ -154,11 +216,14 @@ export interface ClassroomEnrollment {
     id: string;
     classroomId: string;
     studentId: string;
+    rollNumber?: string | null;
     student: {
         id: string;
         studentId: string;
+        admissionNumber?: string | null;
         grade: string | null;
         section: string | null;
+        gender?: string | null;
         status: string;
         account: {
             id: string;
@@ -170,6 +235,43 @@ export interface ClassroomEnrollment {
         };
     };
     createdAt: string;
+}
+
+export interface TimetableSubstitute {
+    id: string;
+    classroomId: string;
+    timetableId: string;
+    originalTeacherId?: string | null;
+    substituteTeacherId: string;
+    date: string;
+    reason?: string | null;
+    status: 'ASSIGNED' | 'COMPLETED' | 'CANCELLED';
+    assignedBy: string;
+    substituteTeacher?: {
+        id: string;
+        teacherId: string;
+        account: {
+            id: string;
+            firstName: string;
+            lastName: string;
+        };
+    };
+    originalTeacher?: {
+        id: string;
+        teacherId: string;
+        account: {
+            id: string;
+            firstName: string;
+            lastName: string;
+        };
+    };
+    slot?: {
+        id: string;
+        dayOfWeek: string;
+        startTime: string;
+        endTime: string;
+    };
+    createdAt?: string;
 }
 
 export interface Subject {
@@ -213,6 +315,7 @@ export interface TimetableSlot {
     createdAt: string;
     updatedAt: string;
 }
+
 
 export interface ClassroomPeriod {
     id: string;

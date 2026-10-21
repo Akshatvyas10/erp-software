@@ -1,6 +1,5 @@
 import { Menu, Bell, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useLocation } from "react-router-dom";
 import { useThemeMode } from "@/store/hooks";
 
 interface TopbarProps {
@@ -10,15 +9,9 @@ interface TopbarProps {
 }
 
 export default function Topbar({ onMobileMenuClick, isCollapsed, onToggleCollapse }: TopbarProps) {
-    const location = useLocation();
     const { mode, toggleMode } = useThemeMode();
 
-    // Simple breadcrumb generator
-    const getBreadcrumbs = () => {
-        const path = location.pathname.split("/").filter(Boolean);
-        if (path.length === 1 && path[0] === "dashboard") return "Dashboard";
-        return path.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" / ");
-    };
+    // Breadcrumb generator removed as breadcrumb section is disabled
 
     return (
         <header className="h-16 border-b shadow-xs border-border/60 bg-background/95 flex items-center justify-between px-4 lg:px-6 shrink-0 z-30 sticky top-0 backdrop-blur-md transition-colors">
@@ -45,13 +38,13 @@ export default function Topbar({ onMobileMenuClick, isCollapsed, onToggleCollaps
                 </Button>
 
                 {/* Breadcrumbs */}
-                <div className="hidden sm:flex flex-col">
+                {/*      <div className="hidden sm:flex flex-col">
                     <p className="text-[13px] text-muted-foreground font-semibold flex items-center gap-2">
                         Acme School
                         <span className="text-border font-normal">/</span>
                         <span className="text-foreground font-bold">{getBreadcrumbs()}</span>
                     </p>
-                </div>
+                </div> */}
             </div>
 
             {/* Right Section */}

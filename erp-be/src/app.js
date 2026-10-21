@@ -23,6 +23,7 @@ import salaryRoutes from './routes/salary.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
 import studentAttendanceRoutes from './routes/studentAttendance.routes.js';
 import departmentRoutes from './routes/department.routes.js';
+import academicClassRoutes from './routes/academicClass.routes.js';
 import classroomRoutes from './routes/classroom.routes.js';
 import subjectRoutes from './routes/subject.routes.js';
 import homeworkRoutes from './routes/homework.routes.js';
@@ -100,6 +101,7 @@ app.use('/api/salary', salaryRoutes);
 app.use('/api/attendance', attendanceRoutes); // Teacher attendance
 app.use('/api/student-attendance', studentAttendanceRoutes); // Student attendance
 app.use('/api/departments', departmentRoutes);
+app.use('/api/classes', academicClassRoutes);
 app.use('/api/classrooms', classroomRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/homeworks', homeworkRoutes);

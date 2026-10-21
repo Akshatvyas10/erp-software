@@ -36,7 +36,17 @@ const PERMISSIONS = [
     { name: 'departments:delete', resource: 'departments', action: 'delete', description: 'Delete departments' },
     { name: 'departments:manage', resource: 'departments', action: 'manage', description: 'Full department management' },
     { name: 'attendance:read', resource: 'attendance', action: 'read', description: 'View attendance' },
+    { name: 'attendance:create', resource: 'attendance', action: 'create', description: 'Create attendance' },
+    { name: 'attendance:update', resource: 'attendance', action: 'update', description: 'Update attendance' },
     { name: 'attendance:manage', resource: 'attendance', action: 'manage', description: 'Manage attendance' },
+    { name: 'homework:read', resource: 'homework', action: 'read', description: 'View homework assignments' },
+    { name: 'homework:create', resource: 'homework', action: 'create', description: 'Create homework assignments' },
+    { name: 'homework:update', resource: 'homework', action: 'update', description: 'Update homework assignments' },
+    { name: 'homework:delete', resource: 'homework', action: 'delete', description: 'Delete homework assignments' },
+    { name: 'exams:read', resource: 'exams', action: 'read', description: 'View exams and grades' },
+    { name: 'exams:create', resource: 'exams', action: 'create', description: 'Create exams' },
+    { name: 'exams:update', resource: 'exams', action: 'update', description: 'Update exams' },
+    { name: 'exams:manage', resource: 'exams', action: 'manage', description: 'Manage exams and grades' },
     { name: 'salary:read', resource: 'salary', action: 'read', description: 'View salary' },
     { name: 'salary:manage', resource: 'salary', action: 'manage', description: 'Manage salary' },
     { name: 'roles:read', resource: 'roles', action: 'read', description: 'View roles' },
@@ -64,19 +74,24 @@ const ROLES = [
         permissions: [
             'users:manage', 'students:manage', 'teachers:manage',
             'classrooms:manage', 'subjects:manage', 'departments:manage',
-            'attendance:manage', 'salary:manage',
-            'roles:manage', 'permissions:manage', 'events:manage',
+            'attendance:manage', 'salary:manage', 'homework:create', 'homework:read', 'homework:update', 'homework:delete',
+            'exams:manage', 'roles:manage', 'permissions:manage', 'events:manage',
         ],
     },
     {
         name: 'teacher',
         description: 'Teacher access',
-        permissions: ['students:read', 'teachers:read', 'users:read', 'classrooms:read', 'subjects:read', 'departments:read', 'events:read', 'events:create', 'events:update'],
+        permissions: [
+            'students:read', 'teachers:read', 'users:read', 'classrooms:read',
+            'subjects:read', 'departments:read', 'events:read', 'events:create', 'events:update',
+            'homework:read', 'homework:create', 'homework:update', 'homework:delete',
+            'exams:read', 'attendance:read', 'attendance:create', 'attendance:update'
+        ],
     },
     {
         name: 'student',
         description: 'Student access',
-        permissions: ['students:read', 'classrooms:read', 'subjects:read', 'events:read'],
+        permissions: ['students:read', 'classrooms:read', 'subjects:read', 'events:read', 'homework:read', 'exams:read', 'attendance:read'],
     },
 ];
 

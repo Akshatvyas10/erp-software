@@ -167,7 +167,7 @@ export function TeacherForm({
                                                 <SelectItem value="none">-- No Designation --</SelectItem>
                                                 <SelectItem value="CLASS_TEACHER">Class Teacher</SelectItem>
                                                 <SelectItem value="SUBJECT_TEACHER">Subject Teacher</SelectItem>
-                                                <SelectItem value="HEAD_OF_DEPARTMENT">Head of Department</SelectItem>
+                                                <SelectItem value="HEAD_OF_DEPARTMENT">Incharge (Head of Department)</SelectItem>
                                                 <SelectItem value="ASSISTANT_TEACHER">Assistant Teacher</SelectItem>
                                                 <SelectItem value="LAB_ASSISTANT">Lab Assistant</SelectItem>
                                                 <SelectItem value="SPECIAL_EDUCATOR">Special Educator</SelectItem>

@@ -24,6 +24,13 @@ export const fetchClassroom = async (id: string): Promise<Classroom> => {
     return data.data.classroom as Classroom;
 };
 
+export const fetchClassrooms = async (filters?: { status?: string }): Promise<Classroom[]> => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set("status", filters.status);
+    const { data } = await api.get(`/classrooms?${params.toString()}`);
+    return (data.data.classrooms || []) as Classroom[];
+};
+
 export const fetchAllStudents = async (search: string) => {
     const params = new URLSearchParams({ limit: "50" });
     if (search) params.set("search", search);
@@ -31,6 +38,7 @@ export const fetchAllStudents = async (search: string) => {
     return data.data.students as Array<{
         id: string;
         studentId: string;
+        admissionNumber?: string | null;
         grade: string | null;
         section: string | null;
         account: { firstName: string; lastName: string; email: string };

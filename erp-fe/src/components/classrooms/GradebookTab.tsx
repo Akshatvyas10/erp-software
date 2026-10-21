@@ -122,7 +122,8 @@ export default function GradebookTab({ classroomId, enrollments, subjects, canEd
     });
 
     const filteredEnrollments = useMemo(() => {
-        return enrollments.filter(enr => {
+        return (enrollments || []).filter(enr => {
+            if (!enr?.student) return false;
             const nameMatch = `${enr.student.account?.firstName || ""} ${enr.student.account?.lastName || ""}`.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
             if (!nameMatch) return false;
 

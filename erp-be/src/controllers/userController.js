@@ -70,7 +70,7 @@ const getUser = async (req, res, next) => {
             const designationLabels = {
                 'CLASS_TEACHER': 'Class Teacher',
                 'SUBJECT_TEACHER': 'Subject Teacher',
-                'HEAD_OF_DEPARTMENT': 'Head of Department',
+                'HEAD_OF_DEPARTMENT': 'Incharge (Head of Department)',
                 'ASSISTANT_TEACHER': 'Assistant Teacher',
                 'LAB_ASSISTANT': 'Lab Assistant',
                 'SPECIAL_EDUCATOR': 'Special Educator',

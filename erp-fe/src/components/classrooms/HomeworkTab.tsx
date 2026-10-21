@@ -66,7 +66,7 @@ export default function HomeworkTab({ classroomId, classTeacherId, subjects }: {
         queryKey: ["homework", classroomId],
         queryFn: async () => {
             const res = await api.get(`/homeworks?classId=${classroomId}`);
-            return res.data as Homework[];
+            return (Array.isArray(res.data) ? res.data : (res.data?.data || [])) as Homework[];
         },
     });
 

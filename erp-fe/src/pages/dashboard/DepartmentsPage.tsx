@@ -150,7 +150,7 @@ export default function DepartmentsPage() {
                 open={isCreateOpen}
                 onOpenChange={setIsCreateOpen}
                 title="Create New Department"
-                description="Specify department naming and assign an institutional head."
+                description="Specify department naming and assign an institutional incharge (head of department)."
                 maxWidth="sm:max-w-lg"
                 footer={
                     <>
@@ -193,10 +193,10 @@ export default function DepartmentsPage() {
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Head of Department (HOD)</label>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Incharge (Head of Department)</label>
                         <Select value={createHeadId} onValueChange={setCreateHeadId}>
                             <SelectTrigger className="h-10 md:h-11 rounded-lg bg-muted/50 border-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none text-sm">
-                                <SelectValue placeholder="Select institution lead (Optional)" />
+                                <SelectValue placeholder="Select Incharge (Optional)" />
                             </SelectTrigger>
                             <SelectContent className="rounded-xl border-border/80 bg-background">
                                 <SelectItem value="none" className="rounded-lg">None / Leave Unassigned</SelectItem>
@@ -232,7 +232,7 @@ export default function DepartmentsPage() {
                             className: "pl-6 w-[45%]",
                         },
                         {
-                            header: "Head of Department (HOD)",
+                            header: "Incharge (Head of Department)",
                             cell: (dept) => dept.head ? (
                                 <div className="flex items-center gap-2">
                                     <span className="font-semibold text-sm tracking-tight text-foreground">
@@ -244,7 +244,7 @@ export default function DepartmentsPage() {
                                 </div>
                             ) : (
                                 <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 px-2 py-0.5 rounded-md">
-                                    Unassigned Lead
+                                    Not Assigned
                                 </Badge>
                             ),
                             className: "w-[45%]",

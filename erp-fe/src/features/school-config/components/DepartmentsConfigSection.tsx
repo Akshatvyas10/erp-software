@@ -393,7 +393,7 @@ export function DepartmentsConfigSection() {
                             <TableHeader className="bg-muted/40">
                                 <TableRow>
                                     <TableHead className="font-bold">Department Name</TableHead>
-                                    <TableHead className="font-bold">Head of Department (HOD)</TableHead>
+                                    <TableHead className="font-bold">Incharge (Head of Department)</TableHead>
                                     <TableHead className="font-bold">Evaluation System</TableHead>
                                     <TableHead className="font-bold text-right">Actions</TableHead>
                                 </TableRow>
@@ -415,7 +415,7 @@ export function DepartmentsConfigSection() {
                                                         <span>{d.head.account.firstName} {d.head.account.lastName}</span>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-xs italic text-muted-foreground/60">Not assigned</span>
+                                                    <span className="text-xs italic text-muted-foreground/60">Not Assigned</span>
                                                 )}
                                             </TableCell>
                                             <TableCell>
@@ -495,13 +495,13 @@ export function DepartmentsConfigSection() {
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Head of Department (Optional)</label>
+                                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Incharge (Head of Department)</label>
                                     <Select value={headId} onValueChange={setHeadId}>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select teacher" />
+                                            <SelectValue placeholder="Select Incharge (Optional)" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="">-- None --</SelectItem>
+                                            <SelectItem value="">-- None / Unassigned --</SelectItem>
                                             {teachers.map((t: any) => (
                                                 <SelectItem key={t.id} value={t.id}>
                                                     {t.account?.firstName} {t.account?.lastName}

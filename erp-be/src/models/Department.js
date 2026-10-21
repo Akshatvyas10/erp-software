@@ -18,7 +18,8 @@ const Department = sequelize.define('Department', {
             key: 'id'
         },
         onUpdate: 'CASCADE',
-        onDelete: 'SET NULL'
+        onDelete: 'SET NULL',
+        comment: 'Teacher ID who is the Department Incharge (Head of Department)'
     }
 }, { tableName: 'departments' });
 

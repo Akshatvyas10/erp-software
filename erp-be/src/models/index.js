@@ -30,6 +30,8 @@ import SchoolConfig from './SchoolConfig.js';
 import BuildingBlock from './BuildingBlock.js';
 import ClassroomRoom from './ClassroomRoom.js';
 import TestExamConfig from './TestExamConfig.js';
+import AcademicClass from './AcademicClass.js';
+import TimetableSubstitute from './TimetableSubstitute.js';
 
 const PermissionAuditLog = PermissionAuditLogInit(sequelize);
 
@@ -127,6 +129,15 @@ User.hasMany(PermissionAuditLog, { foreignKey: 'target_user_id', as: 'permission
 PermissionAuditLog.belongsTo(User, { foreignKey: 'changed_by', as: 'AdminUser' });
 User.hasMany(PermissionAuditLog, { foreignKey: 'changed_by', as: 'permissionAuditsPerformed' });
 
+// ─── TimetableSubstitute Associations ─────────────────────────────────────────
+Timetable.hasMany(TimetableSubstitute, { foreignKey: 'timetableId', as: 'substitutes', onDelete: 'CASCADE' });
+TimetableSubstitute.belongsTo(Timetable, { foreignKey: 'timetableId', as: 'slot' });
+Classroom.hasMany(TimetableSubstitute, { foreignKey: 'classroomId', as: 'substitutes', onDelete: 'CASCADE' });
+TimetableSubstitute.belongsTo(Classroom, { foreignKey: 'classroomId', as: 'classroom' });
+Teacher.hasMany(TimetableSubstitute, { foreignKey: 'substituteTeacherId', as: 'proxyDuties', onDelete: 'CASCADE' });
+TimetableSubstitute.belongsTo(Teacher, { foreignKey: 'substituteTeacherId', as: 'substituteTeacher' });
+TimetableSubstitute.belongsTo(Teacher, { foreignKey: 'originalTeacherId', as: 'originalTeacher' });
+
 export default {
     sequelize, Role, Permission, User, Student, Teacher,
     TeacherAttendance, SalarySlip, Department,
@@ -134,8 +145,16 @@ export default {
     Subject, Homework, HomeworkSubmission, CalendarEvent, EventType, StudentAttendance,
     PermissionAuditLog, ExamSchedule, Exam, ExamResult,
     AdmissionForm, AdmissionApplication, SchoolConfig,
-    BuildingBlock, ClassroomRoom, TestExamConfig
+    BuildingBlock, ClassroomRoom, TestExamConfig, AcademicClass, TimetableSubstitute
 };
+
+// ─── AcademicClass ↔ Classroom (1:many) ──────────────────────────────────────
+AcademicClass.hasMany(Classroom, { foreignKey: 'classId', as: 'sections', onDelete: 'CASCADE' });
+Classroom.belongsTo(AcademicClass, { foreignKey: 'classId', as: 'academicClass' });
+
+// ─── Department ↔ AcademicClass (1:many) ────────────────────────────────────
+Department.hasMany(AcademicClass, { foreignKey: 'departmentId', as: 'academicClasses', onDelete: 'SET NULL' });
+AcademicClass.belongsTo(Department, { foreignKey: 'departmentId', as: 'department' });
 
 // ─── BuildingBlock ↔ ClassroomRoom (1:many) ──────────────────────────────────
 BuildingBlock.hasMany(ClassroomRoom, { foreignKey: 'blockId', as: 'rooms', onDelete: 'CASCADE' });
@@ -159,9 +178,11 @@ TestExamConfig.belongsTo(Department, { foreignKey: 'departmentId', as: 'departme
 User.hasMany(Homework, { foreignKey: 'createdById', as: 'createdHomeworks' });
 Homework.belongsTo(User, { foreignKey: 'createdById', as: 'createdBy' });
 
-// ─── Department ↔ Teacher (head) ──────────────────────────────────────────────
+// ─── Department ↔ Teacher (head / incharge) ───────────────────────────────────
 Department.belongsTo(Teacher, { foreignKey: 'headId', as: 'head' });
+Department.belongsTo(Teacher, { foreignKey: 'headId', as: 'incharge' });
 Teacher.hasMany(Department, { foreignKey: 'headId', as: 'headedDepartments' });
+Teacher.hasMany(Department, { foreignKey: 'headId', as: 'inchargeDepartments' });
 
 // ─── ExamSchedule ↔ Classroom ─────────────────────────────────────────────────
 ExamSchedule.belongsTo(Classroom, { foreignKey: 'classroom_id', as: 'classroom' });
