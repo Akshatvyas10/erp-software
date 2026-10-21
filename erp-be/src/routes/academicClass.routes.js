@@ -12,7 +12,8 @@ router.use(authenticate);
 
 const isUUID = (name) => param(name).isUUID().withMessage(`${name} must be a UUID`);
 
-// 1. Setup Status (Checks whether first-time wizard should trigger)
+// 1. Setup Status & Standard Predefined Classes Catalog
+router.get('/predefined', C.getPredefinedClasses);
 router.get('/setup-status', C.getSetupStatus);
 
 // 2. Class Directory
@@ -61,6 +62,27 @@ router.delete(
     [isUUID('id')],
     validate,
     C.deleteClass
+);
+
+// 5. School Structure Preset Application (Source of Truth)
+router.post(
+    '/apply-structure',
+    requireRole('admin', 'super_admin', 'principal'),
+    [
+        body('structureType').isIn(['PRIMARY_5', 'MIDDLE_8', 'SECONDARY_10', 'SENIOR_SECONDARY_12']).withMessage('Invalid structure preset'),
+        body('academicYear').optional().trim()
+    ],
+    validate,
+    C.applyStructure
+);
+
+// 6. Fixed Progression Query (Deterministic Next Class for Promotion)
+router.get(
+    '/:id/next-class',
+    [isUUID('id')],
+    validate,
+    requirePermission('classrooms', 'read'),
+    C.getNextClass
 );
 
 export default router;

@@ -13,14 +13,60 @@ router.use(authenticate);
 const isUUID = (name) => param(name).isUUID().withMessage(`${name} must be a UUID`);
 
 // ── Classrooms ────────────────────────────────────────────────────────────────
+// ── Promotions & Rules ────────────────────────────────────────────────────────
+router.get('/promotions/rules',
+    requirePermission('classrooms', 'read'),
+    C.getPromotionRules
+);
+
+router.post('/promotions/rules',
+    [
+        body('name').trim().notEmpty().withMessage('Rule name is required'),
+        body('academicClassId').optional({ checkFalsy: true }).isUUID().withMessage('academicClassId must be a UUID'),
+        body('minOverallPercentage').optional().isFloat({ min: 0, max: 100 }),
+        body('mustPassAllSubjects').optional().isBoolean(),
+        body('minSubjectPercentage').optional().isFloat({ min: 0, max: 100 }),
+        body('maxCompartmentSubjects').optional().isInt({ min: 0 })
+    ],
+    validate,
+    requirePermission('classrooms', 'manage'),
+    C.createPromotionRule
+);
+
+router.put('/promotions/rules/:ruleId',
+    [
+        isUUID('ruleId'),
+        body('name').optional().trim().notEmpty(),
+        body('academicClassId').optional({ checkFalsy: true }).isUUID(),
+        body('minOverallPercentage').optional().isFloat({ min: 0, max: 100 }),
+        body('mustPassAllSubjects').optional().isBoolean(),
+        body('minSubjectPercentage').optional().isFloat({ min: 0, max: 100 }),
+        body('maxCompartmentSubjects').optional().isInt({ min: 0 })
+    ],
+    validate,
+    requirePermission('classrooms', 'manage'),
+    C.updatePromotionRule
+);
+
+router.get('/:id/promotions/evaluate',
+    [isUUID('id')],
+    validate,
+    requirePermission('classrooms', 'manage'),
+    enforceClassroomScope,
+    C.evaluatePromotionCandidates
+);
+
 router.post('/promotions/bulk',
     [
         body('sourceClassroomId').isUUID().withMessage('sourceClassroomId must be a valid UUID'),
         body('targetAcademicYear').trim().notEmpty().withMessage('targetAcademicYear is required'),
+        body('ruleId').optional({ checkFalsy: true }).isUUID().withMessage('ruleId must be a valid UUID'),
         body('promotions').isArray({ min: 1 }).withMessage('promotions must be a non-empty array'),
         body('promotions.*.studentId').isUUID().withMessage('Each promotion must specify a valid studentId UUID'),
-        body('promotions.*.action').isIn(['PROMOTE', 'RETAIN', 'TC', 'ALUMNI']).withMessage('action must be PROMOTE, RETAIN, TC, or ALUMNI'),
-        body('promotions.*.targetClassroomId').optional({ checkFalsy: true }).isUUID().withMessage('targetClassroomId must be a valid UUID')
+        body('promotions.*.action').isIn(['PROMOTE', 'RETAIN', 'TC', 'ALUMNI', 'GRADUATE', 'TRANSFER']).withMessage('action must be PROMOTE, RETAIN, TC, ALUMNI, GRADUATE, or TRANSFER'),
+        body('promotions.*.targetClassroomId').optional({ checkFalsy: true }).isUUID().withMessage('targetClassroomId must be a valid UUID'),
+        body('promotions.*.isManualOverride').optional().isBoolean(),
+        body('promotions.*.overrideReason').optional().trim()
     ],
     validate,
     requirePermission('classrooms', 'manage'),

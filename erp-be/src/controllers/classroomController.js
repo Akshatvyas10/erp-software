@@ -769,13 +769,95 @@ const cancelSubstitute = async (req, res, next) => {
 // ── POST /api/classrooms/promotions/bulk ──────────────────────────────────────
 const bulkPromoteStudents = async (req, res, next) => {
     try {
-        const { sourceClassroomId, targetAcademicYear, promotions } = req.body;
+        const { sourceClassroomId, targetAcademicYear, ruleId, promotions } = req.body;
         const result = await ClassroomService.bulkPromoteStudents({
             sourceClassroomId,
             targetAcademicYear,
-            promotions
+            ruleId,
+            promotions,
+            promotedBy: req.user?.id
         });
         return success(res, { summary: result.summary }, result.message);
+    } catch (err) {
+        next(err);
+    }
+};
+
+// ── GET /api/classrooms/:id/promotions/evaluate ───────────────────────────────
+const evaluatePromotionCandidates = async (req, res, next) => {
+    try {
+        const result = await ClassroomService.evaluatePromotionCandidates(req.params.id);
+        return success(res, result);
+    } catch (err) {
+        next(err);
+    }
+};
+
+// ── GET /api/classrooms/promotions/rules ───────────────────────────────────────
+const getPromotionRules = async (req, res, next) => {
+    try {
+        const { PromotionRule, AcademicClass } = db;
+        const rules = await PromotionRule.findAll({
+            include: [{ model: AcademicClass, as: 'academicClass', attributes: ['id', 'name', 'code'] }],
+            order: [['created_at', 'DESC']]
+        });
+        return success(res, { rules });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// ── POST /api/classrooms/promotions/rules ──────────────────────────────────────
+const createPromotionRule = async (req, res, next) => {
+    try {
+        const { PromotionRule } = db;
+        const {
+            name,
+            academicClassId,
+            minOverallPercentage,
+            mustPassAllSubjects,
+            minSubjectPercentage,
+            maxCompartmentSubjects,
+            minAttendancePercentage
+        } = req.body;
+
+        const rule = await PromotionRule.create({
+            name,
+            academicClassId: academicClassId || null,
+            minOverallPercentage: minOverallPercentage ?? 33.0,
+            mustPassAllSubjects: mustPassAllSubjects ?? true,
+            minSubjectPercentage: minSubjectPercentage ?? 33.0,
+            maxCompartmentSubjects: maxCompartmentSubjects ?? 0,
+            minAttendancePercentage: minAttendancePercentage || null,
+            status: 'ACTIVE'
+        });
+        return success(res, { rule }, 'Promotion rule created successfully', 201);
+    } catch (err) {
+        next(err);
+    }
+};
+
+// ── PUT /api/classrooms/promotions/rules/:ruleId ───────────────────────────────
+const updatePromotionRule = async (req, res, next) => {
+    try {
+        const { PromotionRule } = db;
+        const rule = await PromotionRule.findByPk(req.params.ruleId);
+        if (!rule) return error(res, 'Promotion rule not found', 404);
+
+        const allowedFields = [
+            'name', 'academicClassId', 'minOverallPercentage',
+            'mustPassAllSubjects', 'minSubjectPercentage',
+            'maxCompartmentSubjects', 'minAttendancePercentage', 'status'
+        ];
+        const updateData = {};
+        for (const field of allowedFields) {
+            if (req.body[field] !== undefined) {
+                updateData[field] = req.body[field];
+            }
+        }
+
+        await rule.update(updateData);
+        return success(res, { rule }, 'Promotion rule updated successfully');
     } catch (err) {
         next(err);
     }
@@ -791,4 +873,8 @@ export {
     transferStudentSection, cloneClassroomStructure,
     assignSubstituteTeacher, getSubstitutes, cancelSubstitute,
     bulkPromoteStudents,
+    evaluatePromotionCandidates,
+    getPromotionRules,
+    createPromotionRule,
+    updatePromotionRule,
 };

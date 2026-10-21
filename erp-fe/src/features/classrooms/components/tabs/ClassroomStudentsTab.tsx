@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import {
     Search, Trash2, Loader2, Users, Crown,
     UserPlus, Check, X, UserCheck, Hash, ArrowRightLeft,
-    MoreVertical
+    MoreVertical, GraduationCap
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,7 @@ import { AssignMonitorsDialog } from "@/features/classrooms/components/directory
 import { AutoAssignRollNumbersDialog } from "@/features/classrooms/components/directory/AutoAssignRollNumbersDialog";
 import { TransferSectionDialog } from "@/features/classrooms/components/directory/TransferSectionDialog";
 import { EditRollNumberDialog } from "@/features/classrooms/components/directory/EditRollNumberDialog";
+import { SingleStudentPromotionDialog } from "@/features/classrooms/components/directory/SingleStudentPromotionDialog";
 import PermissionGate from "@/components/auth/PermissionGate";
 import { PERMISSIONS } from "@/constants/permissions";
 
@@ -79,6 +80,7 @@ export function ClassroomStudentsTab({
     const [autoAssignOpen, setAutoAssignOpen] = useState(false);
     const [transferEnrollment, setTransferEnrollment] = useState<ClassroomEnrollment | null>(null);
     const [editRollEnrollment, setEditRollEnrollment] = useState<ClassroomEnrollment | null>(null);
+    const [promotionEnrollment, setPromotionEnrollment] = useState<ClassroomEnrollment | null>(null);
 
     // Resolve real monitors
     const monitor1Student = enrollments.find(e => e.student?.id === monitorMaleId)?.student || maleMonitor;
@@ -581,6 +583,12 @@ export function ClassroomStudentsTab({
                                                                      >
                                                                          <ArrowRightLeft className="w-3.5 h-3.5 text-blue-500" /> Transfer Section
                                                                      </DropdownMenuItem>
+                                                                      <DropdownMenuItem
+                                                                          onClick={() => setPromotionEnrollment(enr)}
+                                                                          className="text-xs font-semibold gap-2 cursor-pointer text-emerald-600"
+                                                                      >
+                                                                          <GraduationCap className="w-3.5 h-3.5 text-emerald-600" /> Promote / Rollover
+                                                                      </DropdownMenuItem>
                                                                      <DropdownMenuItem
                                                                          onClick={() => enr.student?.id && setRemoveId(enr.student.id)}
                                                                          className="text-xs font-semibold text-destructive gap-2 cursor-pointer"
@@ -856,7 +864,19 @@ export function ClassroomStudentsTab({
                 classroomId={classroomId}
                 onSuccess={onRefresh}
             />
-        </div>
+        
+            {/* 10. Single Student Promotion Dialog */}
+            {promotionEnrollment && (
+                <SingleStudentPromotionDialog
+                    open={!!promotionEnrollment}
+                    onOpenChange={(v) => !v && setPromotionEnrollment(null)}
+                    enrollment={promotionEnrollment}
+                    sourceClassroomId={classroomId}
+                    sourceClassroomName={classroomName}
+                    onSuccess={onRefresh}
+                />
+            )}
+</div>
     );
 }
 

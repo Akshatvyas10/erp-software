@@ -3,12 +3,11 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Loader2, Save } from "lucide-react";
+import { Plus, Loader2, Save, Layers } from "lucide-react";
 import { toast } from "sonner";
 
 import { ResponsiveModal } from "@/components/common/ResponsiveModal";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
     Form, FormControl, FormField, FormItem, FormLabel, FormMessage
 } from "@/components/ui/form";
@@ -17,12 +16,17 @@ import {
 } from "@/components/ui/select";
 import api from "@/lib/api";
 import type { AcademicClass } from "@/types/erp";
-import { createAcademicClass, updateAcademicClass } from "../../api/classApi";
+import {
+    createAcademicClass,
+    updateAcademicClass,
+    fetchPredefinedClasses,
+    fetchAcademicClasses,
+    type PredefinedClassItem
+} from "../../api/classApi";
 
 const classSchema = z.object({
-    name: z.string().min(1, "Class name is required").max(80),
+    code: z.string().min(1, "Please select a standard class"),
     departmentId: z.string().optional(),
-    orderIndex: z.coerce.number().min(1).default(1),
 });
 
 type ClassFormValues = z.infer<typeof classSchema>;
@@ -39,39 +43,35 @@ export function CreateClassDialog({
     open,
     onOpenChange,
     onSuccess,
-    nextOrderIndex = 1,
     classToEdit = null
 }: CreateClassDialogProps) {
     const qc = useQueryClient();
     const isEditing = Boolean(classToEdit);
 
     const form = useForm<ClassFormValues>({
-        resolver: zodResolver(classSchema) as any,
+        // @ts-ignore
+        resolver: zodResolver(classSchema),
         defaultValues: {
-            name: "",
-            departmentId: "",
-            orderIndex: nextOrderIndex,
+            code: "",
+            departmentId: "__NONE__",
         }
     });
 
-    useEffect(() => {
-        if (open) {
-            if (classToEdit) {
-                form.reset({
-                    name: classToEdit.name || "",
-                    departmentId: classToEdit.departmentId || "__NONE__",
-                    orderIndex: classToEdit.orderIndex || 1,
-                });
-            } else {
-                form.reset({
-                    name: "",
-                    departmentId: "__NONE__",
-                    orderIndex: nextOrderIndex,
-                });
-            }
-        }
-    }, [open, classToEdit, nextOrderIndex, form]);
+    // 1. Fetch predefined catalog
+    const { data: predefinedClasses = [] } = useQuery<PredefinedClassItem[]>({
+        queryKey: ["predefinedClasses"],
+        queryFn: fetchPredefinedClasses,
+        enabled: open,
+    });
 
+    // 2. Fetch existing classes to filter out already added ones
+    const { data: existingClasses = [] } = useQuery<AcademicClass[]>({
+        queryKey: ["classes"],
+        queryFn: () => fetchAcademicClasses(),
+        enabled: open,
+    });
+
+    // 3. Fetch departments
     const { data: departments = [] } = useQuery({
         queryKey: ["departmentsList"],
         queryFn: async () => {
@@ -81,26 +81,58 @@ export function CreateClassDialog({
         enabled: open,
     });
 
-    const mutation = useMutation({
-        mutationFn: (values: ClassFormValues) => {
-            const deptId = values.departmentId === "__NONE__" || !values.departmentId ? null : values.departmentId;
-            if (isEditing && classToEdit) {
-                return updateAcademicClass(classToEdit.id, {
-                    name: values.name.trim(),
-                    departmentId: deptId,
-                    orderIndex: values.orderIndex,
+    const configuredCodes = new Set(
+        existingClasses
+            .filter(c => !classToEdit || c.id !== classToEdit.id)
+            .map(c => c.code.toUpperCase())
+    );
+
+    useEffect(() => {
+        if (open) {
+            if (classToEdit) {
+                form.reset({
+                    code: classToEdit.code || "",
+                    departmentId: classToEdit.departmentId || "__NONE__",
+                });
+            } else {
+                form.reset({
+                    code: "",
+                    departmentId: "__NONE__",
                 });
             }
+        }
+    }, [open, classToEdit, form]);
+
+    const mutation = useMutation({
+        mutationFn: (values: ClassFormValues) => {
+            const predefined = predefinedClasses.find(p => p.code === values.code);
+            const deptId = values.departmentId === "__NONE__" || !values.departmentId ? null : values.departmentId;
+
+            if (isEditing && classToEdit) {
+                return updateAcademicClass(classToEdit.id, {
+                    name: predefined?.name || classToEdit.name,
+                    code: values.code,
+                    departmentId: deptId,
+                    orderIndex: predefined?.sequenceOrder,
+                });
+            }
+
+            if (!predefined) {
+                throw new Error("Please select a valid standard class");
+            }
+
             return createAcademicClass({
-                name: values.name.trim(),
+                name: predefined.name,
+                code: predefined.code,
                 departmentId: deptId || undefined,
-                orderIndex: values.orderIndex,
+                orderIndex: predefined.sequenceOrder,
                 status: "ACTIVE"
             });
         },
         onSuccess: () => {
-            toast.success(isEditing ? "Academic Class updated successfully" : "Academic Class created successfully");
+            toast.success(isEditing ? "Academic Class updated successfully" : "Academic Class added successfully");
             qc.invalidateQueries({ queryKey: ["classes"] });
+            qc.invalidateQueries({ queryKey: ["classSetupStatus"] });
             onOpenChange(false);
             form.reset();
             if (onSuccess) onSuccess();
@@ -118,75 +150,105 @@ export function CreateClassDialog({
         <ResponsiveModal
             open={open}
             onOpenChange={onOpenChange}
-            title={isEditing ? "Edit Academic Class" : "Create Academic Class"}
+            title={isEditing ? "Edit Academic Class" : "Add Academic Class"}
             description={
                 isEditing
-                    ? "Modify academic class name, sequence order, or department affiliation."
-                    : "Define a new academic grade level (e.g. Class 11, Pre-KG)."
+                    ? "Update department association for this academic class."
+                    : "Select a standard class to add to the institution structure. No custom class names permitted."
             }
             maxWidth="sm:max-w-md"
         >
             <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 pt-1">
+                {/* @ts-ignore */}
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-1">
+                    {/* Predefined Class Dropdown */}
                     <FormField
-                        control={form.control as any}
-                        name="name"
+                        control={form.control}
+                        name="code"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-xs font-bold text-foreground">Class Name *</FormLabel>
-                                <FormControl>
-                                    <Input {...field} placeholder="e.g. Class 11 or Nursery" className="h-9 text-xs rounded-xl" />
-                                </FormControl>
+                                <FormLabel className="text-xs font-bold text-foreground flex items-center justify-between">
+                                    <span>Standard Academic Class *</span>
+                                    <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
+                                        <Layers className="w-3 h-3 text-primary" /> Fixed Progression Order
+                                    </span>
+                                </FormLabel>
+                                <Select
+                                    onValueChange={field.onChange}
+                                    value={field.value}
+                                    disabled={isEditing}
+                                >
+                                    <FormControl>
+                                        <SelectTrigger className="h-10 text-xs font-bold rounded-xl bg-background">
+                                            <SelectValue placeholder="Choose standard class..." />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent className="max-h-60">
+                                        {predefinedClasses.map((item) => {
+                                            const isAlreadyAdded = configuredCodes.has(item.code.toUpperCase());
+                                            return (
+                                                <SelectItem
+                                                    key={item.code}
+                                                    value={item.code}
+                                                    disabled={isAlreadyAdded}
+                                                    className="text-xs font-semibold"
+                                                >
+                                                    <div className="flex items-center justify-between w-full gap-3">
+                                                        <span>{item.name}</span>
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            {isAlreadyAdded ? "(Configured)" : `[${item.departmentCategory}]`}
+                                                        </span>
+                                                    </div>
+                                                </SelectItem>
+                                            );
+                                        })}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-[10px] text-muted-foreground">
+                                    Only predefined academic classes are allowed. Order and sequence are automatically maintained.
+                                </p>
                                 <FormMessage className="text-[11px]" />
                             </FormItem>
                         )}
                     />
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <FormField
-                            control={form.control as any}
-                            name="orderIndex"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className="text-xs font-bold text-foreground">Sequence Order</FormLabel>
+                    {/* Department Mapping */}
+                    <FormField
+                        control={form.control}
+                        name="departmentId"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs font-bold text-foreground">Department (Optional)</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value || "__NONE__"}>
                                     <FormControl>
-                                        <Input type="number" min={1} {...field} className="h-9 text-xs rounded-xl" />
+                                        <SelectTrigger className="h-10 text-xs rounded-xl bg-background">
+                                            <SelectValue placeholder="Select Department" />
+                                        </SelectTrigger>
                                     </FormControl>
-                                    <FormMessage className="text-[11px]" />
-                                </FormItem>
-                            )}
-                        />
+                                    <SelectContent>
+                                        <SelectItem value="__NONE__">-- Unassigned --</SelectItem>
+                                        {departments.map((d: any) => {
+                                            const incharge = d.head?.account
+                                                ? ` (Incharge: ${d.head.account.firstName} ${d.head.account.lastName})`
+                                                : "";
+                                            return (
+                                                <SelectItem key={d.id} value={d.id} className="text-xs">
+                                                    {d.name} {incharge}
+                                                </SelectItem>
+                                            );
+                                        })}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage className="text-[11px]" />
+                            </FormItem>
+                        )}
+                    />
 
-                        <FormField
-                            control={form.control as any}
-                            name="departmentId"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className="text-xs font-bold text-foreground">Department</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value || "__NONE__"}>
-                                        <FormControl>
-                                            <SelectTrigger className="h-9 text-xs rounded-xl">
-                                                <SelectValue placeholder="Select Department" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="__NONE__">None / Unassigned</SelectItem>
-                                            {departments.map((d: any) => (
-                                                <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage className="text-[11px]" />
-                                </FormItem>
-                            )}
-                        />
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-2">
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/70">
                         <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="rounded-xl text-xs font-bold">
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={mutation.isPending} className="gap-2 rounded-xl text-xs font-bold shadow-sm">
+                        <Button type="submit" disabled={mutation.isPending} className="gap-2 rounded-xl text-xs font-bold shadow-xs bg-primary text-primary-foreground hover:bg-primary/95">
                             {mutation.isPending ? (
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             ) : isEditing ? (
@@ -194,7 +256,7 @@ export function CreateClassDialog({
                             ) : (
                                 <Plus className="w-3.5 h-3.5" />
                             )}
-                            {isEditing ? "Save Changes" : "Create Class"}
+                            {isEditing ? "Save Changes" : "Save Class"}
                         </Button>
                     </div>
                 </form>

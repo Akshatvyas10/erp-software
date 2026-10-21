@@ -1,6 +1,18 @@
 import api from "@/lib/api";
 import type { AcademicClass, ClassSetupStatus, BulkSetupPayload } from "@/types/erp";
 
+export interface PredefinedClassItem {
+    code: string;
+    name: string;
+    sequenceOrder: number;
+    departmentCategory: string;
+}
+
+export const fetchPredefinedClasses = async (): Promise<PredefinedClassItem[]> => {
+    const { data } = await api.get("/classes/predefined");
+    return data.data.predefinedClasses as PredefinedClassItem[];
+};
+
 export const fetchClassSetupStatus = async (): Promise<ClassSetupStatus> => {
     const { data } = await api.get("/classes/setup-status");
     return data.data as ClassSetupStatus;

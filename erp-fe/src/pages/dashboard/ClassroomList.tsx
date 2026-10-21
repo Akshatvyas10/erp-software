@@ -56,6 +56,11 @@ const BulkPromotionWizardDialog = lazy(() =>
         default: m.BulkPromotionWizardDialog,
     }))
 );
+const PromotionRulesModal = lazy(() =>
+    import("@/features/classrooms/components/directory/PromotionRulesModal").then((m) => ({
+        default: m.PromotionRulesModal,
+    }))
+);
 
 type TeacherCoverageFilter = "all" | "missing" | "assigned";
 
@@ -87,6 +92,7 @@ export default function ClassroomList() {
     // High Priority Feature Dialogs
     const [cloneSourceSection, setCloneSourceSection] = useState<Classroom | null>(null);
     const [isPromotionWizardOpen, setIsPromotionWizardOpen] = useState(false);
+    const [isPromotionRulesOpen, setIsPromotionRulesOpen] = useState(false);
 
     // 1. Check Setup Status (Triggers First-Time Wizard if empty)
     const { data: setupStatus } = useQuery({
@@ -280,6 +286,15 @@ export default function ClassroomList() {
 
                         <PermissionGate permission={PERMISSIONS.CLASSROOMS.MANAGE}>
                             {/* Academic Year Promotion Wizard */}
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsPromotionRulesOpen(true)}
+                                className="gap-1 sm:gap-1.5 h-8 sm:h-9 text-[11px] sm:text-xs rounded-lg sm:rounded-xl font-bold border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 shadow-2xs"
+                            >
+                                <Sparkles className="w-3.5 h-3.5" /> Promotion Rules
+                            </Button>
+
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -763,6 +778,16 @@ export default function ClassroomList() {
                         sourceClassroom={null}
                         enrollments={[]}
                         onSuccess={() => refetch()}
+                    />
+                </Suspense>
+            )}
+
+            {/* 8. Promotion Rules Configuration Modal */}
+            {isPromotionRulesOpen && (
+                <Suspense fallback={null}>
+                    <PromotionRulesModal
+                        open={isPromotionRulesOpen}
+                        onOpenChange={setIsPromotionRulesOpen}
                     />
                 </Suspense>
             )}

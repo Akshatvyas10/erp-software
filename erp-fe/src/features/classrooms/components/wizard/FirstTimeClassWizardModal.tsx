@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-    Sparkles, Check, Plus, Trash2,
+    Sparkles, Check,
     Loader2, ArrowRight, School,
-    GraduationCap, Layers, Calendar, CheckCircle2
+    GraduationCap, Calendar, Building2, UserCheck
 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
@@ -11,6 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveModal } from "@/components/common/ResponsiveModal";
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
+import api from "@/lib/api";
 import { bulkSetupClasses } from "../../api/classApi";
 import type { BulkSetupClassItem } from "@/types/erp";
 import { cn } from "@/lib/utils";
@@ -73,6 +77,10 @@ const CATEGORY_STYLES: Record<StandardGrade["category"], { border: string; bg: s
     }
 };
 
+const CATEGORIES: Array<StandardGrade["category"]> = [
+    "Pre-Primary", "Primary", "Middle", "Secondary", "Senior Secondary"
+];
+
 interface FirstTimeClassWizardModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -84,17 +92,31 @@ export function FirstTimeClassWizardModal({ open, onOpenChange, onSuccess }: Fir
 
     // Selected standard grade names
     const [selectedNames, setSelectedNames] = useState<string[]>([
+        "Nursery", "KG 1", "KG 2",
         "Class 1", "Class 2", "Class 3", "Class 4", "Class 5",
         "Class 6", "Class 7", "Class 8", "Class 9", "Class 10"
     ]);
 
-    // Custom classes added by admin
-    const [customClasses, setCustomClasses] = useState<string[]>([]);
-    const [customInput, setCustomInput] = useState("");
+    // Department Incharges (head teacher) selected for each department
+    const [deptIncharges, setDeptIncharges] = useState<Record<string, string>>({
+        "Pre-Primary": "",
+        "Primary": "",
+        "Middle": "",
+        "Secondary": "",
+        "Senior Secondary": ""
+    });
 
-    // Section options
-    const [sectionPreset, setSectionPreset] = useState<"A" | "AB" | "ABC">("A");
     const [academicYear, setAcademicYear] = useState("2026-2027");
+
+    // Fetch teachers for Incharge selection
+    const { data: teachers = [] } = useQuery({
+        queryKey: ["teachers-select"],
+        queryFn: async () => {
+            const res = await api.get("/teachers?limit=100");
+            return res.data.data.teachers || [];
+        },
+        enabled: open,
+    });
 
     const toggleGrade = (name: string) => {
         setSelectedNames(prev =>
@@ -102,78 +124,71 @@ export function FirstTimeClassWizardModal({ open, onOpenChange, onSuccess }: Fir
         );
     };
 
-    const handleAddCustom = () => {
-        const val = customInput.trim();
-        if (!val) return;
-        if (selectedNames.includes(val) || customClasses.includes(val)) {
-            toast.error("Class with this name already added");
-            return;
-        }
-        setCustomClasses(prev => [...prev, val]);
-        setCustomInput("");
-    };
-
-    const handleRemoveCustom = (val: string) => {
-        setCustomClasses(prev => prev.filter(c => c !== val));
-    };
-
-    const selectPreset = (type: "all" | "primary" | "k10" | "clear") => {
+    const selectPreset = (type: "all" | "senior_12" | "secondary_10" | "middle_8" | "primary_5" | "clear") => {
         if (type === "all") setSelectedNames(STANDARD_GRADES.map(g => g.name));
-        if (type === "primary") setSelectedNames(["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"]);
-        if (type === "k10") setSelectedNames(STANDARD_GRADES.slice(0, 13).map(g => g.name));
+        if (type === "senior_12") setSelectedNames(["Class 1", "Class 2", "Class 3", "Class 4", "Class 5", "Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Class 11", "Class 12"]);
+        if (type === "secondary_10") setSelectedNames(["Class 1", "Class 2", "Class 3", "Class 4", "Class 5", "Class 6", "Class 7", "Class 8", "Class 9", "Class 10"]);
+        if (type === "middle_8") setSelectedNames(["Class 1", "Class 2", "Class 3", "Class 4", "Class 5", "Class 6", "Class 7", "Class 8"]);
+        if (type === "primary_5") setSelectedNames(["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"]);
         if (type === "clear") {
             setSelectedNames([]);
-            setCustomClasses([]);
         }
     };
 
-    const getSectionsArray = (): string[] => {
-        if (sectionPreset === "ABC") return ["A", "B", "C"];
-        if (sectionPreset === "AB") return ["A", "B"];
-        return ["A"];
+    const handleInchargeChange = (category: string, teacherId: string) => {
+        setDeptIncharges(prev => ({
+            ...prev,
+            [category]: teacherId === "__NONE__" ? "" : teacherId
+        }));
     };
+
+    // Which categories are active based on selected grades
+    const activeCategories = CATEGORIES.filter(cat =>
+        STANDARD_GRADES.some(g => g.category === cat && selectedNames.includes(g.name))
+    );
 
     const mutation = useMutation({
         mutationFn: async () => {
-            const defaultSecs = getSectionsArray();
             const classesPayload: BulkSetupClassItem[] = [];
 
-            // Add selected standard grades preserving order
+            // Add selected standard grades preserving sequence order
             STANDARD_GRADES.forEach(g => {
                 if (selectedNames.includes(g.name)) {
                     classesPayload.push({
                         name: g.name,
                         code: g.code,
+                        category: g.category,
                         orderIndex: g.orderIndex,
-                        sections: defaultSecs
+                        sections: [] // NO automatic sections; created manually later in Classroom module
                     });
                 }
             });
 
-            // Add custom classes
-            customClasses.forEach((name, idx) => {
-                classesPayload.push({
-                    name,
-                    code: name.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 30),
-                    orderIndex: STANDARD_GRADES.length + idx + 1,
-                    sections: defaultSecs
-                });
-            });
-
             if (classesPayload.length === 0) {
-                throw new Error("Please select at least one class for your institution.");
+                throw new Error("Please select at least one standard grade for your institution.");
             }
+
+            // Build departments map with Incharge IDs
+            const departmentsPayload: Record<string, { inchargeId?: string | null }> = {};
+            activeCategories.forEach(cat => {
+                departmentsPayload[cat] = {
+                    inchargeId: deptIncharges[cat] || null
+                };
+            });
 
             return bulkSetupClasses({
                 classes: classesPayload,
-                defaultSections: defaultSecs,
+                defaultSections: [], // No forced section streams
+                departments: departmentsPayload,
                 academicYear
             });
         },
         onSuccess: (data) => {
-            toast.success(`Successfully configured ${data.classesCount} Classes and ${data.sectionsCount} Sections!`);
+            toast.success(`Successfully provisioned ${data.classesCount} Classes with Department Incharges!`);
             qc.invalidateQueries({ queryKey: ["classes"] });
             qc.invalidateQueries({ queryKey: ["classrooms"] });
+            qc.invalidateQueries({ queryKey: ["departments"] });
+            qc.invalidateQueries({ queryKey: ["departmentsList"] });
             qc.invalidateQueries({ queryKey: ["classSetupStatus"] });
             onOpenChange(false);
             if (onSuccess) onSuccess();
@@ -189,9 +204,7 @@ export function FirstTimeClassWizardModal({ open, onOpenChange, onSuccess }: Fir
         }
     });
 
-    const totalSelectedCount = selectedNames.length + customClasses.length;
-    const totalSectionsToCreate = totalSelectedCount * getSectionsArray().length;
-    const categories: Array<StandardGrade["category"]> = ["Pre-Primary", "Primary", "Middle", "Secondary", "Senior Secondary"];
+    const totalSelectedCount = selectedNames.length;
 
     return (
         <ResponsiveModal
@@ -199,13 +212,13 @@ export function FirstTimeClassWizardModal({ open, onOpenChange, onSuccess }: Fir
             onOpenChange={onOpenChange}
             title=""
             description=""
-            maxWidth="sm:max-w-3xl"
+            maxWidth="sm:max-w-4xl"
         >
-            <div className="space-y-6 pt-1 text-foreground">
-                {/* ── 1. High-Impact Executive Hero Banner ─────────────────────────── */}
+            <div className="space-y-5 pt-1 text-foreground">
+                {/* ── 1. Executive Hero Banner ─────────────────────────────────────── */}
                 <div className="relative rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/15 via-violet-500/10 to-indigo-600/15 p-5 shadow-xs overflow-hidden">
                     <School className="absolute -right-4 -bottom-4 w-32 h-32 text-primary/[0.04] pointer-events-none" />
-                    
+
                     <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-3.5">
                             <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shadow-primary/25 shrink-0">
@@ -217,24 +230,24 @@ export function FirstTimeClassWizardModal({ open, onOpenChange, onSuccess }: Fir
                                         Institutional Classroom Architect
                                     </h3>
                                     <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] font-bold py-0 px-2 rounded-full">
-                                        Smart Setup
+                                        Departments & Classes Setup
                                     </Badge>
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                    Select the grades offered by your school to automatically provision classes and operational sections.
+                                    Define your institutional grades by Department (Pre-Primary, Primary, etc.) and assign Department Incharges in the same flow.
                                 </p>
                             </div>
                         </div>
 
                         {/* Real-time Counter Badge */}
                         <div className="bg-background/80 backdrop-blur-md px-3.5 py-2 rounded-xl border border-border/70 shadow-2xs shrink-0 text-right self-stretch sm:self-auto flex sm:flex-col justify-between items-center sm:items-end">
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Architected Plan</span>
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Selected Plan</span>
                             <div className="flex items-center gap-1.5 mt-0.5">
                                 <span className="text-base font-black text-primary">{totalSelectedCount}</span>
-                                <span className="text-xs text-muted-foreground font-semibold">Classes</span>
+                                <span className="text-xs text-muted-foreground font-semibold">Grades</span>
                                 <span className="text-muted-foreground/40">•</span>
-                                <span className="text-base font-black text-indigo-600 dark:text-indigo-400">{totalSectionsToCreate}</span>
-                                <span className="text-xs text-muted-foreground font-semibold">Sections</span>
+                                <span className="text-base font-black text-violet-600 dark:text-violet-400">{activeCategories.length}</span>
+                                <span className="text-xs text-muted-foreground font-semibold">Departments</span>
                             </div>
                         </div>
                     </div>
@@ -244,7 +257,7 @@ export function FirstTimeClassWizardModal({ open, onOpenChange, onSuccess }: Fir
                 <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-muted/40 border border-border/60">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
                         <GraduationCap className="w-4 h-4 text-primary" />
-                        <span>Instant Presets:</span>
+                        <span>Institutional Grade Presets:</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
                         <Button
@@ -254,22 +267,40 @@ export function FirstTimeClassWizardModal({ open, onOpenChange, onSuccess }: Fir
                             onClick={() => selectPreset("all")}
                             className="h-7 text-xs font-bold rounded-lg border-primary/30 hover:bg-primary/10 hover:text-primary transition-all"
                         >
-                            Complete K-12 (All)
+                            Complete K-12
                         </Button>
                         <Button
                             variant="outline"
                             size="sm"
                             type="button"
-                            onClick={() => selectPreset("k10")}
+                            onClick={() => selectPreset("senior_12")}
                             className="h-7 text-xs font-bold rounded-lg hover:bg-muted"
                         >
-                            K through 10
+                            10+2 (1 to 12)
                         </Button>
                         <Button
                             variant="outline"
                             size="sm"
                             type="button"
-                            onClick={() => selectPreset("primary")}
+                            onClick={() => selectPreset("secondary_10")}
+                            className="h-7 text-xs font-bold rounded-lg hover:bg-muted"
+                        >
+                            Secondary (1 to 10)
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            onClick={() => selectPreset("middle_8")}
+                            className="h-7 text-xs font-bold rounded-lg hover:bg-muted"
+                        >
+                            Middle (1 to 8)
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            onClick={() => selectPreset("primary_5")}
                             className="h-7 text-xs font-bold rounded-lg hover:bg-muted"
                         >
                             Primary (1 to 5)
@@ -286,27 +317,69 @@ export function FirstTimeClassWizardModal({ open, onOpenChange, onSuccess }: Fir
                     </div>
                 </div>
 
-                {/* ── 3. Interactive Grade Cards by Academic Category ─────────────── */}
-                <div className="space-y-4 max-h-[290px] overflow-y-auto pr-1">
-                    {categories.map(cat => {
+                {/* ── 3. Departments & Incharge with Embedded Standard Grades ──────── */}
+                <div className="space-y-3.5 max-h-[380px] overflow-y-auto pr-1">
+                    {CATEGORIES.map(cat => {
                         const gradesInCat = STANDARD_GRADES.filter(g => g.category === cat);
                         const style = CATEGORY_STYLES[cat];
                         const countSelectedInCat = gradesInCat.filter(g => selectedNames.includes(g.name)).length;
+                        const isCatActive = countSelectedInCat > 0;
 
                         return (
-                            <div key={cat} className="space-y-2 p-3 rounded-xl bg-card border border-border/70 shadow-2xs">
-                                <div className="flex items-center justify-between">
+                            <div
+                                key={cat}
+                                className={cn(
+                                    "space-y-3 p-3.5 rounded-2xl border transition-all shadow-2xs",
+                                    isCatActive ? "bg-card border-border/80" : "bg-muted/15 border-border/40 opacity-75"
+                                )}
+                            >
+                                {/* Department Header & Incharge Selector */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-border/60">
                                     <div className="flex items-center gap-2">
-                                        <span className={cn("w-2 h-2 rounded-full", style.dot)} />
-                                        <span className="text-xs font-bold uppercase tracking-wider text-foreground">
-                                            {cat}
-                                        </span>
+                                        <span className={cn("w-2.5 h-2.5 rounded-full", style.dot)} />
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-black tracking-tight text-foreground flex items-center gap-1.5">
+                                                <Building2 className="w-3.5 h-3.5 text-primary" />
+                                                {cat} Department
+                                            </span>
+                                            <Badge variant="outline" className={cn("text-[10px] font-bold py-0 px-2 rounded-full", style.text, style.border)}>
+                                                {countSelectedInCat} / {gradesInCat.length} Selected
+                                            </Badge>
+                                        </div>
                                     </div>
-                                    <span className="text-[11px] font-semibold text-muted-foreground">
-                                        {countSelectedInCat} / {gradesInCat.length} Active
-                                    </span>
+
+                                    {/* Department Incharge (Head Teacher) Selector */}
+                                    <div className="flex items-center gap-2 min-w-[240px]">
+                                        <span className="text-[11px] font-bold text-muted-foreground whitespace-nowrap flex items-center gap-1">
+                                            <UserCheck className="w-3 h-3 text-primary" /> Incharge:
+                                        </span>
+                                        <Select
+                                            value={deptIncharges[cat] || "__NONE__"}
+                                            onValueChange={(val) => handleInchargeChange(cat, val)}
+                                        >
+                                            <SelectTrigger className="h-8 text-xs font-semibold rounded-xl bg-background border-border/80">
+                                                <SelectValue placeholder="Assign Incharge..." />
+                                            </SelectTrigger>
+                                            <SelectContent className="max-h-56">
+                                                <SelectItem value="__NONE__" className="text-xs">
+                                                    -- No Incharge --
+                                                </SelectItem>
+                                                {teachers.map((t: any) => {
+                                                    const teacherName = t.account
+                                                        ? `${t.account.firstName} ${t.account.lastName}`
+                                                        : t.teacherId || "Teacher";
+                                                    return (
+                                                        <SelectItem key={t.id} value={t.id} className="text-xs font-medium">
+                                                            {teacherName} {t.employeeNumber ? `(${t.employeeNumber})` : ""}
+                                                        </SelectItem>
+                                                    );
+                                                })}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
 
+                                {/* Standard Predefined Grades in this Department */}
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                                     {gradesInCat.map(grade => {
                                         const isSelected = selectedNames.includes(grade.name);
@@ -319,7 +392,7 @@ export function FirstTimeClassWizardModal({ open, onOpenChange, onSuccess }: Fir
                                                     "group relative flex items-center justify-between p-2.5 rounded-xl border text-xs font-bold transition-all text-left",
                                                     isSelected
                                                         ? "border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary/20"
-                                                        : "border-border/70 bg-muted/20 text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground"
+                                                        : "border-border/70 bg-background text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground"
                                                 )}
                                             >
                                                 <span className="truncate">{grade.name}</span>
@@ -337,125 +410,37 @@ export function FirstTimeClassWizardModal({ open, onOpenChange, onSuccess }: Fir
                             </div>
                         );
                     })}
-
-                    {/* Custom Classes Showcase */}
-                    {customClasses.length > 0 && (
-                        <div className="space-y-2 p-3 rounded-xl bg-card border border-border/70 shadow-2xs">
-                            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                                Custom Institution Classes ({customClasses.length})
-                            </span>
-                            <div className="flex flex-wrap gap-2">
-                                {customClasses.map(c => (
-                                    <Badge key={c} variant="secondary" className="gap-1.5 py-1 px-3 rounded-lg text-xs font-bold bg-primary/15 text-primary border border-primary/25">
-                                        <CheckCircle2 className="w-3 h-3 text-primary" />
-                                        {c}
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRemoveCustom(c)}
-                                            className="hover:text-destructive ml-1 text-muted-foreground transition-colors"
-                                            title="Remove Class"
-                                        >
-                                            <Trash2 className="w-3 h-3" />
-                                        </button>
-                                    </Badge>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
 
-                {/* ── 4. Add Custom Grade Input ───────────────────────────────────── */}
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-muted/20 border border-border/60">
-                    <Input
-                        placeholder="Add special or vocational grade (e.g., Playgroup, Montessori-1, Pre-KG)..."
-                        value={customInput}
-                        onChange={(e) => setCustomInput(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustom(); } }}
-                        className="h-9 text-xs rounded-xl bg-background border-border/80"
-                    />
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleAddCustom}
-                        className="h-9 gap-1.5 rounded-xl font-bold text-xs shrink-0 hover:bg-primary/10 hover:text-primary transition-colors"
-                    >
-                        <Plus className="w-3.5 h-3.5" /> Add Custom
-                    </Button>
-                </div>
-
-                {/* ── 5. Section Stream & Session Engine ──────────────────────────── */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/30 p-4 rounded-2xl border border-border/70 shadow-2xs">
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                            <Layers className="w-3.5 h-3.5 text-primary" /> Initial Stream Configuration
-                        </label>
-                        <div className="grid grid-cols-3 gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setSectionPreset("A")}
-                                className={cn(
-                                    "p-2.5 rounded-xl text-xs font-bold border transition-all text-center flex flex-col items-center justify-center gap-0.5",
-                                    sectionPreset === "A"
-                                        ? "bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/30"
-                                        : "bg-background border-border/80 text-foreground hover:bg-muted/60"
-                                )}
-                            >
-                                <span className="font-black text-sm">Section A</span>
-                                <span className="text-[10px] opacity-80">Single Stream</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setSectionPreset("AB")}
-                                className={cn(
-                                    "p-2.5 rounded-xl text-xs font-bold border transition-all text-center flex flex-col items-center justify-center gap-0.5",
-                                    sectionPreset === "AB"
-                                        ? "bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/30"
-                                        : "bg-background border-border/80 text-foreground hover:bg-muted/60"
-                                )}
-                            >
-                                <span className="font-black text-sm">A & B</span>
-                                <span className="text-[10px] opacity-80">Dual Stream</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setSectionPreset("ABC")}
-                                className={cn(
-                                    "p-2.5 rounded-xl text-xs font-bold border transition-all text-center flex flex-col items-center justify-center gap-0.5",
-                                    sectionPreset === "ABC"
-                                        ? "bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/30"
-                                        : "bg-background border-border/80 text-foreground hover:bg-muted/60"
-                                )}
-                            >
-                                <span className="font-black text-sm">A, B & C</span>
-                                <span className="text-[10px] opacity-80">Triple Stream</span>
-                            </button>
+                {/* ── 4. Active Session Setting ────────────────────────────────────── */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-2xl bg-muted/30 border border-border/70">
+                    <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-primary shrink-0" />
+                        <div>
+                            <span className="text-xs font-bold text-foreground">Active Academic Session</span>
+                            <p className="text-[11px] text-muted-foreground">
+                                Sections (A, B, C...) are created manually later in Classroom module as needed.
+                            </p>
                         </div>
-                        <p className="text-[11px] text-muted-foreground">Each section will have its own independent roster & timetable.</p>
                     </div>
-
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Active Academic Session
-                        </label>
+                    <div className="w-full sm:w-44">
                         <Input
                             value={academicYear}
                             onChange={(e) => setAcademicYear(e.target.value)}
                             placeholder="e.g. 2026-2027"
-                            className="h-10 text-xs rounded-xl bg-background font-bold border-border/80"
+                            className="h-8 text-xs font-bold rounded-xl bg-background"
                         />
-                        <p className="text-[11px] text-muted-foreground">Links all generated classes directly to the active institutional session.</p>
                     </div>
                 </div>
 
-                {/* ── 6. Sticky Executive Footer Action Bar ────────────────────────── */}
+                {/* ── 5. Sticky Footer Action Bar ──────────────────────────────────── */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-border/70">
                     <div className="text-xs text-muted-foreground font-semibold flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                         <span>Ready to initialize:</span>
-                        <strong className="text-foreground font-bold">{totalSelectedCount} Classes</strong>
-                        <span>yielding</span>
-                        <strong className="text-primary font-bold">{totalSectionsToCreate} Classroom Sections</strong>
+                        <strong className="text-foreground font-bold">{totalSelectedCount} Standard Grades</strong>
+                        <span>across</span>
+                        <strong className="text-primary font-bold">{activeCategories.length} Departments</strong>
                     </div>
 
                     <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">

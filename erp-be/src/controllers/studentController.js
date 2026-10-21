@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { Op, literal, fn, col } from 'sequelize';
 import db from '../models/index.js';
-const { Student, User, Role, Classroom, ClassroomStudent } = db;
+const { Student, User, Role, Classroom, ClassroomStudent, StudentAcademicHistory, PromotionLog } = db;
 import { success, error } from '../utils/apiResponse.js';
 import permissionEmitter from '../events/permissionEmitter.js';
 import { buildPhotoUrl } from '../middlewares/uploadMiddleware.js';
@@ -520,8 +520,51 @@ const getStudentAttendance = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
+// =============================================================================
+// GET /api/students/:id/academic-history
+// Fetch complete past academic history and progression logs
+// =============================================================================
+const getStudentAcademicHistory = async (req, res, next) => {
+    try {
+        const studentId = req.params.id;
+        const student = await Student.findByPk(studentId, {
+            attributes: ['id', 'studentId', 'admissionNumber', 'grade', 'section', 'status'],
+            include: [studentWithAccount]
+        });
+        if (!student) return error(res, 'Student not found', 404);
+
+        const { academicYear, className } = req.query;
+        const whereClause = { studentId };
+        if (academicYear) whereClause.academicYear = academicYear;
+        if (className) whereClause.className = className;
+
+        const history = await StudentAcademicHistory.findAll({
+            where: whereClause,
+            order: [['created_at', 'ASC'], ['academic_year', 'ASC']]
+        });
+
+        const promotionLogs = await PromotionLog.findAll({
+            where: { studentId },
+            include: [
+                { model: Classroom, as: 'sourceClassroom', attributes: ['id', 'name', 'section', 'academicYear'] },
+                { model: Classroom, as: 'targetClassroom', attributes: ['id', 'name', 'section', 'academicYear'] }
+            ],
+            order: [['created_at', 'ASC']]
+        });
+
+        return success(res, {
+            student,
+            history,
+            promotionLogs
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
 export {
     listStudents, getStudent, getMyStudentProfile,
     createStudent, updateStudent, deleteStudent,
-    getStudentExamResults, getStudentAttendance
+    getStudentExamResults, getStudentAttendance,
+    getStudentAcademicHistory
 };

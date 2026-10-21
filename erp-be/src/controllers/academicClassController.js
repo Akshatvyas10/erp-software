@@ -2,6 +2,15 @@
 import { AcademicClassService } from '../services/academicClassService.js';
 import { success, error } from '../utils/apiResponse.js';
 
+export const getPredefinedClasses = async (req, res, next) => {
+    try {
+        const { PREDEFINED_ALLOWED_CLASSES } = await import('../services/academicClassService.js');
+        return success(res, { predefinedClasses: PREDEFINED_ALLOWED_CLASSES });
+    } catch (err) {
+        next(err);
+    }
+};
+
 export const getSetupStatus = async (req, res, next) => {
     try {
         const status = await AcademicClassService.checkSetupStatus();
@@ -71,6 +80,25 @@ export const deleteClass = async (req, res, next) => {
     try {
         await AcademicClassService.deleteClass(req.params.id);
         return success(res, null, 'Academic Class and empty sections deleted successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const getNextClass = async (req, res, next) => {
+    try {
+        const result = await AcademicClassService.getNextClass(req.params.id);
+        return success(res, result);
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const applyStructure = async (req, res, next) => {
+    try {
+        const { structureType, academicYear } = req.body;
+        const result = await AcademicClassService.applySchoolStructurePreset(structureType, academicYear);
+        return success(res, result, `School structure preset "${structureType}" applied successfully`);
     } catch (err) {
         next(err);
     }

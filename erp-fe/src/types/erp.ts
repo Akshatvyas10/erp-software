@@ -142,6 +142,7 @@ export interface ClassSetupStatus {
 export interface BulkSetupClassItem {
     name: string;
     code?: string;
+    category?: string;
     orderIndex?: number;
     departmentId?: string;
     sections?: string[];
@@ -150,6 +151,7 @@ export interface BulkSetupClassItem {
 export interface BulkSetupPayload {
     classes: BulkSetupClassItem[];
     defaultSections?: string[];
+    departments?: Record<string, { inchargeId?: string | null }>;
     academicYear?: string;
 }
 
@@ -636,5 +638,60 @@ export interface AttendanceSummary {
     leave: number;
     total: number;
     percentage: number;
+}
+
+export interface StudentAcademicHistory {
+    id: string;
+    studentId: string;
+    classroomId?: string | null;
+    academicClassId?: string | null;
+    className: string;
+    sectionName: string;
+    academicYear: string;
+    rollNumber?: number | null;
+    attendancePercentage?: number | string | null;
+    overallPercentage?: number | string | null;
+    overallGrade?: string | null;
+    resultStatus: 'PASSED' | 'FAILED' | 'PROMOTED' | 'RETAINED' | 'GRADUATED' | 'TRANSFERRED';
+    teacherRemarks?: string | null;
+    appraisalNotes?: string | null;
+    finalExamResults: Array<{
+        subjectName?: string;
+        marksObtained?: number;
+        maxMarks?: number;
+        grade?: string;
+    }>;
+    testBreakdown?: Array<{
+        testName?: string;
+        marksObtained?: number;
+        maxMarks?: number;
+    }>;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface PromotionLogRecord {
+    id: string;
+    studentId: string;
+    sourceClassroomId?: string | null;
+    targetClassroomId?: string | null;
+    promotionStatus: 'PROMOTED' | 'RETAINED' | 'GRADUATED' | 'TRANSFERRED' | 'PROMOTED_WITH_WARNING';
+    academicYear: string;
+    finalPercentage?: number | string | null;
+    remarks?: string | null;
+    promotedBy?: string | null;
+    createdAt?: string;
+    sourceClassroom?: {
+        id: string;
+        name: string;
+        section: string;
+        academicYear: string;
+    };
+    targetClassroom?: {
+        id: string;
+        name: string;
+        section: string;
+        academicYear: string;
+    };
 }
 

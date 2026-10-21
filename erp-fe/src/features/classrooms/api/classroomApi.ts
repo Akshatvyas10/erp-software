@@ -32,7 +32,7 @@ export const fetchClassrooms = async (filters?: { status?: string }): Promise<Cl
 };
 
 export const fetchAllStudents = async (search: string) => {
-    const params = new URLSearchParams({ limit: "50" });
+    const params = new URLSearchParams({ limit: "50", status: "ACTIVE" });
     if (search) params.set("search", search);
     const { data } = await api.get(`/students?${params}`);
     return data.data.students as Array<{
@@ -43,6 +43,74 @@ export const fetchAllStudents = async (search: string) => {
         section: string | null;
         account: { firstName: string; lastName: string; email: string };
     }>;
+};
+
+export interface PromotionRule {
+    id: string;
+    name: string;
+    academicClassId?: string | null;
+    academicClass?: { id: string; name: string; code: string } | null;
+    minOverallPercentage: number;
+    mustPassAllSubjects: boolean;
+    minSubjectPercentage: number;
+    maxCompartmentSubjects: number;
+    minAttendancePercentage?: number | null;
+    status: string;
+}
+
+export interface PromotionEvaluationCandidate {
+    studentId: string;
+    admissionNumber: string;
+    name: string;
+    rollNumber?: number | null;
+    overallPercentage: number | null;
+    totalExamsEvaluated: number;
+    failedSubjects: Array<{
+        subjectName: string;
+        subjectCode: string;
+        marksObtained: number;
+        maxMarks: number;
+        percentage: number;
+    }>;
+    failureReasons?: string[];
+}
+
+export interface PromotionEvaluationResponse {
+    classroom: {
+        id: string;
+        name: string;
+        section: string;
+        academicYear: string;
+        academicClass?: { id: string; name: string; code: string; orderIndex: number } | null;
+    };
+    rule: PromotionRule;
+    summary: {
+        totalStudents: number;
+        eligibleCount: number;
+        failingCount: number;
+    };
+    eligibleStudents: PromotionEvaluationCandidate[];
+    failingStudents: PromotionEvaluationCandidate[];
+}
+
+export const fetchPromotionRules = async (): Promise<PromotionRule[]> => {
+    const { data } = await api.get("/classrooms/promotions/rules");
+    return (data.data.rules || []) as PromotionRule[];
+};
+
+export const createPromotionRule = async (payload: Partial<PromotionRule>): Promise<PromotionRule> => {
+    const { data } = await api.post("/classrooms/promotions/rules", payload);
+    return data.data.rule as PromotionRule;
+};
+
+export const updatePromotionRule = async (id: string, payload: Partial<PromotionRule>): Promise<PromotionRule> => {
+    const { data } = await api.put(`/classrooms/promotions/rules/${id}`, payload);
+    return data.data.rule as PromotionRule;
+};
+
+export const evaluatePromotionCandidates = async (classroomId: string): Promise<PromotionEvaluationResponse> => {
+    const { data } = await api.get(`/classrooms/${classroomId}/promotions/evaluate`);
+    return data.data as PromotionEvaluationResponse;
 };
 
 export const fetchAllTeachers = async (): Promise<Teacher[]> => {

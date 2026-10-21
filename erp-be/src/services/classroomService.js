@@ -13,7 +13,13 @@ const {
     Teacher,
     Student,
     User,
-    Subject
+    Subject,
+    PromotionRule,
+    PromotionLog,
+    Exam,
+    ExamResult,
+    AcademicClass,
+    StudentAcademicHistory
 } = db;
 
 const teacherAccount = () => ({
@@ -30,10 +36,159 @@ const studentAccount = () => ({
 
 export class ClassroomService {
     /**
-     * Bulk promote students across academic years / sections.
-     * Transactional and atomic. Removes old classroom enrollments upon promotion.
+     * Get or create default promotion rule for a classroom's academic class.
      */
-    static async bulkPromoteStudents({ sourceClassroomId, targetAcademicYear, promotions }) {
+     static async getApplicablePromotionRule(classroomId) {
+         const classroom = await Classroom.findByPk(classroomId, {
+             include: [{ model: AcademicClass, as: 'academicClass' }]
+         });
+         if (!classroom) {
+             const err = new Error('Classroom not found.');
+             err.statusCode = 404;
+             throw err;
+         }
+
+         let rule = null;
+         if (classroom.classId) {
+             rule = await PromotionRule.findOne({
+                 where: { academicClassId: classroom.classId, status: 'ACTIVE' }
+             });
+         }
+         if (!rule) {
+             rule = await PromotionRule.findOne({
+                 where: { academicClassId: null, status: 'ACTIVE' }
+             });
+         }
+         if (!rule) {
+             // Create standard fallback default
+             rule = await PromotionRule.create({
+                 name: 'Default Promotion Standard',
+                 academicClassId: null,
+                 minOverallPercentage: 33.00,
+                 mustPassAllSubjects: true,
+                 minSubjectPercentage: 33.00,
+                 maxCompartmentSubjects: 0,
+                 status: 'ACTIVE'
+             });
+         }
+         return { classroom, rule };
+     }
+
+    /**
+     * Evaluate classroom students against promotion rules.
+     * Segregates students into eligible vs. failing with diagnostic reasons.
+     */
+    static async evaluatePromotionCandidates(classroomId) {
+        const { classroom, rule } = await this.getApplicablePromotionRule(classroomId);
+
+        const enrollments = await ClassroomStudent.findAll({
+            where: { classroomId },
+            include: [{
+                model: Student,
+                as: 'student',
+                include: [studentAccount()]
+            }],
+            order: [[{ model: Student, as: 'student' }, 'admissionNumber', 'ASC']]
+        });
+
+        const eligibleStudents = [];
+        const failingStudents = [];
+
+        for (const enr of enrollments) {
+            const student = enr.student;
+            if (!student || student.status !== 'ACTIVE') continue;
+
+            // Fetch exams in this classroom
+            const examResults = await ExamResult.findAll({
+                where: { studentId: student.id },
+                include: [{
+                    model: Exam,
+                    as: 'exam',
+                    where: { classroomId },
+                    include: [{ model: Subject, as: 'subject', attributes: ['id', 'name', 'code'] }]
+                }]
+            });
+
+            let totalMarksObtained = 0;
+            let totalMaxMarks = 0;
+            const failedSubjects = [];
+
+            if (examResults.length > 0) {
+                for (const res of examResults) {
+                    const marks = Number(res.marksObtained || 0);
+                    const max = Number(res.exam?.maxMarks || 100);
+                    totalMarksObtained += marks;
+                    totalMaxMarks += max;
+
+                    const subjectPct = max > 0 ? (marks / max) * 100 : 0;
+                    if (subjectPct < Number(rule.minSubjectPercentage) || res.status === 'FAILED') {
+                        failedSubjects.push({
+                            subjectName: res.exam?.subject?.name || 'Subject',
+                            subjectCode: res.exam?.subject?.code || '',
+                            marksObtained: marks,
+                            maxMarks: max,
+                            percentage: Math.round(subjectPct * 10) / 10
+                        });
+                    }
+                }
+            }
+
+            const overallPercentage = totalMaxMarks > 0
+                ? Math.round(((totalMarksObtained / totalMaxMarks) * 100) * 10) / 10
+                : null;
+
+            // Evaluation rules
+            const isBelowOverall = overallPercentage !== null && overallPercentage < Number(rule.minOverallPercentage);
+            const hasSubjectFailures = rule.mustPassAllSubjects && failedSubjects.length > rule.maxCompartmentSubjects;
+
+            const studentData = {
+                studentId: student.id,
+                admissionNumber: student.admissionNumber || student.studentId || '—',
+                name: `${student.account?.firstName || ''} ${student.account?.lastName || ''}`.trim(),
+                rollNumber: enr.rollNumber,
+                overallPercentage,
+                failedSubjects,
+                totalExamsEvaluated: examResults.length
+            };
+
+            if (isBelowOverall || hasSubjectFailures) {
+                failingStudents.push({
+                    ...studentData,
+                    failureReasons: [
+                        ...(isBelowOverall ? [`Overall percentage (${overallPercentage}%) below minimum required (${rule.minOverallPercentage}%)`] : []),
+                        ...(hasSubjectFailures ? [`Failed in ${failedSubjects.length} subject(s): ${failedSubjects.map(s => s.subjectName).join(', ')}`] : [])
+                    ]
+                });
+            } else {
+                eligibleStudents.push(studentData);
+            }
+        }
+
+        return {
+            classroom: {
+                id: classroom.id,
+                name: classroom.name,
+                section: classroom.section,
+                academicYear: classroom.academicYear,
+                academicClass: classroom.academicClass
+            },
+            rule,
+            summary: {
+                totalStudents: eligibleStudents.length + failingStudents.length,
+                eligibleCount: eligibleStudents.length,
+                failingCount: failingStudents.length
+            },
+            eligibleStudents,
+            failingStudents
+        };
+    }
+
+    /**
+     * Bulk promote students across academic years / sections.
+     * Transactional and atomic. Updates status for GRADUATED / TRANSFERRED.
+     * Records audit trail into promotion_logs.
+     */
+    static async bulkPromoteStudents({ sourceClassroomId, targetAcademicYear, ruleId, promotions, promotedBy }) {
         if (!sourceClassroomId || !targetAcademicYear || !Array.isArray(promotions) || promotions.length === 0) {
             const err = new Error('sourceClassroomId, targetAcademicYear, and promotions array are required.');
             err.statusCode = 422;
@@ -52,10 +207,19 @@ export class ClassroomService {
 
             let promotedCount = 0;
             let retainedCount = 0;
-            let tcCount = 0;
+            let graduatedCount = 0;
+            let transferredCount = 0;
 
             for (const p of promotions) {
-                const { studentId, action, targetClassroomId } = p;
+                const {
+                    studentId,
+                    action,
+                    targetClassroomId,
+                    isManualOverride = false,
+                    overrideReason = null,
+                    evaluationSummary = {}
+                } = p;
+
                 const student = await Student.findByPk(studentId, { transaction: t });
                 if (!student) continue;
 
@@ -88,7 +252,8 @@ export class ClassroomService {
                     // 3. Update student grade & section metadata
                     await student.update({
                         grade: targetClass.name,
-                        section: targetClass.section
+                        section: targetClass.section,
+                        status: 'ACTIVE'
                     }, { transaction: t });
 
                     promotedCount++;
@@ -109,14 +274,19 @@ export class ClassroomService {
 
                             await student.update({
                                 grade: targetClass.name,
-                                section: targetClass.section
+                                section: targetClass.section,
+                                status: 'ACTIVE'
                             }, { transaction: t });
                         }
                     }
                     retainedCount++;
-                } else if (action === 'TC' || action === 'ALUMNI') {
-                    // Soft-inactivate student
-                    await student.update({ status: 'INACTIVE' }, { transaction: t });
+                } else if (action === 'GRADUATE' || action === 'ALUMNI') {
+                    // Final Class 12 / Graduated
+                    await student.update({
+                        status: 'GRADUATED',
+                        grade: 'Graduated',
+                        section: null
+                    }, { transaction: t });
 
                     // De-enroll from active classroom
                     await ClassroomStudent.destroy({
@@ -124,14 +294,72 @@ export class ClassroomService {
                         transaction: t
                     });
 
-                    tcCount++;
+                    graduatedCount++;
+                } else if (action === 'TRANSFER' || action === 'TC') {
+                    // Transferred / TC issued
+                    await student.update({
+                        status: 'TRANSFERRED',
+                        grade: 'Transferred',
+                        section: null
+                    }, { transaction: t });
+
+                    // De-enroll from active classroom
+                    await ClassroomStudent.destroy({
+                        where: { classroomId: sourceClassroom.id, studentId: student.id },
+                        transaction: t
+                    });
+
+                    transferredCount++;
                 }
+
+                // Snapshot past class records permanently into StudentAcademicHistory
+                await StudentAcademicHistory.findOrCreate({
+                    where: {
+                        studentId: student.id,
+                        academicYear: sourceClassroom.academicYear,
+                        className: sourceClassroom.name
+                    },
+                    defaults: {
+                        studentId: student.id,
+                        classroomId: sourceClassroom.id,
+                        academicClassId: sourceClassroom.classId,
+                        className: sourceClassroom.name,
+                        sectionName: sourceClassroom.section,
+                        academicYear: sourceClassroom.academicYear,
+                        overallPercentage: evaluationSummary.overallPercentage || null,
+                        resultStatus: action === 'PROMOTE' ? 'PROMOTED' : (action === 'RETAIN' ? 'DETAINED' : action),
+                        finalExamResults: evaluationSummary.failedSubjects || [],
+                        teacherRemarks: isManualOverride ? `Manual Override: ${overrideReason}` : null
+                    },
+                    transaction: t
+                });
+
+                // Create audit log entry
+                await PromotionLog.create({
+                    studentId: student.id,
+                    sourceClassroomId: sourceClassroom.id,
+                    targetClassroomId: (action === 'PROMOTE' || action === 'RETAIN') ? targetClassroomId : null,
+                    sourceAcademicYear: sourceClassroom.academicYear,
+                    targetAcademicYear,
+                    action,
+                    ruleId: ruleId || null,
+                    isManualOverride: Boolean(isManualOverride),
+                    overrideReason: overrideReason || null,
+                    evaluationSummary,
+                    promotedBy: promotedBy || null
+                }, { transaction: t });
             }
 
             await t.commit();
             return {
-                summary: { promotedCount, retainedCount, tcCount, totalProcessed: promotions.length },
-                message: `Processed promotions: ${promotedCount} Promoted, ${retainedCount} Retained, ${tcCount} TC/Alumni.`
+                summary: {
+                    promotedCount,
+                    retainedCount,
+                    graduatedCount,
+                    transferredCount,
+                    totalProcessed: promotions.length
+                },
+                message: `Processed promotions: ${promotedCount} Promoted, ${retainedCount} Retained, ${graduatedCount} Graduated, ${transferredCount} Transferred.`
             };
         } catch (err) {
             await t.rollback();

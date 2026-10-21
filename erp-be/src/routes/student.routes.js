@@ -6,7 +6,7 @@ import { body, param, query } from 'express-validator';
 
 import * as studentController from '../controllers/studentController.js';
 const { listStudents, getStudent, getMyStudentProfile,
-    createStudent, updateStudent, deleteStudent, getStudentExamResults, getStudentAttendance } = studentController;
+    createStudent, updateStudent, deleteStudent, getStudentExamResults, getStudentAttendance, getStudentAcademicHistory } = studentController;
 
 
 
@@ -132,6 +132,13 @@ router.get('/:id/attendance',
     [param('id').isUUID()], validate,
     requirePermission('students', 'read'),
     getStudentAttendance
+);
+
+// Full Student Academic History Ledger
+router.get('/:id/academic-history',
+    [param('id').isUUID()], validate,
+    requirePermission('students', 'read'),
+    getStudentAcademicHistory
 );
 
 // Create — multipart/form-data (file upload + text fields)

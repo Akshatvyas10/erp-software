@@ -3,7 +3,8 @@ import {
     ArrowLeft, Pencil, GraduationCap, Phone, Mail, MapPin,
     Fingerprint, Bus, BadgeDollarSign, Droplets, AlertTriangle,
     BookOpen, Users, CalendarDays, Hash, School, Loader2,
-    ShieldCheck, HeartPulse, Check, X, Clock, Minus, ChevronLeft, ChevronRight, Palmtree
+    ShieldCheck, HeartPulse, Check, X, Clock, Minus, ChevronLeft, ChevronRight, Palmtree,
+    History, Award, ArrowUpRight, CheckCircle2, TrendingUp, Filter, FileText, Sparkles
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -12,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,7 +21,7 @@ import api from "@/lib/api";
 import { usePermissions } from "@/store/hooks";
 import AccessDenied from "@/components/auth/AccessDenied";
 import AdmissionFormDialog from "./AdmissionFormDialog";
-import type { Student, StudentStatus, TransportMode, FeeQuota } from "@/types/erp";
+import type { Student, StudentStatus, TransportMode, FeeQuota, StudentAcademicHistory, PromotionLogRecord } from "@/types/erp";
 import { SectionCard, DetailRow } from "@/components/shared/DetailCards";
 import { ProfilePageSkeleton } from "@/components/common/skeletons/ProfilePageSkeleton";
 import { useNavigate, useParams } from "react-router-dom";
@@ -373,6 +375,312 @@ function StudentExamResults({ studentId }: { studentId: string }) {
 }
 
 // =============================================================================
+// Student Academic History & Progression Timeline
+// =============================================================================
+function StudentAcademicHistoryTimeline({ studentId }: { studentId: string }) {
+    const [selectedYear, setSelectedYear] = useState<string>("ALL");
+    const [selectedClass, setSelectedClass] = useState<string>("ALL");
+    const [filterCategory, setFilterCategory] = useState<"ALL" | "ACADEMIC" | "ATTENDANCE" | "REMARKS">("ALL");
+
+    const { data, isLoading } = useQuery<{
+        history: StudentAcademicHistory[];
+        promotionLogs: PromotionLogRecord[];
+    }>({
+        queryKey: ["student-academic-history", studentId, selectedYear, selectedClass],
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (selectedYear !== "ALL") params.append("academicYear", selectedYear);
+            if (selectedClass !== "ALL") params.append("className", selectedClass);
+            const queryStr = params.toString() ? `?${params.toString()}` : "";
+            const res = await api.get(`/students/${studentId}/academic-history${queryStr}`);
+            return res.data.data;
+        }
+    });
+
+    if (isLoading) {
+        return (
+            <div className="p-8 text-center flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    const history = data?.history || [];
+    const promotionLogs = data?.promotionLogs || [];
+
+    // Distinct filter options
+    const distinctYears = Array.from(new Set(history.map(h => h.academicYear).filter(Boolean)));
+    const distinctClasses = Array.from(new Set(history.map(h => h.className).filter(Boolean)));
+
+    return (
+        <div className="p-4 sm:p-6 space-y-6">
+            {/* Filter Bar */}
+            <div className="p-3.5 rounded-xl bg-muted/20 border border-border/60 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                    <Filter className="w-3.5 h-3.5 text-primary" />
+                    <span>Filter Timeline:</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Academic Year Filter */}
+                    <div className="w-36">
+                        <Select value={selectedYear} onValueChange={setSelectedYear}>
+                            <SelectTrigger size="sm" className="h-8 text-xs bg-background">
+                                <SelectValue placeholder="All Sessions" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">All Sessions</SelectItem>
+                                {distinctYears.map(yr => (
+                                    <SelectItem key={yr} value={yr}>{yr}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Class Filter */}
+                    <div className="w-36">
+                        <Select value={selectedClass} onValueChange={setSelectedClass}>
+                            <SelectTrigger size="sm" className="h-8 text-xs bg-background">
+                                <SelectValue placeholder="All Classes" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">All Classes</SelectItem>
+                                {distinctClasses.map(cls => (
+                                    <SelectItem key={cls} value={cls}>{cls}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Category Filter Pills */}
+                    <div className="flex items-center gap-1 border border-border/60 p-0.5 rounded-lg bg-background">
+                        {(["ALL", "ACADEMIC", "ATTENDANCE", "REMARKS"] as const).map(cat => (
+                            <button
+                                key={cat}
+                                type="button"
+                                onClick={() => setFilterCategory(cat)}
+                                className={cn(
+                                    "px-2.5 py-1 text-[11px] font-bold rounded-md transition-all",
+                                    filterCategory === cat
+                                        ? "bg-primary text-primary-foreground shadow-2xs"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                )}
+                            >
+                                {cat === "ALL" ? "All Records" :
+                                 cat === "ACADEMIC" ? "Exams & Tests" :
+                                 cat === "ATTENDANCE" ? "Attendance" : "Remarks"}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {history.length === 0 && promotionLogs.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-2">
+                    <History className="h-10 w-10 opacity-25" />
+                    <p className="text-sm font-semibold">No prior academic history matching filters.</p>
+                    <p className="text-xs max-w-sm">
+                        Historical records and promotion logs are permanently snapshotted whenever academic sessions conclude.
+                    </p>
+                </div>
+            ) : (
+                /* Timeline of Academic Classes */
+                <div className="relative pl-6 sm:pl-8 border-l-2 border-primary/20 space-y-6 ml-2 sm:ml-4">
+                    {history.map((record, index) => {
+                        const isPromoted = record.resultStatus === "PROMOTED" || record.resultStatus === "PASSED";
+                        const isGraduated = record.resultStatus === "GRADUATED";
+                        const isRetained = record.resultStatus === "RETAINED" || record.resultStatus === "FAILED";
+
+                        const showAcademic = filterCategory === "ALL" || filterCategory === "ACADEMIC";
+                        const showAttendance = filterCategory === "ALL" || filterCategory === "ATTENDANCE";
+                        const showRemarks = filterCategory === "ALL" || filterCategory === "REMARKS";
+
+                        return (
+                            <div key={record.id || index} className="relative group">
+                                {/* Milestone Dot on timeline */}
+                                <div className={cn(
+                                    "absolute -left-[31px] sm:-left-[39px] top-1.5 w-5 h-5 rounded-full border-2 border-background flex items-center justify-center shadow-xs",
+                                    isGraduated ? "bg-amber-500 text-white" :
+                                    isPromoted ? "bg-emerald-500 text-white" :
+                                    isRetained ? "bg-destructive text-white" :
+                                    "bg-primary text-white"
+                                )}>
+                                    {isGraduated ? <Award className="w-3 h-3" /> :
+                                     isPromoted ? <CheckCircle2 className="w-3 h-3" /> :
+                                     <History className="w-3 h-3" />}
+                                </div>
+
+                                <Card className="rounded-xl border border-border/70 shadow-2xs overflow-hidden bg-card/60 backdrop-blur-xs hover:border-primary/40 transition-all">
+                                    <div className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-border/50 bg-muted/15">
+                                        <div className="space-y-0.5">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="font-extrabold text-base text-foreground tracking-tight">
+                                                    {record.className} – Section {record.sectionName}
+                                                </h3>
+                                                <Badge variant="outline" className={cn(
+                                                    "text-[10px] font-bold uppercase tracking-wider py-0 px-2 rounded-md",
+                                                    isGraduated ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30" :
+                                                    isPromoted ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30" :
+                                                    "bg-destructive/15 text-destructive border-destructive/30"
+                                                )}>
+                                                    {record.resultStatus}
+                                                </Badge>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground font-semibold flex items-center gap-2">
+                                                <span>Session: {record.academicYear}</span>
+                                                {record.rollNumber && <span>• Roll No: #{record.rollNumber}</span>}
+                                            </p>
+                                        </div>
+
+                                        {/* Score pill */}
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            {record.overallPercentage != null && (
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Cumulative</span>
+                                                    <span className="text-sm font-black text-primary font-mono">{record.overallPercentage}%</span>
+                                                </div>
+                                            )}
+                                            {record.attendancePercentage != null && (
+                                                <div className="flex flex-col items-end pl-3 border-l border-border/60">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Attendance</span>
+                                                    <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                                                        {record.attendancePercentage}%
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 space-y-3">
+                                        {/* Attendance card highlight if filtered */}
+                                        {showAttendance && record.attendancePercentage != null && filterCategory === "ATTENDANCE" && (
+                                            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between text-xs">
+                                                <span className="font-semibold text-emerald-800 dark:text-emerald-300">
+                                                    Final Session Attendance Recorded:
+                                                </span>
+                                                <span className="font-black font-mono text-emerald-700 dark:text-emerald-400 text-sm">
+                                                    {record.attendancePercentage}%
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* Teacher Remarks & Appraisal Notes */}
+                                        {showRemarks && (record.teacherRemarks || record.appraisalNotes) && (
+                                            <div className="space-y-2">
+                                                {record.teacherRemarks && (
+                                                    <div className="text-xs p-2.5 rounded-lg bg-muted/40 border border-border/50 text-muted-foreground">
+                                                        <div className="font-bold text-foreground text-[10px] uppercase mb-0.5 flex items-center gap-1">
+                                                            <FileText className="w-3 h-3 text-primary" /> Teacher Remarks
+                                                        </div>
+                                                        <span className="italic font-normal">"{record.teacherRemarks}"</span>
+                                                    </div>
+                                                )}
+                                                {record.appraisalNotes && (
+                                                    <div className="text-xs p-2.5 rounded-lg bg-primary/5 border border-primary/20 text-foreground">
+                                                        <div className="font-bold text-primary text-[10px] uppercase mb-0.5 flex items-center gap-1">
+                                                            <Sparkles className="w-3 h-3 text-primary" /> Student Appraisal & Conduct
+                                                        </div>
+                                                        <span className="font-medium">{record.appraisalNotes}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Final Exam Results breakdown */}
+                                        {showAcademic && record.finalExamResults && record.finalExamResults.length > 0 && (
+                                            <div className="overflow-x-auto border border-border/60 rounded-lg">
+                                                <table className="w-full text-xs text-left">
+                                                    <thead className="bg-muted/30 text-muted-foreground font-bold">
+                                                        <tr>
+                                                            <th className="px-3 py-2">Final Exam Subject</th>
+                                                            <th className="px-3 py-2 text-right">Marks</th>
+                                                            <th className="px-3 py-2 text-center">Grade</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-border/40">
+                                                        {record.finalExamResults.map((sub, sIdx) => (
+                                                            <tr key={sIdx} className="hover:bg-muted/10">
+                                                                <td className="px-3 py-2 font-semibold text-foreground">{sub.subjectName || "Subject"}</td>
+                                                                <td className="px-3 py-2 font-mono font-medium text-right">
+                                                                    {sub.marksObtained ?? "-"} / {sub.maxMarks ?? 100}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-center">
+                                                                    <Badge variant="outline" className="text-[10px] font-bold py-0">
+                                                                        {sub.grade || "N/A"}
+                                                                    </Badge>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+
+                                        {/* Periodical Tests / Internal Assessments breakdown */}
+                                        {showAcademic && record.testBreakdown && record.testBreakdown.length > 0 && (
+                                            <div className="overflow-x-auto border border-border/60 rounded-lg bg-muted/5">
+                                                <table className="w-full text-xs text-left">
+                                                    <thead className="bg-muted/20 text-muted-foreground font-semibold text-[11px]">
+                                                        <tr>
+                                                            <th className="px-3 py-1.5">Periodical / Internal Assessment</th>
+                                                            <th className="px-3 py-1.5 text-right">Score</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-border/40">
+                                                        {record.testBreakdown.map((t, tIdx) => (
+                                                            <tr key={tIdx} className="hover:bg-muted/10">
+                                                                <td className="px-3 py-1.5 text-foreground">{t.testName || "Assessment"}</td>
+                                                                <td className="px-3 py-1.5 font-mono text-right text-muted-foreground">
+                                                                    {t.marksObtained ?? "-"} / {t.maxMarks ?? 100}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                </Card>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Audit / Progression Trail */}
+            {promotionLogs.length > 0 && (
+                <div className="mt-8 pt-6 border-t border-border/60 space-y-3">
+                    <h4 className="text-xs uppercase font-extrabold tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <TrendingUp className="w-3.5 h-3.5 text-primary" /> Formal Progression & Promotion Trail
+                    </h4>
+                    <div className="space-y-2">
+                        {promotionLogs.map((log) => (
+                            <div key={log.id} className="p-3 rounded-xl bg-muted/20 border border-border/50 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="font-mono text-[10px] font-bold">
+                                        {log.academicYear}
+                                    </Badge>
+                                    <span className="font-semibold text-foreground">
+                                        {log.sourceClassroom ? `${log.sourceClassroom.name} - ${log.sourceClassroom.section}` : "Initial"}
+                                    </span>
+                                    <ArrowUpRight className="w-3.5 h-3.5 text-muted-foreground" />
+                                    <span className="font-bold text-primary">
+                                        {log.targetClassroom ? `${log.targetClassroom.name} - ${log.targetClassroom.section}` : log.promotionStatus}
+                                    </span>
+                                </div>
+                                <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+                                    <Badge className="text-[10px] py-0">{log.promotionStatus}</Badge>
+                                    {log.createdAt && <span>{new Date(log.createdAt).toLocaleDateString()}</span>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// =============================================================================
 // Main Page Component
 // =============================================================================
 export default function StudentDetailsPage() {
@@ -676,7 +984,26 @@ export default function StudentDetailsPage() {
                 </div>
             </div>
 
-            {/* ── 5. Published Exam Results ──────────────────────────────── */}
+            {/* ── 5. Permanent Academic History & Progression Timeline ──── */}
+            <Card className="border border-primary/20 rounded-2xl overflow-hidden shadow-xs bg-card">
+                <div className="px-6 py-4 border-b border-border/60 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shrink-0 shadow-xs shadow-primary/25">
+                            <History className="h-4 w-4" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-foreground tracking-tight">Academic History & Progression</h2>
+                            <p className="text-xs text-muted-foreground">Permanent verified academic record across classes and academic sessions</p>
+                        </div>
+                    </div>
+                    <Badge variant="outline" className="hidden sm:flex text-xs font-mono font-bold bg-background/80">
+                        Append-Only Record
+                    </Badge>
+                </div>
+                <StudentAcademicHistoryTimeline studentId={id as string} />
+            </Card>
+
+            {/* ── 6. Published Exam Results ──────────────────────────────── */}
             <Card className="border border-border/60 rounded-2xl overflow-hidden shadow-sm bg-card">
                 <div className="px-6 py-4 border-b border-border/60 bg-muted/10 flex items-center gap-3">
                     <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">

@@ -32,6 +32,9 @@ import ClassroomRoom from './ClassroomRoom.js';
 import TestExamConfig from './TestExamConfig.js';
 import AcademicClass from './AcademicClass.js';
 import TimetableSubstitute from './TimetableSubstitute.js';
+import PromotionRule from './PromotionRule.js';
+import PromotionLog from './PromotionLog.js';
+import StudentAcademicHistory from './StudentAcademicHistory.js';
 
 const PermissionAuditLog = PermissionAuditLogInit(sequelize);
 
@@ -145,8 +148,27 @@ export default {
     Subject, Homework, HomeworkSubmission, CalendarEvent, EventType, StudentAttendance,
     PermissionAuditLog, ExamSchedule, Exam, ExamResult,
     AdmissionForm, AdmissionApplication, SchoolConfig,
-    BuildingBlock, ClassroomRoom, TestExamConfig, AcademicClass, TimetableSubstitute
+    BuildingBlock, ClassroomRoom, TestExamConfig, AcademicClass, TimetableSubstitute,
+    PromotionRule, PromotionLog, StudentAcademicHistory
 };
+
+// ─── StudentAcademicHistory associations ──────────────────────────────────────
+StudentAcademicHistory.belongsTo(Student, { foreignKey: 'student_id', as: 'student' });
+Student.hasMany(StudentAcademicHistory, { foreignKey: 'student_id', as: 'academicHistory' });
+
+StudentAcademicHistory.belongsTo(Classroom, { foreignKey: 'classroom_id', as: 'classroom' });
+StudentAcademicHistory.belongsTo(AcademicClass, { foreignKey: 'academic_class_id', as: 'academicClass' });
+
+// ─── PromotionRule ↔ AcademicClass (1:many) ──────────────────────────────────
+PromotionRule.belongsTo(AcademicClass, { foreignKey: 'academic_class_id', as: 'academicClass' });
+AcademicClass.hasMany(PromotionRule, { foreignKey: 'academic_class_id', as: 'promotionRules' });
+
+// ─── PromotionLog associations ────────────────────────────────────────────────
+PromotionLog.belongsTo(Student, { foreignKey: 'student_id', as: 'student' });
+PromotionLog.belongsTo(Classroom, { foreignKey: 'source_classroom_id', as: 'sourceClassroom' });
+PromotionLog.belongsTo(Classroom, { foreignKey: 'target_classroom_id', as: 'targetClassroom' });
+PromotionLog.belongsTo(PromotionRule, { foreignKey: 'rule_id', as: 'rule' });
+PromotionLog.belongsTo(User, { foreignKey: 'promoted_by', as: 'promoter' });
 
 // ─── AcademicClass ↔ Classroom (1:many) ──────────────────────────────────────
 AcademicClass.hasMany(Classroom, { foreignKey: 'classId', as: 'sections', onDelete: 'CASCADE' });
