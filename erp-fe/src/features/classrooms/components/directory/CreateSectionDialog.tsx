@@ -18,6 +18,7 @@ import {
 import api from "@/lib/api";
 import { CLASSROOM_SECTIONS, type AcademicClass } from "@/types/erp";
 import { getBuildingBlocks, getClassroomRooms } from "@/features/school-config/api/classroomConfigApi";
+import { fetchCurrentAcademicYear } from "@/features/school-config/api/academicYearApi";
 
 const sectionSchema = z.object({
     classId: z.string().uuid("Class is required"),
@@ -64,6 +65,19 @@ export function CreateSectionDialog({
             status: "ACTIVE",
         }
     });
+
+    // Fetch active academic year
+    const { data: currentYear } = useQuery({
+        queryKey: ["currentAcademicYear"],
+        queryFn: fetchCurrentAcademicYear,
+        staleTime: 60_000,
+    });
+
+    useEffect(() => {
+        if (currentYear?.name) {
+            form.setValue("academicYear", currentYear.name);
+        }
+    }, [currentYear, form]);
 
     useEffect(() => {
         if (preSelectedClass) {

@@ -117,6 +117,16 @@ router.delete('/:id/subjects/:subjectId',
 router.post('/:id/periods',
     [isUUID('id'), body('name').notEmpty(), body('startTime').notEmpty(), body('endTime').notEmpty()],
     validate, requirePermission('classrooms', 'update'), enforceClassroomScope, C.addPeriod);
+router.post('/:id/periods/generate',
+    [
+        isUUID('id'),
+        body('periods').isArray({ min: 1 }).withMessage('periods must be a non-empty array'),
+        body('periods.*.name').notEmpty().withMessage('period name is required'),
+        body('periods.*.startTime').notEmpty().withMessage('startTime is required'),
+        body('periods.*.endTime').notEmpty().withMessage('endTime is required'),
+        body('periods.*.order').isInt({ min: 1 }).withMessage('order must be a positive integer'),
+    ],
+    validate, requirePermission('classrooms', 'update'), enforceClassroomScope, C.generatePeriods);
 router.delete('/:id/periods/:periodId',
     [isUUID('id'), isUUID('periodId')], validate,
     requirePermission('classrooms', 'update'), enforceClassroomScope, C.deletePeriod);

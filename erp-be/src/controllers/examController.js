@@ -4,6 +4,7 @@ import { Op } from 'sequelize';
 import db from '../models/index.js';
 import { success, error } from '../utils/apiResponse.js';
 import logger from '../utils/logger.js';
+import { ExamScheduleAutomationService } from '../services/examScheduleAutomationService.js';
 
 const { ExamSchedule, Exam, ExamResult, Subject, Student, User, CalendarEvent, Classroom, ClassroomSubject, sequelize } = db;
 
@@ -82,6 +83,59 @@ export const deleteSchedule = async (req, res, next) => {
 
         await schedule.destroy();
         return success(res, null, 'Exam schedule deleted successfully');
+    } catch (err) { next(err); }
+};
+
+// ── GET /api/exams/schedules/preview ──────────────────────────────────────────
+export const previewAutoSchedule = async (req, res, next) => {
+    try {
+        const { classroomId, includeUnitTests, includeMajorExams, academicYear } = req.query;
+        if (!classroomId) return error(res, 'classroomId is required', 400);
+
+        const preview = await ExamScheduleAutomationService.previewGeneration(classroomId, {
+            includeUnitTests: includeUnitTests !== 'false',
+            includeMajorExams: includeMajorExams !== 'false',
+            academicYear
+        });
+
+        return success(res, preview, 'Exam schedule generation preview generated successfully');
+    } catch (err) { next(err); }
+};
+
+// ── POST /api/exams/schedules/auto-generate ───────────────────────────────────
+export const autoGenerateSchedules = async (req, res, next) => {
+    try {
+        const { classroomId, includeUnitTests, includeMajorExams, overwriteDrafts, academicYear } = req.body;
+        if (!classroomId) return error(res, 'classroomId is required', 400);
+
+        const classroom = await Classroom.findByPk(classroomId);
+        if (!classroom) return error(res, 'Classroom not found', 404);
+
+        const isStandardTeacher = req.userRoles && req.userRoles.some(r => r.toLowerCase() === 'teacher') && !req.userRoles.some(r => ['admin', 'super_admin'].includes(r.toLowerCase()));
+        if (isStandardTeacher && classroom.classTeacherId !== req.user.teacherId) {
+            return error(res, 'Forbidden: Only the Class Teacher or Admins can generate exam schedules', 403);
+        }
+
+        const result = await ExamScheduleAutomationService.generateForClassroom(
+            classroomId,
+            {
+                includeUnitTests: includeUnitTests !== false,
+                includeMajorExams: includeMajorExams !== false,
+                overwriteDrafts: overwriteDrafts !== false,
+                academicYear
+            },
+            req.user?.id
+        );
+
+        return success(res, result, 'Exam schedules and papers auto-generated successfully', 201);
+    } catch (err) { next(err); }
+};
+
+// ── POST /api/exams/schedules/:id/publish ─────────────────────────────────────
+export const publishSchedule = async (req, res, next) => {
+    try {
+        const schedule = await ExamScheduleAutomationService.publishSchedule(req.params.id, req.user);
+        return success(res, { schedule }, 'Exam schedule published successfully. Marks entry is now unlocked.');
     } catch (err) { next(err); }
 };
 

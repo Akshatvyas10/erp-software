@@ -3,12 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     Sparkles, Check,
     Loader2, ArrowRight, School,
-    GraduationCap, Calendar, Building2, UserCheck
+    GraduationCap, Building2, UserCheck
 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveModal } from "@/components/common/ResponsiveModal";
 import {
@@ -16,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import api from "@/lib/api";
 import { bulkSetupClasses } from "../../api/classApi";
+import { fetchCurrentAcademicYear } from "@/features/school-config/api/academicYearApi";
 import type { BulkSetupClassItem } from "@/types/erp";
 import { cn } from "@/lib/utils";
 
@@ -106,7 +106,14 @@ export function FirstTimeClassWizardModal({ open, onOpenChange, onSuccess }: Fir
         "Senior Secondary": ""
     });
 
-    const [academicYear, setAcademicYear] = useState("2026-2027");
+    // 2. Fetch active current academic year dynamically from backend
+    const { data: currentYearData } = useQuery({
+        queryKey: ["currentAcademicYear"],
+        queryFn: fetchCurrentAcademicYear,
+        enabled: open,
+    });
+
+    const academicYear = currentYearData?.name || "2026-27";
 
     // Fetch teachers for Incharge selection
     const { data: teachers = [] } = useQuery({
@@ -412,26 +419,6 @@ export function FirstTimeClassWizardModal({ open, onOpenChange, onSuccess }: Fir
                     })}
                 </div>
 
-                {/* ── 4. Active Session Setting ────────────────────────────────────── */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-2xl bg-muted/30 border border-border/70">
-                    <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-primary shrink-0" />
-                        <div>
-                            <span className="text-xs font-bold text-foreground">Active Academic Session</span>
-                            <p className="text-[11px] text-muted-foreground">
-                                Sections (A, B, C...) are created manually later in Classroom module as needed.
-                            </p>
-                        </div>
-                    </div>
-                    <div className="w-full sm:w-44">
-                        <Input
-                            value={academicYear}
-                            onChange={(e) => setAcademicYear(e.target.value)}
-                            placeholder="e.g. 2026-2027"
-                            className="h-8 text-xs font-bold rounded-xl bg-background"
-                        />
-                    </div>
-                </div>
 
                 {/* ── 5. Sticky Footer Action Bar ──────────────────────────────────── */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-border/70">

@@ -35,6 +35,7 @@ import TimetableSubstitute from './TimetableSubstitute.js';
 import PromotionRule from './PromotionRule.js';
 import PromotionLog from './PromotionLog.js';
 import StudentAcademicHistory from './StudentAcademicHistory.js';
+import AcademicYear from './AcademicYear.js';
 
 const PermissionAuditLog = PermissionAuditLogInit(sequelize);
 
@@ -149,7 +150,7 @@ export default {
     PermissionAuditLog, ExamSchedule, Exam, ExamResult,
     AdmissionForm, AdmissionApplication, SchoolConfig,
     BuildingBlock, ClassroomRoom, TestExamConfig, AcademicClass, TimetableSubstitute,
-    PromotionRule, PromotionLog, StudentAcademicHistory
+    PromotionRule, PromotionLog, StudentAcademicHistory, AcademicYear
 };
 
 // ─── StudentAcademicHistory associations ──────────────────────────────────────
@@ -206,9 +207,11 @@ Department.belongsTo(Teacher, { foreignKey: 'headId', as: 'incharge' });
 Teacher.hasMany(Department, { foreignKey: 'headId', as: 'headedDepartments' });
 Teacher.hasMany(Department, { foreignKey: 'headId', as: 'inchargeDepartments' });
 
-// ─── ExamSchedule ↔ Classroom ─────────────────────────────────────────────────
+// ─── ExamSchedule ↔ Classroom / AcademicYear ──────────────────────────────────
 ExamSchedule.belongsTo(Classroom, { foreignKey: 'classroom_id', as: 'classroom' });
 Classroom.hasMany(ExamSchedule, { foreignKey: 'classroom_id', as: 'examSchedules' });
+ExamSchedule.belongsTo(AcademicYear, { foreignKey: 'academic_year_id', as: 'academicYear' });
+AcademicYear.hasMany(ExamSchedule, { foreignKey: 'academic_year_id', as: 'examSchedules' });
 
 // ─── Exam ↔ ExamSchedule ──────────────────────────────────────────────────────
 Exam.belongsTo(ExamSchedule, { foreignKey: 'exam_schedule_id', as: 'examSchedule' });

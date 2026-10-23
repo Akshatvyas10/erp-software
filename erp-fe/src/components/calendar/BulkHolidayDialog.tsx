@@ -111,6 +111,14 @@ export function BulkHolidayDialog({ open, onOpenChange }: BulkHolidayDialogProps
     const labelCls = "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-foreground";
     const inputCls = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 
+    const startDateVal = form.watch("sessionStartDate");
+    const endDateVal = form.watch("sessionEndDate");
+    const previewYearName = startDateVal && endDateVal && startDateVal < endDateVal
+        ? (startDateVal.getFullYear() === endDateVal.getFullYear()
+            ? `${startDateVal.getFullYear()}`
+            : `${startDateVal.getFullYear()}-${String(endDateVal.getFullYear()).slice(-2)}`)
+        : null;
+
     return (
         <ResponsiveModal
             open={open}
@@ -118,12 +126,20 @@ export function BulkHolidayDialog({ open, onOpenChange }: BulkHolidayDialogProps
                 onOpenChange(isOpen);
                 if (!isOpen) form.reset();
             }}
-            title="Auto-Generate Holidays"
-            description="Set your academic session dates. Days outside this period will be marked as Summer Vacation. Weekend rules will auto-generate holidays within the session."
+            title="Academic Session & Holiday Setup"
+            description="Set your academic session dates. Automatically provisions and keeps the school Academic Year synchronized while scheduling session holidays."
             maxWidth="sm:max-w-[450px]"
         >
             <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                        {previewYearName && (
+                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-primary/10 border border-primary/20 text-xs">
+                                <span className="font-medium text-foreground">Target Academic Year:</span>
+                                <span className="font-extrabold text-primary tracking-wide px-2 py-0.5 rounded-md bg-background border border-primary/20">
+                                    {previewYearName}
+                                </span>
+                            </div>
+                        )}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <FormField control={form.control} name="sessionStartDate" render={({ field }) => (
                                 <FormItem className="flex flex-col">

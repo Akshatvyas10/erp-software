@@ -19,7 +19,8 @@ const {
     Exam,
     ExamResult,
     AcademicClass,
-    StudentAcademicHistory
+    StudentAcademicHistory,
+    StudentAttendance
 } = db;
 
 const teacherAccount = () => ({
@@ -312,6 +313,26 @@ export class ClassroomService {
                     transferredCount++;
                 }
 
+                // Calculate student's overall attendance % in sourceClassroom if not provided
+                let attendancePercentage = evaluationSummary.attendancePercentage || null;
+                if (attendancePercentage == null) {
+                    const attCount = await StudentAttendance.count({
+                        where: { studentId: student.id, classroomId: sourceClassroom.id },
+                        transaction: t
+                    });
+                    if (attCount > 0) {
+                        const presentCount = await StudentAttendance.count({
+                            where: {
+                                studentId: student.id,
+                                classroomId: sourceClassroom.id,
+                                status: { [Op.in]: ['PRESENT', 'LATE', 'HALF_DAY'] }
+                            },
+                            transaction: t
+                        });
+                        attendancePercentage = Math.round((presentCount / attCount) * 1000) / 10;
+                    }
+                }
+
                 // Snapshot past class records permanently into StudentAcademicHistory
                 await StudentAcademicHistory.findOrCreate({
                     where: {
@@ -326,6 +347,8 @@ export class ClassroomService {
                         className: sourceClassroom.name,
                         sectionName: sourceClassroom.section,
                         academicYear: sourceClassroom.academicYear,
+                        rollNumber: p.rollNumber || null,
+                        attendancePercentage,
                         overallPercentage: evaluationSummary.overallPercentage || null,
                         resultStatus: action === 'PROMOTE' ? 'PROMOTED' : (action === 'RETAIN' ? 'DETAINED' : action),
                         finalExamResults: evaluationSummary.failedSubjects || [],

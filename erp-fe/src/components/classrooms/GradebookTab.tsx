@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, BookOpen, Save, Plus, ArrowLeft, Calendar as CalendarIcon, ShieldAlert, Search, Filter } from "lucide-react";
+import { Loader2, BookOpen, Save, Plus, ArrowLeft, Calendar as CalendarIcon, ShieldAlert, Search, Filter, Sparkles, Send } from "lucide-react";
 import { toast } from "sonner";
+import { AutoGenerateExamScheduleDialog } from "@/features/classrooms/components/directory/AutoGenerateExamScheduleDialog";
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +27,8 @@ import type { ClassroomEnrollment, ClassroomSubject } from "@/types/erp";
 interface ExamSchedule {
     id: string;
     name: string;
-    type: 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'ANNUAL';
+    type: 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'ANNUAL' | 'UNIT_TEST';
+    status?: 'DRAFT' | 'PUBLISHED' | 'COMPLETED';
     exams?: Exam[];
 }
 
@@ -56,8 +58,20 @@ export default function GradebookTab({ classroomId, enrollments, subjects, canEd
     const { hasRole } = usePermissions();
     const qc = useQueryClient();
     const [createScheduleOpen, setCreateScheduleOpen] = useState(false);
+    const [autoGenerateOpen, setAutoGenerateOpen] = useState(false);
     const [setSubjectOpen, setSetSubjectOpen] = useState(false);
     const [activeScheduleId, setActiveScheduleId] = useState<string | null>(null);
+
+    const publishScheduleMutation = useMutation({
+        mutationFn: (scheduleId: string) => api.post(`/exams/schedules/${scheduleId}/publish`),
+        onSuccess: () => {
+            toast.success("Exam schedule published! Marks entry is now enabled.");
+            qc.invalidateQueries({ queryKey: ["exam-schedules", classroomId] });
+        },
+        onError: (err: any) => {
+            toast.error(err?.response?.data?.message || "Failed to publish schedule");
+        }
+    });
 
     const [newSchedule, setNewSchedule] = useState<{ name: string, type: string }>({ name: "", type: "MONTHLY" });
     const [editScheduleId, setEditScheduleId] = useState<string | null>(null);
@@ -376,12 +390,25 @@ export default function GradebookTab({ classroomId, enrollments, subjects, canEd
                         <h3 className="font-bold">Exam Schedules</h3>
                         <p className="text-xs text-muted-foreground">Select a schedule to view or edit the gradebook.</p>
                     </div>
-                    <div className="flex gap-2">
-
+                    <div className="flex items-center gap-2 flex-wrap">
                         {canManageSchedule && (
-                            <Button size="sm" onClick={() => setCreateScheduleOpen(true)} className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 rounded-xl text-xs h-9 font-semibold">
-                                <Plus className="h-3 w-3" /> Create Schedule
-                            </Button>
+                            <>
+                                <Button
+                                    size="sm"
+                                    onClick={() => setAutoGenerateOpen(true)}
+                                    className="bg-purple-600 hover:bg-purple-700 text-white gap-2 rounded-xl text-xs h-9 font-bold shadow-xs"
+                                >
+                                    <Sparkles className="h-3.5 w-3.5" /> Auto-Generate from Dept Rules
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setCreateScheduleOpen(true)}
+                                    className="gap-2 rounded-xl text-xs h-9 font-semibold"
+                                >
+                                    <Plus className="h-3 w-3" /> Manual Schedule
+                                </Button>
+                            </>
                         )}
                     </div>
                 </div>
@@ -396,9 +423,23 @@ export default function GradebookTab({ classroomId, enrollments, subjects, canEd
                         {schedules.map(sch => (
                             <div key={sch.id} className="relative bg-card border rounded-2xl p-5 hover:border-primary/50 hover:shadow-md transition-all group">
                                 <div className="flex justify-between items-start mb-4" onClick={() => setActiveScheduleId(sch.id)}>
-                                    <div className="cursor-pointer flex-1">
-                                        <Badge variant="outline" className="text-[10px] uppercase mb-2">{sch.type}</Badge>
-                                        <h4 className="font-bold text-foreground group-hover:text-primary transition-colors">{sch.name}</h4>
+                                    <div className="cursor-pointer flex-1 space-y-1">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <Badge variant="outline" className="text-[10px] uppercase font-bold">{sch.type}</Badge>
+                                            <Badge
+                                                variant="secondary"
+                                                className={`text-[10px] font-bold ${
+                                                    sch.status === 'PUBLISHED'
+                                                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                                        : sch.status === 'COMPLETED'
+                                                        ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
+                                                        : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                                                }`}
+                                            >
+                                                {sch.status || 'DRAFT'}
+                                            </Badge>
+                                        </div>
+                                        <h4 className="font-bold text-foreground group-hover:text-primary transition-colors text-sm">{sch.name}</h4>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <div className="bg-primary/5 text-primary text-xs font-bold px-2 py-1 rounded-lg">
@@ -411,7 +452,18 @@ export default function GradebookTab({ classroomId, enrollments, subjects, canEd
                                                         <MoreVertical className="h-4 w-4" />
                                                     </Button>
                                                 </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="w-40 rounded-xl">
+                                                <DropdownMenuContent align="end" className="w-44 rounded-xl">
+                                                    {sch.status !== 'PUBLISHED' && sch.status !== 'COMPLETED' && (
+                                                        <DropdownMenuItem
+                                                            className="cursor-pointer rounded-lg text-xs font-bold text-emerald-600 focus:bg-emerald-500/10 focus:text-emerald-600"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                publishScheduleMutation.mutate(sch.id);
+                                                            }}
+                                                        >
+                                                            <Send className="h-3.5 w-3.5 mr-2" /> Publish Schedule
+                                                        </DropdownMenuItem>
+                                                    )}
                                                     <DropdownMenuItem className="cursor-pointer rounded-lg text-xs" onClick={(e) => { e.stopPropagation(); setEditScheduleId(sch.id); setEditScheduleName(sch.name); setEditScheduleType(sch.type); }}>
                                                         <Edit className="h-3.5 w-3.5 mr-2" /> Edit
                                                     </DropdownMenuItem>
@@ -510,6 +562,15 @@ export default function GradebookTab({ classroomId, enrollments, subjects, canEd
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
+
+                <AutoGenerateExamScheduleDialog
+                    open={autoGenerateOpen}
+                    onOpenChange={setAutoGenerateOpen}
+                    classroomId={classroomId}
+                    onSuccess={() => {
+                        qc.invalidateQueries({ queryKey: ["exam-schedules", classroomId] });
+                    }}
+                />
             </div>
         );
     }

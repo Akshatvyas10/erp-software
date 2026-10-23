@@ -1,6 +1,8 @@
 import db from '../models/index.js';
 const { CalendarEvent, User, Classroom, EventType, Student, ClassroomStudent } = db;
 import { success, error } from '../utils/apiResponse.js';
+import { syncFromCalendarSession } from '../services/academicYearService.js';
+import logger from '../utils/logger.js';
 import { Op } from 'sequelize';
 import {
     parseISO,
@@ -243,22 +245,24 @@ export const bulkGenerateHolidays = async (req, res, next) => {
         const eventsToCreate = [];
         const creatorId = req.user.id;
 
-        // 2. Create Summer Vacation
+        // 2. Create Summer Vacation (only if gap exists before next session)
         const summerVacationStart = addDays(end, 1);
         const summerVacationEnd = subDays(addYears(start, 1), 1);
-        
-        eventsToCreate.push({
-            title: 'Summer Vacation',
-            description: 'Auto-generated summer vacation',
-            type: 'HOLIDAY',
-            start_date: summerVacationStart,
-            end_date: summerVacationEnd,
-            day_type: 'HOLIDAY',
-            status: 'PUBLISHED',
-            target_audience: 'ALL',
-            created_by: creatorId,
-            is_auto_generated: true
-        });
+
+        if (summerVacationStart <= summerVacationEnd) {
+            eventsToCreate.push({
+                title: 'Summer Vacation',
+                description: 'Auto-generated summer vacation',
+                type: 'HOLIDAY',
+                start_date: summerVacationStart,
+                end_date: summerVacationEnd,
+                day_type: 'HOLIDAY',
+                status: 'PUBLISHED',
+                target_audience: 'ALL',
+                created_by: creatorId,
+                is_auto_generated: true
+            });
+        }
 
         // 3. Iterate through session days
         const days = eachDayOfInterval({ start, end });
@@ -311,7 +315,28 @@ export const bulkGenerateHolidays = async (req, res, next) => {
         // 4. Bulk insert
         await CalendarEvent.bulkCreate(eventsToCreate);
 
-        return success(res, { generatedCount: eventsToCreate.length }, 'Holidays generated successfully', 201);
+        // 5. Automatically synchronize Academic Year boundaries and status
+        let syncedAcademicYear = null;
+        try {
+            syncedAcademicYear = await syncFromCalendarSession({
+                sessionStartDate,
+                sessionEndDate,
+                userId: creatorId,
+            });
+            logger.info(`[AcademicYearSync] Synchronized academic year ${syncedAcademicYear.name} (${syncedAcademicYear.status})`);
+        } catch (syncErr) {
+            logger.error('[AcademicYearSync] Failed to sync academic year from calendar session:', syncErr);
+        }
+
+        return success(
+            res,
+            {
+                generatedCount: eventsToCreate.length,
+                academicYear: syncedAcademicYear,
+            },
+            'Holidays and Academic Year synchronized successfully',
+            201
+        );
     } catch (err) {
         next(err);
     }

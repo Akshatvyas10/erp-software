@@ -12,9 +12,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -35,6 +33,7 @@ import api from "@/lib/api";
 import CreateSubjectDialog from "@/components/shared/CreateSubjectDialog";
 import { PrintableTimetableModal } from "@/features/classrooms/components/directory/PrintableTimetableModal";
 import { AssignSubstituteTeacherDialog } from "@/features/classrooms/components/directory/AssignSubstituteTeacherDialog";
+import { ManageLecturesDialog } from "@/features/classrooms/components/directory/ManageLecturesDialog";
 import {
     WEEKDAYS,
     SUBJECT_COLORS,
@@ -229,142 +228,8 @@ interface ManagePeriodsDialogProps {
     onSuccess: () => void;
 }
 
-function ManagePeriodsDialog({ open, onOpenChange, classroomId, periods, onSuccess }: ManagePeriodsDialogProps) {
-    const [name, setName] = useState("");
-    const [startTime, setStartTime] = useState("08:00");
-    const [endTime, setEndTime] = useState("08:45");
-
-    const addMutation = useMutation({
-        mutationFn: (data: { name: string, startTime: string, endTime: string, order: number }) =>
-            api.post(`/classrooms/${classroomId}/periods`, data),
-        onSuccess: () => {
-            toast.success("Period added");
-            setName("");
-            onSuccess();
-        },
-        onError: () => toast.error("Failed to add period"),
-    });
-
-    const deleteMutation = useMutation({
-        mutationFn: (id: string) => api.delete(`/classrooms/${classroomId}/periods/${id}`),
-        onSuccess: () => {
-            toast.success("Period deleted");
-            onSuccess();
-        },
-        onError: () => toast.error("Failed to delete period"),
-    });
-
-    const inputCls = "h-9 bg-zinc-100 dark:bg-zinc-900/50 border-none focus-visible:ring-1 focus-visible:ring-purple-500/50 rounded-lg focus-visible:outline-none";
-    const labelCls = "text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1 block";
-
-    const PERIOD_NAMES = [
-        "Lecture 1", "Lecture 2", "Lecture 3", "Lecture 4", "Lecture 5",
-        "Lecture 6", "Lecture 7", "Lecture 8", "Lecture 9", "Lecture 10",
-        "Lunch", "Short Break"
-    ];
-
-    const handleAdd = () => {
-        const parseTime = (t: string) => {
-            const [h, m] = t.split(':').map(Number);
-            return h * 60 + m;
-        };
-        const newStart = parseTime(startTime);
-        const newEnd = parseTime(endTime);
-
-        if (newStart >= newEnd) {
-            toast.error("End time must be after start time");
-            return;
-        }
-
-        const isOverlap = periods.some(p => {
-            const pStart = parseTime(p.startTime);
-            const pEnd = parseTime(p.endTime);
-            return Math.max(pStart, newStart) < Math.min(pEnd, newEnd);
-        });
-
-        if (isOverlap) {
-            toast.error("This period overlaps with an existing one");
-            return;
-        }
-
-        if (name.startsWith("Lecture") && periods.some(p => p.name === name)) {
-            toast.error(`${name} is already added`);
-            return;
-        }
-
-        addMutation.mutate({ name, startTime, endTime, order: periods.length + 1 });
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md p-0 rounded-2xl border border-border/80 shadow-2xl bg-white dark:bg-zinc-950">
-                <DialogHeader className="px-6 py-5 bg-muted/40 dark:bg-purple-950/10 border-b border-border">
-                    <DialogTitle className="text-base font-bold tracking-tight text-foreground">
-                        Manage Lectures
-                    </DialogTitle>
-                </DialogHeader>
-                <div className="p-6 space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:items-end">
-                        <div className="sm:col-span-4">
-                            <label className={labelCls}>Name</label>
-                            <Select value={name} onValueChange={setName}>
-                                <SelectTrigger className={inputCls}>
-                                    <SelectValue placeholder="Select Name" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-40">
-                                    {PERIOD_NAMES.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="sm:col-span-3">
-                            <label className={labelCls}>Start</label>
-                            <Input
-                                type="time"
-                                className={inputCls}
-                                value={startTime}
-                                onChange={(e) => setStartTime(e.target.value)}
-                            />
-                        </div>
-                        <div className="sm:col-span-3">
-                            <label className={labelCls}>End</label>
-                            <Input
-                                type="time"
-                                className={inputCls}
-                                value={endTime}
-                                onChange={(e) => setEndTime(e.target.value)}
-                            />
-                        </div>
-                        <div className="sm:col-span-2">
-                            <Button className="w-full h-9 bg-primary hover:bg-primary/90 text-primary-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" disabled={!name || addMutation.isPending}
-                                onClick={handleAdd}>
-                                Add
-                            </Button>
-                        </div>
-                    </div>
-
-                    <ScrollArea className="h-[200px] w-full rounded-xl border border-border/50 p-2">
-                        {periods.length === 0 ? (
-                            <div className="h-full flex items-center justify-center text-sm text-muted-foreground italic">No periods defined.</div>
-                        ) : (
-                            <div className="space-y-1">
-                                {periods.map(p => (
-                                    <div key={p.id} className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-muted/50 text-sm">
-                                        <div className="font-semibold text-foreground">{p.name}</div>
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-xs text-muted-foreground font-mono">{p.startTime.substring(0, 5)} - {p.endTime.substring(0, 5)}</span>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive/60 hover:text-destructive" onClick={() => deleteMutation.mutate(p.id)}>
-                                                <Trash2 className="h-3 w-3" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </ScrollArea>
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
+function ManagePeriodsDialog(props: ManagePeriodsDialogProps) {
+    return <ManageLecturesDialog {...props} />;
 }
 
 // ─── Book Slot Dialog ────────────────────────────────────────────────────────

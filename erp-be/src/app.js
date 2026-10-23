@@ -32,6 +32,7 @@ import examRoutes from './routes/exam.routes.js';
 import admissionRoutes from './routes/admission.routes.js';
 import schoolConfigRoutes from './routes/schoolConfig.routes.js';
 import classroomConfigRoutes from './routes/classroomConfig.routes.js';
+import academicYearRoutes from './routes/academicYear.routes.js';
 
 const app = express();
 
@@ -110,6 +111,7 @@ app.use('/api/exams', examRoutes);
 app.use('/api/admissions', admissionRoutes);
 app.use('/api/school-config/classroom', classroomConfigRoutes);
 app.use('/api/school-config', schoolConfigRoutes);
+app.use('/api/academic-years', academicYearRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {

@@ -116,6 +116,7 @@ export const useBulkGenerateHolidays = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['events'] });
+            queryClient.invalidateQueries({ queryKey: ['academicYears'] });
         },
     });
 };

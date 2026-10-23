@@ -1,10 +1,4 @@
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-
+import 'dotenv/config';
 import db from '../models/index.js';
 const {
     sequelize, Role, Permission, User,
@@ -109,6 +103,31 @@ import logger from '../utils/logger.js';
 
         await AdmissionApplication.sync({ force: false, alter: true });
         logger.info('✓ admission_applications');
+
+        if (db.AcademicClass) {
+            await db.AcademicClass.sync({ force: false, alter: true });
+            logger.info('✓ academic_classes');
+        }
+
+        if (db.PromotionRule) {
+            await db.PromotionRule.sync({ force: false, alter: true });
+            logger.info('✓ promotion_rules');
+        }
+
+        if (db.StudentAcademicHistory) {
+            await db.StudentAcademicHistory.sync({ force: false, alter: true });
+            logger.info('✓ student_academic_histories');
+        }
+
+        if (db.PromotionLog) {
+            await db.PromotionLog.sync({ force: false, alter: true });
+            logger.info('✓ promotion_logs');
+        }
+
+        if (db.AcademicYear) {
+            await db.AcademicYear.sync({ force: false, alter: true });
+            logger.info('✓ academic_years');
+        }
 
         logger.info('All tables synchronized with Neon DB.');
         process.exit(0);

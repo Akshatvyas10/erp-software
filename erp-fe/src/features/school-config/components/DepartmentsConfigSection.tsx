@@ -20,6 +20,7 @@ import {
     getTestExamRules,
     upsertTestExamRule,
 } from "../api/classroomConfigApi";
+import { fetchCurrentAcademicYear } from "../api/academicYearApi";
 
 interface Department {
     id: string;
@@ -206,7 +207,12 @@ export function DepartmentsConfigSection() {
     const [headId, setHeadId] = useState("");
 
     // Embedded Test & Exam Configuration fields
-    const academicYear = "2026-2027";
+    const { data: currentYear } = useQuery({
+        queryKey: ["currentAcademicYear"],
+        queryFn: fetchCurrentAcademicYear,
+        staleTime: 60_000,
+    });
+    const academicYear = currentYear?.name || "2026-2027";
     const [totalExams, setTotalExams] = useState<number>(3);
     const [selectedTestOptionId, setSelectedTestOptionId] = useState<string>("monthly_6");
 

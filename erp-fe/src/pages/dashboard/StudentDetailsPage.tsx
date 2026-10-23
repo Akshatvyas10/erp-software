@@ -653,26 +653,35 @@ function StudentAcademicHistoryTimeline({ studentId }: { studentId: string }) {
                         <TrendingUp className="w-3.5 h-3.5 text-primary" /> Formal Progression & Promotion Trail
                     </h4>
                     <div className="space-y-2">
-                        {promotionLogs.map((log) => (
-                            <div key={log.id} className="p-3 rounded-xl bg-muted/20 border border-border/50 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="font-mono text-[10px] font-bold">
-                                        {log.academicYear}
-                                    </Badge>
-                                    <span className="font-semibold text-foreground">
-                                        {log.sourceClassroom ? `${log.sourceClassroom.name} - ${log.sourceClassroom.section}` : "Initial"}
-                                    </span>
-                                    <ArrowUpRight className="w-3.5 h-3.5 text-muted-foreground" />
-                                    <span className="font-bold text-primary">
-                                        {log.targetClassroom ? `${log.targetClassroom.name} - ${log.targetClassroom.section}` : log.promotionStatus}
-                                    </span>
+                        {promotionLogs.map((log) => {
+                            const yearDisplay = log.targetAcademicYear || log.academicYear || log.sourceAcademicYear || "Session";
+                            const statusDisplay = log.action || log.promotionStatus || "PROMOTED";
+                            return (
+                                <div key={log.id} className="p-3 rounded-xl bg-muted/20 border border-border/50 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <Badge variant="outline" className="font-mono text-[10px] font-bold">
+                                            {yearDisplay}
+                                        </Badge>
+                                        <span className="font-semibold text-foreground">
+                                            {log.sourceClassroom ? `${log.sourceClassroom.name} - ${log.sourceClassroom.section}` : "Initial"}
+                                        </span>
+                                        <ArrowUpRight className="w-3.5 h-3.5 text-muted-foreground" />
+                                        <span className="font-bold text-primary">
+                                            {log.targetClassroom ? `${log.targetClassroom.name} - ${log.targetClassroom.section}` : statusDisplay}
+                                        </span>
+                                        {log.isManualOverride && (
+                                            <Badge variant="secondary" className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 py-0">
+                                                Override: {log.overrideReason || "Approved"}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    <div className="text-[11px] text-muted-foreground flex items-center gap-2 shrink-0">
+                                        <Badge className="text-[10px] py-0">{statusDisplay}</Badge>
+                                        {log.createdAt && <span>{new Date(log.createdAt).toLocaleDateString()}</span>}
+                                    </div>
                                 </div>
-                                <div className="text-[11px] text-muted-foreground flex items-center gap-2">
-                                    <Badge className="text-[10px] py-0">{log.promotionStatus}</Badge>
-                                    {log.createdAt && <span>{new Date(log.createdAt).toLocaleDateString()}</span>}
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             )}

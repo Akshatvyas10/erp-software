@@ -22,6 +22,7 @@ import {
     fetchPredefinedClasses,
     type PredefinedClassItem
 } from "@/features/classrooms/api/classApi";
+import { AcademicYearManagerCard } from "./AcademicYearManagerCard";
 
 interface Department {
     id: string;
@@ -134,7 +135,10 @@ export function AcademicClassStructureSection() {
     };
 
     return (
-        <Card className="border-border/60 shadow-xs">
+        <div className="space-y-6">
+            <AcademicYearManagerCard />
+
+            <Card className="border-border/60 shadow-xs">
             <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4">
                 <div>
                     <div className="flex items-center gap-2">
@@ -402,5 +406,6 @@ export function AcademicClassStructureSection() {
                 </div>
             </ResponsiveModal>
         </Card>
+        </div>
     );
 }

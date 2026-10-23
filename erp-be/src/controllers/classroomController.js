@@ -4,10 +4,12 @@ import db from '../models/index.js';
 const {
     Classroom, ClassroomStudent, ClassroomSubject, ClassroomPeriod,
     Timetable, Student, Teacher, User, Subject, AcademicClass, Department,
-    ClassroomRoom, TimetableSubstitute,
+    ClassroomRoom, TimetableSubstitute, sequelize,
+    CalendarEvent, TestExamConfig, AcademicYear, ExamSchedule, Exam,
 } = db;
 import { success, error } from '../utils/apiResponse.js';
 import { ClassroomService } from '../services/classroomService.js';
+import { ExamScheduleAutomationService } from '../services/examScheduleAutomationService.js';
 
 const studentAccount = () => ({
     model: User, as: 'account',
@@ -278,6 +280,136 @@ const createClassroom = async (req, res, next) => {
             department, departmentId, buildingBlock, blockId, roomId,
             maxCapacity, monitorMaleId, monitorFemaleId
         }, { transaction: t });
+
+        // Auto-generate class-targeted Calendar Events for tests and exams according to Department Evaluation Rules
+        if (departmentId) {
+            const rule = await TestExamConfig.findOne({
+                where: { departmentId, academicYear, isActive: true },
+                transaction: t
+            });
+
+            if (rule) {
+                // Find session start date to calculate monthly dates or fallback to academic year boundaries
+                let sessionStartDate = new Date();
+                const yearRecord = await AcademicYear.findOne({
+                    where: { name: academicYear },
+                    transaction: t
+                });
+                if (yearRecord?.startDate) {
+                    sessionStartDate = new Date(yearRecord.startDate);
+                }
+
+                const eventsToCreate = [];
+                const creatorId = req.user?.id || (classTeacherId ? (await Teacher.findByPk(classTeacherId, { transaction: t }))?.userId : null);
+
+                if (creatorId) {
+                    // 1. Generate Tests according to department rule
+                    if (Array.isArray(rule.testTemplates) && rule.testTemplates.length > 0) {
+                        for (let i = 0; i < rule.testTemplates.length; i++) {
+                            const template = rule.testTemplates[i];
+                            const monthOffset = template.monthOffset || (i + 1);
+                            const duration = template.durationDays || 2;
+
+                            const sDate = new Date(sessionStartDate);
+                            sDate.setMonth(sDate.getMonth() + monthOffset - 1);
+                            sDate.setDate(15); // Standard mid-month test slot
+
+                            const eDate = new Date(sDate);
+                            eDate.setDate(sDate.getDate() + (duration - 1));
+
+                            eventsToCreate.push({
+                                title: `${name} - ${section}: ${template.name || `Periodic Test ${i + 1}`}`,
+                                description: `Department aligned test for ${name} ${section}. Evaluation Rule: ${rule.rulesDescription || 'Periodic Assessment'}`,
+                                type: 'TEST',
+                                start_date: sDate,
+                                end_date: eDate,
+                                day_type: 'SPECIAL',
+                                status: 'PUBLISHED',
+                                target_audience: 'CLASS',
+                                target_class_id: classroom.id,
+                                created_by: creatorId,
+                                is_auto_generated: true,
+                                location: roomNumber ? `Room ${roomNumber}` : null
+                            });
+                        }
+                    }
+
+                    // 2. Generate Exams according to department rule
+                    if (Array.isArray(rule.examTemplates) && rule.examTemplates.length > 0) {
+                        for (let i = 0; i < rule.examTemplates.length; i++) {
+                            const template = rule.examTemplates[i];
+                            const monthOffset = template.monthOffset || (i + 1) * Math.floor(12 / (rule.totalExamsPerYear + 1));
+                            const duration = template.durationDays || 5;
+
+                            const sDate = new Date(sessionStartDate);
+                            sDate.setMonth(sDate.getMonth() + monthOffset - 1);
+                            sDate.setDate(20); // Standard examination period slot
+
+                            const eDate = new Date(sDate);
+                            eDate.setDate(sDate.getDate() + (duration - 1));
+
+                            eventsToCreate.push({
+                                title: `${name} - ${section}: ${template.name || `Exam ${i + 1}`}`,
+                                description: `Department examination milestone for ${name} ${section}. Academic Year: ${academicYear}`,
+                                type: 'EXAM',
+                                start_date: sDate,
+                                end_date: eDate,
+                                day_type: 'SPECIAL',
+                                status: 'PUBLISHED',
+                                target_audience: 'CLASS',
+                                target_class_id: classroom.id,
+                                created_by: creatorId,
+                                is_auto_generated: true,
+                                location: roomNumber ? `Room ${roomNumber}` : null
+                            });
+                        }
+                    }
+
+                    if (eventsToCreate.length > 0) {
+                        await CalendarEvent.bulkCreate(eventsToCreate, { transaction: t });
+                    }
+
+                    // Also auto-create official DRAFT ExamSchedules for the classroom
+                    const schedulesToInsert = [];
+                    if (Array.isArray(rule.testTemplates)) {
+                        for (const tmpl of rule.testTemplates) {
+                            schedulesToInsert.push({
+                                name: tmpl.name,
+                                type: 'UNIT_TEST',
+                                classroomId: classroom.id,
+                                academicYearId: yearRecord?.id || null,
+                                status: 'DRAFT'
+                            });
+                        }
+                    }
+                    if (Array.isArray(rule.examTemplates)) {
+                        for (const tmpl of rule.examTemplates) {
+                            let sType = 'ANNUAL';
+                            const lName = (tmpl.name || '').toLowerCase();
+                            if (lName.includes('quarter')) sType = 'QUARTERLY';
+                            else if (lName.includes('half') || lName.includes('mid')) sType = 'HALF_YEARLY';
+                            else if (lName.includes('unit')) sType = 'UNIT_TEST';
+
+                            schedulesToInsert.push({
+                                name: tmpl.name,
+                                type: sType,
+                                classroomId: classroom.id,
+                                academicYearId: yearRecord?.id || null,
+                                status: 'DRAFT'
+                            });
+                        }
+                    }
+
+                    if (schedulesToInsert.length > 0) {
+                        await ExamSchedule.bulkCreate(schedulesToInsert, {
+                            transaction: t,
+                            ignoreDuplicates: true
+                        });
+                    }
+                }
+            }
+        }
+
         await t.commit();
         return success(res, { classroom }, 'Classroom created', 201);
     } catch (err) { 
@@ -622,6 +754,45 @@ const addPeriod = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
+// ── POST /api/classrooms/:id/periods/generate ─────────────────────────────────
+const generatePeriods = async (req, res, next) => {
+    const t = await sequelize.transaction();
+    try {
+        const { periods } = req.body;
+        const classroom = await Classroom.findByPk(req.params.id, { transaction: t });
+        if (!classroom) {
+            await t.rollback();
+            return error(res, 'Classroom not found', 404);
+        }
+
+        // 1. Delete all existing periods for this classroom
+        await ClassroomPeriod.destroy({
+            where: { classroomId: classroom.id },
+            transaction: t,
+        });
+
+        // 2. Format and bulk-create the newly generated periods
+        const recordsToCreate = periods.map((p, idx) => ({
+            classroomId: classroom.id,
+            name: p.name,
+            startTime: p.startTime,
+            endTime: p.endTime,
+            order: p.order || idx + 1,
+        }));
+
+        const createdPeriods = await ClassroomPeriod.bulkCreate(recordsToCreate, {
+            transaction: t,
+            returning: true,
+        });
+
+        await t.commit();
+        return success(res, { periods: createdPeriods }, 'Lectures & periods generated successfully', 201);
+    } catch (err) {
+        await t.rollback();
+        next(err);
+    }
+};
+
 // ── DELETE /api/classrooms/:id/periods/:periodId ──────────────────────────────
 const deletePeriod = async (req, res, next) => {
     try {
@@ -868,7 +1039,7 @@ export {
     getRoster, assignStudents, removeStudent,
     getSubjects, addSubject, removeSubject,
     upsertTimetableSlot, deleteTimetableSlot,
-    addPeriod, deletePeriod,
+    addPeriod, generatePeriods, deletePeriod,
     updateStudentRollNumber, autoAssignRollNumbers,
     transferStudentSection, cloneClassroomStructure,
     assignSubstituteTeacher, getSubstitutes, cancelSubstitute,

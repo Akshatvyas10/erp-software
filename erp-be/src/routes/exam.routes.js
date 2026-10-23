@@ -14,6 +14,10 @@ router.get('/:id/results', examController.getResults);
 // Only admins and teachers can manage exams and results
 const manageExamRoles = requireRole('admin', 'super_admin', 'teacher');
 
+router.get('/schedules/preview', manageExamRoles, examController.previewAutoSchedule);
+router.post('/schedules/auto-generate', manageExamRoles, examController.autoGenerateSchedules);
+router.post('/schedules/:id/publish', manageExamRoles, examController.publishSchedule);
+
 router.post('/schedules', manageExamRoles, examController.createSchedule);
 router.put('/schedules/:id', manageExamRoles, examController.updateSchedule);
 router.delete('/schedules/:id', manageExamRoles, examController.deleteSchedule);

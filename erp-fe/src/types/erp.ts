@@ -675,8 +675,13 @@ export interface PromotionLogRecord {
     studentId: string;
     sourceClassroomId?: string | null;
     targetClassroomId?: string | null;
-    promotionStatus: 'PROMOTED' | 'RETAINED' | 'GRADUATED' | 'TRANSFERRED' | 'PROMOTED_WITH_WARNING';
-    academicYear: string;
+    sourceAcademicYear?: string;
+    targetAcademicYear?: string;
+    academicYear?: string;
+    action?: 'PROMOTE' | 'RETAIN' | 'GRADUATE' | 'TRANSFER' | string;
+    promotionStatus?: 'PROMOTED' | 'RETAINED' | 'GRADUATED' | 'TRANSFERRED' | 'PROMOTED_WITH_WARNING' | string;
+    isManualOverride?: boolean;
+    overrideReason?: string | null;
     finalPercentage?: number | string | null;
     remarks?: string | null;
     promotedBy?: string | null;

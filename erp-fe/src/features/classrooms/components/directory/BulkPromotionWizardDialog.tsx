@@ -47,6 +47,7 @@ interface StudentPromotionPlan {
     studentId: string;
     studentName: string;
     admissionNumber: string;
+    rollNumber?: number | null;
     action: PromotionAction;
     targetClassroomId?: string;
     isManualOverride: boolean;
@@ -147,6 +148,7 @@ export function BulkPromotionWizardDialog({
                 studentId: s.studentId,
                 studentName: s.name,
                 admissionNumber: s.admissionNumber,
+                rollNumber: s.rollNumber,
                 action: isFinalClass ? "GRADUATE" : "PROMOTE",
                 targetClassroomId: isFinalClass ? undefined : (defaultTargetClassroomId || undefined),
                 isManualOverride: false,
@@ -161,6 +163,7 @@ export function BulkPromotionWizardDialog({
                 studentId: s.studentId,
                 studentName: s.name,
                 admissionNumber: s.admissionNumber,
+                rollNumber: s.rollNumber,
                 action: "RETAIN",
                 targetClassroomId: effectiveClassroom?.id,
                 isManualOverride: false,
@@ -242,6 +245,7 @@ export function BulkPromotionWizardDialog({
                 promotions: plansList.map((p) => ({
                     studentId: p.studentId,
                     action: p.action,
+                    rollNumber: p.rollNumber,
                     targetClassroomId: p.action === "PROMOTE" || p.action === "RETAIN" ? p.targetClassroomId : null,
                     isManualOverride: p.isManualOverride,
                     overrideReason: p.overrideReason || null,
