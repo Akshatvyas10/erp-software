@@ -217,6 +217,96 @@ export const sendWelcomeEmail = async (userEmail, userName, userId, temporaryPas
 };
 
 /**
+ * 1b. Student Enrollment Welcome Email
+ */
+export const sendStudentEnrollmentWelcomeEmail = async ({
+    studentEmail,
+    studentName,
+    admissionNumber,
+    erpUserId,
+    temporaryPassword,
+}) => {
+    const ctx = await getSchoolContext();
+    const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    const subject = `Welcome to ${ctx.schoolName} – Enrollment Confirmed (${admissionNumber})`;
+
+    const contentHtml = `
+      <h1 style="margin: 0 0 16px 0; color: #0F172A; font-size: 22px; font-weight: 700;">
+        Welcome to ${ctx.schoolName}, ${studentName}!
+      </h1>
+      <p style="margin: 0 0 20px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Congratulations! Your student enrollment has been officially confirmed and registered in our School ERP. You can now access your timetable, assignments, attendance, and exam reports.
+      </p>
+
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; margin-bottom: 24px;">
+        <tr>
+          <td style="padding: 18px 22px;">
+            <p style="margin: 0 0 10px 0; color: #64748B; font-size: 12px; font-weight: 700; text-transform: uppercase;">Enrollment & Login Details</p>
+            <p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Official Admission No:</strong> <span style="font-family: monospace; color: #059669; font-weight: 700; font-size: 15px;">${admissionNumber}</span></p>
+            <p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>ERP User ID:</strong> <span style="font-family: monospace; color: #4F46E5; font-size: 15px;">${erpUserId}</span></p>
+            ${temporaryPassword ? `<p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Account Password:</strong> <span style="font-family: monospace; font-size: 15px;">${temporaryPassword}</span></p>` : ''}
+            <p style="margin: 0; color: #0F172A; font-size: 14px;"><strong>Student Email:</strong> ${studentEmail}</p>
+          </td>
+        </tr>
+      </table>
+
+      ${getButtonHtml(loginUrl, 'Access Student Portal', '#4F46E5')}
+
+      <p style="margin: 0; color: #64748B; font-size: 13px; line-height: 1.6;">
+        For any questions regarding your classes or login assistance, please reach out to the school administration office.
+      </p>
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, 'linear-gradient(135deg, #4F46E5 0%, #312E81 100%)', contentHtml, ctx);
+    return sendEmail(studentEmail, subject, html);
+};
+
+/**
+ * 1c. Parent / Guardian Enrollment Welcome Email
+ */
+export const sendParentEnrollmentWelcomeEmail = async ({
+    guardianEmail,
+    guardianName,
+    studentName,
+    admissionNumber,
+    studentEmail,
+}) => {
+    const ctx = await getSchoolContext();
+    const portalUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    const subject = `Student Enrollment Confirmation: ${studentName} (${admissionNumber}) - ${ctx.schoolName}`;
+
+    const contentHtml = `
+      <h1 style="margin: 0 0 16px 0; color: #0F172A; font-size: 22px; font-weight: 700;">
+        Dear ${guardianName || 'Parent / Guardian'},
+      </h1>
+      <p style="margin: 0 0 20px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        We are delighted to confirm that <strong>${studentName}</strong> has been successfully enrolled at <strong>${ctx.schoolName}</strong>.
+      </p>
+
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; margin-bottom: 24px;">
+        <tr>
+          <td style="padding: 18px 22px;">
+            <p style="margin: 0 0 10px 0; color: #64748B; font-size: 12px; font-weight: 700; text-transform: uppercase;">Official Registration Record</p>
+            <p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Student Name:</strong> ${studentName}</p>
+            <p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Admission Number:</strong> <span style="font-family: monospace; color: #059669; font-weight: 700; font-size: 15px;">${admissionNumber}</span></p>
+            ${studentEmail ? `<p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Student Account Email:</strong> ${studentEmail}</p>` : ''}
+            <p style="margin: 0; color: #0F172A; font-size: 14px;"><strong>Registered Guardian:</strong> ${guardianName || 'Primary Guardian'} (${guardianEmail})</p>
+          </td>
+        </tr>
+      </table>
+
+      ${getButtonHtml(portalUrl, 'Visit School Portal', '#059669')}
+
+      <p style="margin: 0; color: #64748B; font-size: 13px; line-height: 1.6;">
+        You can monitor academic milestones, attendance records, school announcements, and fee payment receipts directly through the portal.
+      </p>
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, 'linear-gradient(135deg, #059669 0%, #064E3B 100%)', contentHtml, ctx);
+    return sendEmail(guardianEmail, subject, html);
+};
+
+/**
  * 2. Login OTP / Verification Code
  */
 export const sendLoginOtpEmail = async (email, userName, otp) => {

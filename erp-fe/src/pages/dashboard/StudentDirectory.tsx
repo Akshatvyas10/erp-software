@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -38,6 +38,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 // Reusable Components
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { PageHeader } from "@/components/common/PageHeader";
+import { getImageUrl } from "@/lib/utils";
 
 // ─── Status styling map ───────────────────────────────────────────────────────
 const STATUS_STYLES: Record<StudentStatus, string> = {
@@ -141,13 +142,12 @@ export default function StudentDirectory() {
                         }}
                     >
                         <Avatar className="h-9 w-9 border border-primary/20 shadow-xs shrink-0">
-                            {student.profilePhotoUrl ? (
-                                <img
-                                    src={student.profilePhotoUrl}
-                                    alt={student.account.firstName}
-                                    className="h-full w-full object-cover rounded-full"
+                            {student.profilePhotoUrl && (
+                                <AvatarImage
+                                    src={getImageUrl(student.profilePhotoUrl)!}
+                                    alt={`${student.account.firstName} ${student.account.lastName}`}
                                 />
-                            ) : null}
+                            )}
                             <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
                                 {initials}
                             </AvatarFallback>
@@ -284,9 +284,12 @@ export default function StudentDirectory() {
                     onClick={() => navigate(`/dashboard/students/${student.id}`)}
                 >
                     <Avatar className="h-10 w-10 border border-primary/20 shrink-0">
-                        {student.profilePhotoUrl ? (
-                            <img src={student.profilePhotoUrl} alt={student.account.firstName} className="h-full w-full object-cover rounded-full" />
-                        ) : null}
+                        {student.profilePhotoUrl && (
+                            <AvatarImage
+                                src={getImageUrl(student.profilePhotoUrl)!}
+                                alt={`${student.account.firstName} ${student.account.lastName}`}
+                            />
+                        )}
                         <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">{initials}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">

@@ -8,6 +8,11 @@ const { Student, User, Role, Classroom, ClassroomStudent, StudentAcademicHistory
 import { success, error } from '../utils/apiResponse.js';
 import permissionEmitter from '../events/permissionEmitter.js';
 import { buildPhotoUrl } from '../middlewares/uploadMiddleware.js';
+import logger from '../utils/logger.js';
+import {
+    sendStudentEnrollmentWelcomeEmail,
+    sendParentEnrollmentWelcomeEmail,
+} from '../services/email.service.js';
 
 // ─── Shared eager-load: always join the user account ─────────────────────────
 const studentWithAccount = {
@@ -66,13 +71,47 @@ const generateUserId = async (t) => {
 };
 
 // =============================================================================
-// HELPER — Auto-generate admission number  ("ADM-2026-0014")
+// HELPER — Auto-generate collision-safe admission number  ("ADM-2026-0004")
+// Ensures sequence synchronization, checks paranoid soft-deletes, retries on conflict
 // =============================================================================
-const generateAdmissionNumber = async (t) => {
+const generateUniqueAdmissionNumber = async (t) => {
     const year = new Date().getFullYear();
-    const [results] = await db.sequelize.query("SELECT nextval('student_adm_seq') as seq", { transaction: t });
-    const seq = String(results[0].seq).padStart(4, '0');
-    return `ADM-${year}-${seq}`;
+    const maxRetries = 5;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const [seqRes] = await db.sequelize.query("SELECT nextval('student_adm_seq') as seq", { transaction: t });
+        const seqVal = seqRes[0]?.seq;
+        const candidate = `ADM-${year}-${String(seqVal).padStart(4, '0')}`;
+
+        // Verify uniqueness against both active and soft-deleted records (paranoid: false)
+        const conflict = await Student.findOne({
+            where: { admissionNumber: candidate },
+            paranoid: false,
+            transaction: t,
+        });
+
+        if (!conflict) {
+            return candidate;
+        }
+
+        logger.warn(`[Student Admission] Candidate ${candidate} already exists (active or soft-deleted). Advancing sequence...`);
+    }
+
+    // Sequence is behind existing data in DB; sync sequence to MAX(seq) + 1
+    const [maxRes] = await db.sequelize.query(
+        `SELECT MAX(CAST(SUBSTRING(admission_number FROM 'ADM-[0-9]{4}-([0-9]+)') AS INTEGER)) as max_seq 
+         FROM students 
+         WHERE admission_number ~ '^ADM-[0-9]{4}-[0-9]+$'`,
+        { transaction: t }
+    );
+
+    const highestSeq = parseInt(maxRes[0]?.max_seq, 10) || 100;
+    const nextSeq = highestSeq + 1;
+    await db.sequelize.query(`SELECT setval('student_adm_seq', ${nextSeq}, true)`, { transaction: t });
+
+    const finalCandidate = `ADM-${year}-${String(nextSeq).padStart(4, '0')}`;
+    logger.info(`[Student Admission] Resynced student_adm_seq to ${nextSeq}. Generated: ${finalCandidate}`);
+    return finalCandidate;
 };
 
 // =============================================================================
@@ -213,10 +252,9 @@ const createStudent = async (req, res, next) => {
             classroomId,
         } = req.body;
 
-        // ── 1. Year-scoped admission number (or provided manual one) ──────────
-        const finalAdmissionNumber = admissionNumber && admissionNumber.trim() !== '' 
-            ? admissionNumber 
-            : await generateAdmissionNumber(t);
+        // ── 1. Year-scoped auto-generated admission number ──────────────────
+        // Never allow frontend to override or introduce duplicates on creation
+        const finalAdmissionNumber = await generateUniqueAdmissionNumber(t);
 
         // ── 2. Internal ERP identifiers ───────────────────────────────────────
         const erpUserId = await generateUserId(t);
@@ -260,7 +298,7 @@ const createStudent = async (req, res, next) => {
                 previousSchoolDetails: previousSchoolDetails || null,
                 transferCertificateUrl: transferCertificateUrl || null,
                 status: status || 'ACTIVE',
-                customFieldResponses: customFieldResponses || {}, // ← new
+                customFieldResponses: customFieldResponses || {},
             },
             { transaction: t }
         );
@@ -287,16 +325,62 @@ const createStudent = async (req, res, next) => {
         // Warm permission cache
         permissionEmitter.emit('role:changed', { userId: user.id });
 
+        // ── 8. Safe Async Welcome Emails Dispatch ─────────────────────────────
+        // Never await inside transaction; failures in SMTP must NOT fail enrollment API response
+        const studentFullName = `${firstName} ${lastName}`.trim();
+        (async () => {
+            try {
+                if (email) {
+                    await sendStudentEnrollmentWelcomeEmail({
+                        studentEmail: email,
+                        studentName: studentFullName,
+                        admissionNumber: finalAdmissionNumber,
+                        erpUserId,
+                        temporaryPassword: password || null,
+                    });
+                    logger.info(`[Student Enrollment] Welcome email sent to student (${email})`);
+                }
+            } catch (mailErr) {
+                logger.error(`[Student Enrollment] Failed to send student welcome email to ${email}: ${mailErr.message}`);
+            }
+
+            try {
+                if (guardianEmail) {
+                    await sendParentEnrollmentWelcomeEmail({
+                        guardianEmail,
+                        guardianName,
+                        studentName: studentFullName,
+                        admissionNumber: finalAdmissionNumber,
+                        studentEmail: email,
+                    });
+                    logger.info(`[Student Enrollment] Welcome email sent to guardian (${guardianEmail})`);
+                }
+            } catch (mailErr) {
+                logger.error(`[Student Enrollment] Failed to send guardian welcome email to ${guardianEmail}: ${mailErr.message}`);
+            }
+        })().catch(err => {
+            logger.error(`[Student Enrollment] Background email dispatcher error: ${err.message}`);
+        });
+
         const result = await Student.findByPk(student.id, studentFullInclude);
-        return success(res, { student: result }, 'Student enrolled', 201);
+        return success(res, { student: result }, 'Student enrolled successfully', 201);
     } catch (err) {
         await t.rollback();
         // Clean up file on transaction failure
         if (req.file) {
             fs.unlink(req.file.path, () => { });
         }
-        if (err.name === 'SequelizeUniqueConstraintError' && err.errors?.[0]?.path === 'unique_classroom_roll') {
-            return error(res, `Roll number ${req.body.rollNumber} is already taken in this classroom.`, 400);
+        if (err.name === 'SequelizeUniqueConstraintError') {
+            const field = err.errors?.[0]?.path;
+            if (field === 'unique_classroom_roll') {
+                return error(res, `Roll number ${req.body.rollNumber} is already taken in this classroom.`, 400);
+            }
+            if (field === 'admission_number' || field === 'admissionNumber') {
+                return error(res, 'Admission number conflict occurred during registration. Please re-submit.', 409);
+            }
+            if (field === 'email') {
+                return error(res, 'A user with this email address already exists in the system.', 409);
+            }
         }
         next(err);
     }

@@ -18,6 +18,7 @@ import {
 import api from "@/lib/api";
 import type { Classroom } from "@/types/erp";
 import { getBuildingBlocks, getClassroomRooms } from "@/features/school-config/api/classroomConfigApi";
+import { fetchCurrentAcademicYear } from "@/features/school-config/api/academicYearApi";
 
 const editClassroomSchema = z.object({
     academicYear: z.string().min(1, "Academic year is required"),
@@ -46,10 +47,19 @@ export function EditClassroomDialog({
 }: EditClassroomDialogProps) {
     const qc = useQueryClient();
 
+    const { data: currentYear } = useQuery({
+        queryKey: ["currentAcademicYear"],
+        queryFn: fetchCurrentAcademicYear,
+        staleTime: 60_000,
+        enabled: open,
+    });
+
+    const activeYearName = classroom.academicYear || currentYear?.name || "";
+
     const form = useForm<EditClassroomFormValues>({
         resolver: zodResolver(editClassroomSchema) as any,
         defaultValues: {
-            academicYear: classroom.academicYear || "2026-2027",
+            academicYear: activeYearName,
             blockId: classroom.blockId || "",
             roomId: classroom.roomId || "",
             roomNumber: classroom.roomNumber || "",
@@ -62,7 +72,7 @@ export function EditClassroomDialog({
     useEffect(() => {
         if (open) {
             form.reset({
-                academicYear: classroom.academicYear || "2026-2027",
+                academicYear: classroom.academicYear || currentYear?.name || "",
                 blockId: classroom.blockId || "",
                 roomId: classroom.roomId || "",
                 roomNumber: classroom.roomNumber || "",
@@ -71,7 +81,7 @@ export function EditClassroomDialog({
                 status: classroom.status || "ACTIVE",
             });
         }
-    }, [open, classroom, form]);
+    }, [open, classroom, currentYear, form]);
 
     const selectedBlockId = form.watch("blockId");
 

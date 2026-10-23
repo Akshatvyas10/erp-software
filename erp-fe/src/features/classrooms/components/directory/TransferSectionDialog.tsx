@@ -51,12 +51,32 @@ export function TransferSectionDialog({
         staleTime: 60_000,
     });
 
+    // Fetch current classroom to ascertain classId and name identity
+    const { data: currentClassroom } = useQuery({
+        queryKey: ["current-classroom-for-transfer", currentClassroomId],
+        queryFn: async () => {
+            const { data } = await api.get(`/classrooms/${currentClassroomId}`);
+            return data.data.classroom as Classroom;
+        },
+        enabled: open && Boolean(currentClassroomId),
+        staleTime: 60_000,
+    });
+
     const studentName = enrollment?.student?.account
         ? `${enrollment.student.account.firstName} ${enrollment.student.account.lastName}`.trim()
         : "Student";
 
-    // Filter candidate target classrooms: exclude current classroom
-    const availableTargets = (classrooms as Classroom[]).filter((c: Classroom) => c.id !== currentClassroomId);
+    // Filter candidate target classrooms: must be sibling sections of the SAME academic class
+    const availableTargets = (classrooms as Classroom[]).filter((c: Classroom) => {
+        if (c.id === currentClassroomId) return false;
+        if (!currentClassroom) return false;
+
+        // Match by classId if present; fallback to exact class name
+        if (currentClassroom.classId && c.classId) {
+            return c.classId === currentClassroom.classId;
+        }
+        return c.name === currentClassroom.name;
+    });
 
     const handleTransfer = async () => {
         const studentId = enrollment?.student?.id;
@@ -122,40 +142,46 @@ export function TransferSectionDialog({
                         <Label className="text-xs font-bold text-foreground">
                             Target Section <span className="text-destructive">*</span>
                         </Label>
-                        <Select
-                            value={targetClassroomId}
-                            onValueChange={setTargetClassroomId}
-                            disabled={classroomsLoading}
-                        >
-                            <SelectTrigger className="h-10 rounded-xl bg-muted/30 border-border/70 text-xs font-semibold">
-                                <SelectValue placeholder={classroomsLoading ? "Loading sections..." : "Choose target classroom & section"} />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border-border/80 max-h-56">
-                                {availableTargets.map((c: Classroom) => {
-                                    const enrolled = c.enrollments?.length ?? 0;
-                                    const maxCap = c.maxCapacity || 40;
-                                    const isFull = enrolled >= maxCap;
+                        {availableTargets.length === 0 ? (
+                            <div className="p-3 rounded-xl bg-muted/40 border border-dashed border-border text-center text-xs text-muted-foreground">
+                                No sibling sections exist for this class. Create section B/C/D first to enable section transfer.
+                            </div>
+                        ) : (
+                            <Select
+                                value={targetClassroomId}
+                                onValueChange={setTargetClassroomId}
+                                disabled={classroomsLoading}
+                            >
+                                <SelectTrigger className="h-10 rounded-xl bg-muted/30 border-border/70 text-xs font-semibold">
+                                    <SelectValue placeholder={classroomsLoading ? "Loading sections..." : "Choose target classroom & section"} />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border-border/80 max-h-56">
+                                    {availableTargets.map((c: Classroom) => {
+                                        const enrolled = c.enrollments?.length ?? 0;
+                                        const maxCap = c.maxCapacity || 40;
+                                        const isFull = enrolled >= maxCap;
 
-                                    return (
-                                        <SelectItem
-                                            key={c.id}
-                                            value={c.id}
-                                            disabled={isFull}
-                                            className="text-xs py-2"
-                                        >
-                                            <div className="flex items-center justify-between gap-3 w-full">
-                                                <span className="font-semibold text-foreground">
-                                                    {c.name} - Section {c.section} ({c.academicYear})
-                                                </span>
-                                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md ${isFull ? 'bg-destructive/15 text-destructive' : 'bg-primary/10 text-primary'}`}>
-                                                    {enrolled}/{maxCap} Seats {isFull ? '(Full)' : ''}
-                                                </span>
-                                            </div>
-                                        </SelectItem>
-                                    );
-                                })}
-                            </SelectContent>
-                        </Select>
+                                        return (
+                                            <SelectItem
+                                                key={c.id}
+                                                value={c.id}
+                                                disabled={isFull}
+                                                className="text-xs py-2"
+                                            >
+                                                <div className="flex items-center justify-between gap-3 w-full">
+                                                    <span className="font-semibold text-foreground">
+                                                        {c.name} - Section {c.section} ({c.academicYear})
+                                                    </span>
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md ${isFull ? 'bg-destructive/15 text-destructive' : 'bg-primary/10 text-primary'}`}>
+                                                        {enrolled}/{maxCap} Seats {isFull ? '(Full)' : ''}
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                        );
+                                    })}
+                                </SelectContent>
+                            </Select>
+                        )}
                     </div>
 
                     <div className="space-y-1.5">

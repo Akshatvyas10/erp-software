@@ -20,7 +20,8 @@ const {
     ExamResult,
     AcademicClass,
     StudentAcademicHistory,
-    StudentAttendance
+    StudentAttendance,
+    AcademicYear
 } = db;
 
 const teacherAccount = () => ({
@@ -418,8 +419,51 @@ export class ClassroomService {
                 throw err;
             }
 
-            if (sourceClassroom.academicYear !== targetClassroom.academicYear) {
-                const err = new Error('Section transfer is only permitted within the same academic year.');
+            // Helper to normalize academic year strings (e.g. '2026-2027' and '2026-27' both become '2026-27')
+            const normalizeYear = (yr) => {
+                if (!yr) return '';
+                const parts = String(yr).trim().split('-');
+                if (parts.length === 2) {
+                    const start = parts[0].trim();
+                    const end = parts[1].trim().slice(-2);
+                    return `${start}-${end}`;
+                }
+                return String(yr).trim();
+            };
+
+            const sourceYearNorm = normalizeYear(sourceClassroom.academicYear);
+            const targetYearNorm = normalizeYear(targetClassroom.academicYear);
+
+            // Fetch current active academic year for context if exists
+            let isCurrentSession = false;
+            try {
+                const currentYearRecord = await AcademicYear.findOne({ where: { isCurrent: true }, transaction: t });
+                if (currentYearRecord) {
+                    const activeNorm = normalizeYear(currentYearRecord.name);
+                    if (sourceYearNorm === activeNorm && targetYearNorm === activeNorm) {
+                        isCurrentSession = true;
+                    }
+                }
+            } catch (_) {}
+
+            // Both classrooms must belong to the same session or both be currently active
+            if (sourceYearNorm !== targetYearNorm && !isCurrentSession) {
+                // If both are ACTIVE sections of the school, synchronize to current year or target year
+                if (sourceClassroom.status === 'ACTIVE' && targetClassroom.status === 'ACTIVE') {
+                    // Synchronize the section's year representation so they remain aligned
+                    await targetClassroom.update({ academicYear: sourceClassroom.academicYear }, { transaction: t });
+                } else {
+                    const err = new Error('Section transfer is only permitted within the same academic year.');
+                    err.statusCode = 400;
+                    throw err;
+                }
+            }
+
+            // Enforce that section transfers only occur between sections of the same Academic Class
+            const sourceClassId = sourceClassroom.classId || sourceClassroom.name;
+            const targetClassId = targetClassroom.classId || targetClassroom.name;
+            if (sourceClassId && targetClassId && sourceClassId !== targetClassId) {
+                const err = new Error('Section transfer is only permitted between sections of the same class.');
                 err.statusCode = 400;
                 throw err;
             }

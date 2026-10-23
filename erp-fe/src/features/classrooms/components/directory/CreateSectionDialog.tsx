@@ -56,7 +56,7 @@ export function CreateSectionDialog({
         defaultValues: {
             classId: preSelectedClass?.id || "",
             section: "A",
-            academicYear: "2026-2027",
+            academicYear: "",
             blockId: "",
             roomId: "",
             roomNumber: "",

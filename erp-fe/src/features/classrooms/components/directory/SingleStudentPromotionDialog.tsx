@@ -18,6 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
 import { fetchClassrooms } from "@/features/classrooms/api/classroomApi";
+import { fetchCurrentAcademicYear } from "@/features/school-config/api/academicYearApi";
 import type { Classroom, ClassroomEnrollment } from "@/types/erp";
 
 interface SingleStudentPromotionDialogProps {
@@ -41,11 +42,23 @@ export function SingleStudentPromotionDialog({
 }: SingleStudentPromotionDialogProps) {
     const student = enrollment.student;
     const [action, setAction] = useState<PromotionAction>("PROMOTE");
-    const [targetAcademicYear, setTargetAcademicYear] = useState("2026-2027");
+    const [targetAcademicYear, setTargetAcademicYear] = useState("");
     const [targetClassroomId, setTargetClassroomId] = useState("");
     const [isManualOverride, setIsManualOverride] = useState(false);
     const [overrideReason, setOverrideReason] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Fetch active academic year
+    const { data: currentYear } = useQuery({
+        queryKey: ["currentAcademicYear"],
+        queryFn: fetchCurrentAcademicYear,
+        staleTime: 60_000,
+        enabled: open,
+    });
+
+    // Auto-populate targetAcademicYear from active year
+    const effectiveYear = currentYear?.name || "";
+    const activeTargetYear = targetAcademicYear || effectiveYear;
 
     // Fetch classroom to find current classId
     const { data: sourceClassroom } = useQuery({
@@ -99,11 +112,16 @@ export function SingleStudentPromotionDialog({
             return;
         }
 
+        if (!activeTargetYear.trim()) {
+            toast.error("Target academic year is required");
+            return;
+        }
+
         setIsSubmitting(true);
         try {
             const payload = {
                 sourceClassroomId,
-                targetAcademicYear: targetAcademicYear.trim(),
+                targetAcademicYear: activeTargetYear.trim(),
                 promotions: [{
                     studentId: student.id,
                     action: isFinalClass && action === "PROMOTE" ? "GRADUATE" : action,
@@ -192,8 +210,9 @@ export function SingleStudentPromotionDialog({
                         <div className="space-y-1.5">
                             <Label className="text-xs font-bold text-foreground">Next Session</Label>
                             <Input
-                                value={targetAcademicYear}
+                                value={activeTargetYear}
                                 onChange={(e) => setTargetAcademicYear(e.target.value)}
+                                placeholder="e.g. 2026-27"
                                 className="h-9 rounded-xl text-xs font-mono font-bold"
                             />
                         </div>

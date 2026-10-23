@@ -32,18 +32,26 @@ export default function AdmissionFormDialog({
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
-                className="sm:max-w-2xl p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl bg-white dark:bg-zinc-950 flex flex-col"
-                style={{ maxHeight: '92dvh' }}
+                className="sm:max-w-3xl p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl bg-white dark:bg-zinc-950 flex flex-col h-[88vh] max-h-[92dvh]"
             >
-                <DialogHeader className="px-6 py-5 bg-muted/40 dark:bg-purple-950/10 border-b border-border shrink-0">
-                    <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
-                        {isEdit ? 'Edit Student Profile' : 'Enroll New Student'}
-                    </DialogTitle>
-                    {isEdit && editTarget?.admissionNumber && (
-                        <p className="text-xs text-purple-700 dark:text-purple-400 font-mono mt-0.5">
-                            {editTarget.admissionNumber}
-                        </p>
-                    )}
+                <DialogHeader className="px-6 py-4.5 bg-muted/40 dark:bg-purple-950/10 border-b border-border shrink-0">
+                    <div className="flex items-center justify-between pr-6">
+                        <div>
+                            <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
+                                {isEdit ? 'Edit Student Profile' : 'Enrol New Student'}
+                            </DialogTitle>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                {isEdit 
+                                    ? 'Update verified demographic, academic, and guardian records' 
+                                    : 'Enrol a new student and create associated ERP login credentials'}
+                            </p>
+                        </div>
+                        {isEdit && editTarget?.admissionNumber && (
+                            <span className="hidden sm:inline-flex px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-primary/10 text-primary border border-primary/20">
+                                {editTarget.admissionNumber}
+                            </span>
+                        )}
+                    </div>
                 </DialogHeader>
                 
                 <div className="flex-1 overflow-hidden">

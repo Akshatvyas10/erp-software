@@ -55,3 +55,8 @@ backups/
 *.dump
 erp-be/src/database/exportDb.js
 exportDb.js
+
+# Uploaded User & Student Files
+erp-be/public/uploads/*
+!erp-be/public/uploads/.gitkeep
+

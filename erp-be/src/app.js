@@ -42,7 +42,11 @@ const app = express();
 // MUST be set before any rate-limiter, auth, or IP-based middlewares.
 app.set('trust proxy', 1);
 
-app.use(helmet());
+app.use(
+    helmet({
+        crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })
+);
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',');

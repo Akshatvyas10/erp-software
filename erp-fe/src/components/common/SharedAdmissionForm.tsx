@@ -3,10 +3,11 @@ import { useForm, type Control, type FieldPath, type FieldValues, type UseFormRe
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Eye, EyeOff, UploadCloud, X, ImageIcon } from "lucide-react";
+import { Loader2, Eye, EyeOff, UploadCloud, X, ImageIcon, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,38 +39,42 @@ const TAB_LABELS: Record<string, string> = {
 const inputCls = "h-9 bg-zinc-100 dark:bg-zinc-900/50 border-none focus-visible:ring-1 focus-visible:ring-purple-500/50 rounded-lg";
 const sectionHd = "text-[11px] font-bold uppercase tracking-widest text-purple-900/50 dark:text-zinc-500 mb-3 mt-1";
 
+const phoneRegex = /^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/;
+
 // ─── Zod schema ───────────────────────────────────────────────────────────────
 const admissionSchema = z.object({
-    firstName: z.string().min(1, "First name is required").max(100),
-    lastName: z.string().min(1, "Last name is required").max(100),
-    email: z.string().min(1, "Email is required").email("Invalid email address"),
-    password: z.string().optional(),
-    gender: z.string().optional(),
-    religion: z.string().optional(),
-    caste: z.string().optional(),
-    motherTongue: z.string().optional(),
-    admissionNumber: z.string().max(50).optional().or(z.literal("")),
-    rollNumber: z.string().max(20).optional().or(z.literal("")),
-    classroomId: z.string().uuid().optional().or(z.literal("")),
-    previousSchoolDetails: z.string().optional(),
-    dateOfBirth: z.string().optional().or(z.literal("")),
+    firstName: z.string().trim().min(1, "First name is required").max(100, "Max 100 characters"),
+    lastName: z.string().trim().min(1, "Last name is required").max(100, "Max 100 characters"),
+    email: z.string().trim().min(1, "Email is required").email("Invalid email address"),
+    password: z.string().optional().or(z.literal("")),
+    gender: z.string().min(1, "Gender selection is required"),
+    dateOfBirth: z.string().min(1, "Date of birth is required")
+        .refine((val) => !isNaN(Date.parse(val)), "Invalid date format")
+        .refine((val) => new Date(val) <= new Date(), "Date of birth cannot be in the future"),
+    religion: z.string().optional().or(z.literal("")),
+    caste: z.string().optional().or(z.literal("")),
+    motherTongue: z.string().optional().or(z.literal("")),
+    admissionNumber: z.string().trim().max(50, "Max 50 characters").optional().or(z.literal("")),
+    rollNumber: z.string().trim().max(20, "Max 20 characters").optional().or(z.literal("")),
+    classroomId: z.string().uuid("Invalid classroom ID").optional().or(z.literal("")),
+    previousSchoolDetails: z.string().max(500, "Max 500 characters").optional().or(z.literal("")),
     status: z.enum(["ACTIVE", "SUSPENDED", "GRADUATED", "TRANSFERRED"]).optional(),
-    guardianName: z.string().max(200).optional().or(z.literal("")),
-    guardianRelationship: z.string().max(50).optional().or(z.literal("")),
-    guardianPhone: z.string().max(20).optional().or(z.literal("")),
-    guardianEmail: z.string().email("Invalid email").optional().or(z.literal("")),
-    permanentAddress: z.string().optional(),
-    currentAddress: z.string().optional(),
+    guardianName: z.string().trim().min(1, "Guardian name is required").max(200, "Max 200 characters"),
+    guardianRelationship: z.string().trim().min(1, "Guardian relationship is required").max(50, "Max 50 characters"),
+    guardianPhone: z.string().trim().min(1, "Guardian phone is required").regex(phoneRegex, "Valid 10-15 digit phone number required"),
+    guardianEmail: z.string().trim().email("Invalid guardian email").optional().or(z.literal("")),
+    permanentAddress: z.string().trim().min(5, "Permanent address must be at least 5 characters").max(1000, "Max 1000 characters"),
+    currentAddress: z.string().trim().max(1000, "Max 1000 characters").optional().or(z.literal("")),
     sameAddress: z.boolean().optional(),
-    governmentId: z.string().max(50).optional().or(z.literal("")),
+    governmentId: z.string().trim().max(50, "Max 50 characters").optional().or(z.literal("")),
     bloodGroup: z.string().max(5).optional().or(z.literal("")),
     transportationMode: z.enum(["SCHOOL_BUS", "PRIVATE_TRANSPORT", "WALKER"]).optional(),
     feeQuota: z.enum(["REGULAR", "STAFF_CHILD", "SCHOLARSHIP_HALF", "SCHOLARSHIP_FULL"]).optional(),
-    medicalNotes: z.string().optional(),
-    bankAccountNumber: z.string().min(1, "Account number is required"),
-    bankIfscCode: z.string().min(1, "IFSC code is required"),
-    bankName: z.string().min(1, "Bank name is required"),
-    bankBranch: z.string().min(1, "Bank branch is required"),
+    medicalNotes: z.string().max(1000, "Max 1000 characters").optional().or(z.literal("")),
+    bankAccountNumber: z.string().optional().or(z.literal("")),
+    bankIfscCode: z.string().optional().or(z.literal("")),
+    bankName: z.string().optional().or(z.literal("")),
+    bankBranch: z.string().optional().or(z.literal("")),
     bankMicrNumber: z.string().optional().or(z.literal("")),
     customFields: z.record(z.string(), z.any()).optional(),
 });
@@ -258,8 +263,8 @@ export function SharedAdmissionForm({
     }, [sameAddress, permAddress, form]);
 
     const fieldsByTab: Record<string, FieldPath<AdmissionFormValues>[]> = {
-        account: ["firstName", "lastName", "email", "password", "gender", "religion", "caste", "motherTongue", "dateOfBirth", "status"],
-        academic: ["rollNumber", "classroomId", "previousSchoolDetails"],
+        account: ["firstName", "lastName", "email", "password", "gender", "religion", "caste", "motherTongue", "status"],
+        academic: ["dateOfBirth", "admissionNumber", "rollNumber", "classroomId", "previousSchoolDetails"],
         guardian: ["guardianName", "guardianRelationship", "guardianPhone", "guardianEmail", "permanentAddress", "currentAddress", "sameAddress"],
         logistics: ["governmentId", "bloodGroup", "transportationMode", "feeQuota", "medicalNotes", "bankAccountNumber", "bankIfscCode", "bankName", "bankBranch", "bankMicrNumber"],
     };
@@ -330,7 +335,9 @@ export function SharedAdmissionForm({
             app("caste", values.caste);
             app("motherTongue", values.motherTongue);
             app("rollNumber", values.rollNumber);
-            app("admissionNumber", values.admissionNumber);
+            if (isEdit) {
+                app("admissionNumber", values.admissionNumber);
+            }
             app("classroomId", values.classroomId || initialClassroomId);
             app("previousSchoolDetails", values.previousSchoolDetails);
             app("dateOfBirth", values.dateOfBirth);
@@ -444,99 +451,128 @@ export function SharedAdmissionForm({
                                 })}
                             </div>
 
-                            <div className="flex-1 overflow-y-auto px-6 py-5">
-                                {/* ── TAB 1: Account ── */}
-                                <TabsContent value="account" className="mt-0 space-y-4">
-                                    <p className={sectionHd}>Identity & Login</p>
-                                    <PhotoPicker
-                                        currentUrl={editTarget?.profilePhotoUrl ?? null}
-                                        file={photoFile}
-                                        onFile={setPhotoFile}
-                                        error={photoError}
-                                    />
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <FField control={form.control} name="firstName" label="First Name *">
-                                            <Input placeholder="e.g. Ananya" className={inputCls} />
+                            <ScrollArea className="flex-1 min-h-0 w-full">
+                                <div className="px-6 py-5">
+                                    {/* ── TAB 1: Account ── */}
+                                    <TabsContent value="account" className="mt-0 space-y-4">
+                                        <p className={sectionHd}>Identity & Login</p>
+                                        <PhotoPicker
+                                            currentUrl={editTarget?.profilePhotoUrl ?? null}
+                                            file={photoFile}
+                                            onFile={setPhotoFile}
+                                            error={photoError}
+                                        />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <FField control={form.control} name="firstName" label="First Name *">
+                                                <Input placeholder="e.g. Ananya" className={inputCls} />
+                                            </FField>
+                                            <FField control={form.control} name="lastName" label="Last Name *">
+                                                <Input placeholder="e.g. Sharma" className={inputCls} />
+                                            </FField>
+                                        </div>
+                                        <FField control={form.control} name="email" label="Email Address *">
+                                            <Input type="email" placeholder="student@school.edu" className={inputCls} />
                                         </FField>
-                                        <FField control={form.control} name="lastName" label="Last Name *">
-                                            <Input placeholder="e.g. Sharma" className={inputCls} />
-                                        </FField>
-                                    </div>
-                                    <FField control={form.control} name="email" label="Email Address *">
-                                        <Input type="email" placeholder="student@school.edu" className={inputCls} />
-                                    </FField>
-                                    {!isEdit && !isPublic && (
-                                        <FField control={form.control} name="password" label="Login Password *">
-                                            <div className="relative">
-                                                <Input type={showPassword ? "text" : "password"}
-                                                    placeholder="Min. 8 characters"
-                                                    className={`${inputCls} pr-10`} />
-                                                <button type="button"
-                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                                                    onClick={() => setShowPassword(v => !v)}>
-                                                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                                </button>
-                                            </div>
-                                        </FField>
-                                    )}
-                                    <FField control={form.control} name="gender" label="Gender">
-                                        <Select onValueChange={v => form.setValue("gender", v)} value={form.watch("gender") ?? ""}>
-                                            <SelectTrigger className={inputCls}><SelectValue placeholder="Select…" /></SelectTrigger>
-                                            <SelectContent>
-                                                {["Male", "Female", "Other", "Prefer not to say"].map(g => (
-                                                    <SelectItem key={g} value={g}>{g}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </FField>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <FField control={form.control} name="religion" label="Religion">
-                                            <Select onValueChange={v => form.setValue("religion", v)} value={form.watch("religion") ?? ""}>
+                                        {!isEdit && !isPublic && (
+                                            <FField control={form.control} name="password" label="Login Password *">
+                                                <div className="relative">
+                                                    <Input type={showPassword ? "text" : "password"}
+                                                        placeholder="Min. 8 characters"
+                                                        className={`${inputCls} pr-10`} />
+                                                    <button type="button"
+                                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                                        onClick={() => setShowPassword(v => !v)}>
+                                                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                    </button>
+                                                </div>
+                                            </FField>
+                                        )}
+                                        <FField control={form.control} name="gender" label="Gender *">
+                                            <Select onValueChange={v => form.setValue("gender", v)} value={form.watch("gender") ?? ""}>
                                                 <SelectTrigger className={inputCls}><SelectValue placeholder="Select…" /></SelectTrigger>
                                                 <SelectContent>
-                                                    {["Hindu", "Muslim", "Christian", "Sikh", "Jain", "Buddhist", "Other"].map(r => (
-                                                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                                                    {["Male", "Female", "Other", "Prefer not to say"].map(g => (
+                                                        <SelectItem key={g} value={g}>{g}</SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>
                                         </FField>
-                                        <FField control={form.control} name="caste" label="Caste / Category">
-                                            <Select onValueChange={v => form.setValue("caste", v)} value={form.watch("caste") ?? ""}>
-                                                <SelectTrigger className={inputCls}><SelectValue placeholder="Select…" /></SelectTrigger>
-                                                <SelectContent>
-                                                    {["General", "OBC", "SC", "ST", "EWS", "Other"].map(c => (
-                                                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <FField control={form.control} name="religion" label="Religion">
+                                                <Select onValueChange={v => form.setValue("religion", v)} value={form.watch("religion") ?? ""}>
+                                                    <SelectTrigger className={inputCls}><SelectValue placeholder="Select…" /></SelectTrigger>
+                                                    <SelectContent>
+                                                        {["Hindu", "Muslim", "Christian", "Sikh", "Jain", "Buddhist", "Other"].map(r => (
+                                                            <SelectItem key={r} value={r}>{r}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </FField>
+                                            <FField control={form.control} name="caste" label="Caste / Category">
+                                                <Select onValueChange={v => form.setValue("caste", v)} value={form.watch("caste") ?? ""}>
+                                                    <SelectTrigger className={inputCls}><SelectValue placeholder="Select…" /></SelectTrigger>
+                                                    <SelectContent>
+                                                        {["General", "OBC", "SC", "ST", "EWS", "Other"].map(c => (
+                                                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </FField>
+                                        </div>
+                                        <FField control={form.control} name="motherTongue" label="Mother Tongue">
+                                            <Input placeholder="e.g. Hindi, English…" className={inputCls} />
                                         </FField>
-                                    </div>
-                                    <FField control={form.control} name="motherTongue" label="Mother Tongue">
-                                        <Input placeholder="e.g. Hindi, English…" className={inputCls} />
-                                    </FField>
-                                </TabsContent>
+                                    </TabsContent>
 
-                                <TabsContent value="academic" className="mt-0 space-y-4">
-                                    <p className={sectionHd}>Academic Placement</p>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <TabsContent value="academic" className="mt-0 space-y-4">
+                                        <p className={sectionHd}>Academic Placement</p>
                                         {!isPublic && (
                                             <>
-                                                <FField control={form.control} name="admissionNumber" label="Admission Number">
-                                                    <Input placeholder="e.g. ADM-2024-001 (or leave blank to auto-generate)" className={inputCls} />
+                                                <FField control={form.control} name="classroomId" label="Assign to Classroom (optional)">
+                                                    <Select onValueChange={v => form.setValue("classroomId", v === "__none__" ? "" : v)}
+                                                        value={form.watch("classroomId") || "__none__"}>
+                                                    <SelectTrigger className={inputCls}><SelectValue placeholder="No classroom" /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="__none__">— No classroom</SelectItem>
+                                                        {classrooms.map(c => (
+                                                            <SelectItem key={c.id} value={c.id}>
+                                                                {c.name} – {c.section} · {c.academicYear}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </FField>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                                                <div>
+                                                    <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5">
+                                                        Admission Number
+                                                    </label>
+                                                    {isEdit ? (
+                                                        <Input
+                                                            disabled
+                                                            value={form.watch("admissionNumber") || "Auto-assigned"}
+                                                            className={`${inputCls} bg-muted/50 cursor-not-allowed font-mono text-xs`}
+                                                        />
+                                                    ) : (
+                                                        <div className="flex items-center h-9 px-3 rounded-md border border-dashed border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-950/20 text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                                                            <Sparkles className="h-3.5 w-3.5 mr-2 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                            Auto-generated by ERP upon enrolment
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <FField control={form.control} name="rollNumber" label="Roll Number in Class (Optional)">
+                                                    <Input placeholder="e.g. 101" className={inputCls} />
                                                 </FField>
-                                                <FField control={form.control} name="rollNumber" label="Roll Number">
-                                                    <Input placeholder="e.g. 22" className={inputCls} />
-                                                </FField>
-                                            </>
-                                        )}
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
+                                            </div>
+                                        </>
+                                    )}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <FormField
                                             control={form.control}
                                             name="dateOfBirth"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date of Birth</FormLabel>
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date of Birth *</FormLabel>
                                                     <Popover modal={true} open={isDobOpen} onOpenChange={setIsDobOpen}>
                                                         <PopoverTrigger asChild>
                                                             <FormControl>
@@ -544,7 +580,7 @@ export function SharedAdmissionForm({
                                                                     type="button"
                                                                     variant={"outline"}
                                                                     className={cn(
-                                                                        "w-full h-10 rounded-lg bg-zinc-100 dark:bg-zinc-900/50 border-none justify-start text-left font-normal focus-visible:ring-1 focus-visible:ring-purple-500/50",
+                                                                        "w-full h-9 rounded-lg bg-zinc-100 dark:bg-zinc-900/50 border-none justify-start text-left font-normal focus-visible:ring-1 focus-visible:ring-purple-500/50",
                                                                         !field.value && "text-muted-foreground"
                                                                     )}
                                                                 >
@@ -572,32 +608,6 @@ export function SharedAdmissionForm({
                                             )}
                                         />
                                     </div>
-                                    {!isPublic && (
-                                        <>
-                                            <FField control={form.control} name="classroomId" label="Assign to Classroom (optional)">
-                                                <Select onValueChange={v => form.setValue("classroomId", v === "__none__" ? "" : v)}
-                                                    value={form.watch("classroomId") || "__none__"}>
-                                                    <SelectTrigger className={inputCls}><SelectValue placeholder="No classroom" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="__none__">— No classroom</SelectItem>
-                                                        {classrooms.map(c => (
-                                                            <SelectItem key={c.id} value={c.id}>
-                                                                {c.name} – {c.section} · {c.academicYear}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </FField>
-                                            <div className="grid grid-cols-2 gap-3 mt-3">
-                                                <FField control={form.control} name="admissionNumber" label="Admission Number *">
-                                                    <Input placeholder="e.g. ADM-2026-001" className={inputCls} />
-                                                </FField>
-                                                <FField control={form.control} name="rollNumber" label="Roll Number *">
-                                                    <Input placeholder="e.g. 101" className={inputCls} />
-                                                </FField>
-                                            </div>
-                                        </>
-                                    )}
                                     <FField control={form.control} name="previousSchoolDetails" label="Previous School Details">
                                         <Textarea placeholder="School name, class completed, transfer reason…"
                                             className="bg-zinc-100 dark:bg-zinc-900/50 border-none focus-visible:ring-1 focus-visible:ring-purple-500/50 rounded-lg resize-none min-h-[80px]" />
@@ -620,10 +630,10 @@ export function SharedAdmissionForm({
                                 <TabsContent value="guardian" className="mt-0 space-y-4">
                                     <p className={sectionHd}>Guardian / Parent Contact</p>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <FField control={form.control} name="guardianName" label="Guardian Name">
+                                        <FField control={form.control} name="guardianName" label="Guardian Name *">
                                             <Input placeholder="e.g. Rajesh Sharma" className={inputCls} />
                                         </FField>
-                                        <FField control={form.control} name="guardianRelationship" label="Relationship">
+                                        <FField control={form.control} name="guardianRelationship" label="Relationship *">
                                             <Select onValueChange={v => form.setValue("guardianRelationship", v)} value={form.watch("guardianRelationship") ?? ""}>
                                                 <SelectTrigger className={inputCls}><SelectValue placeholder="Select…" /></SelectTrigger>
                                                 <SelectContent>
@@ -635,15 +645,15 @@ export function SharedAdmissionForm({
                                         </FField>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <FField control={form.control} name="guardianPhone" label="Phone Number">
+                                        <FField control={form.control} name="guardianPhone" label="Phone Number *">
                                             <Input placeholder="+91 98765 43210" className={inputCls} />
                                         </FField>
                                         <FField control={form.control} name="guardianEmail" label="Guardian Email">
                                             <Input type="email" placeholder="guardian@email.com" className={inputCls} />
                                         </FField>
                                     </div>
-                                    <FField control={form.control} name="permanentAddress" label="Permanent Address">
-                                        <Textarea placeholder="Full permanent address…"
+                                    <FField control={form.control} name="permanentAddress" label="Permanent Address *">
+                                        <Textarea placeholder="Full permanent address (min 5 characters)…"
                                             className="bg-zinc-100 dark:bg-zinc-900/50 border-none focus-visible:ring-1 focus-visible:ring-purple-500/50 rounded-lg resize-none min-h-[70px]" />
                                     </FField>
                                     <FormField control={form.control} name="sameAddress"
@@ -733,25 +743,25 @@ export function SharedAdmissionForm({
                                     </div>
 
                                     <div className="pt-2">
-                                        <p className={sectionHd}>Bank Details (Required)</p>
+                                        <p className={sectionHd}>Bank & Disbursement Details (Optional)</p>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <FField control={form.control} name="bankAccountNumber" label="Account Number *">
+                                        <FField control={form.control} name="bankAccountNumber" label="Account Number">
                                             <Input placeholder="e.g. 1234567890" className={inputCls} />
                                         </FField>
-                                        <FField control={form.control} name="bankIfscCode" label="IFSC Code *">
+                                        <FField control={form.control} name="bankIfscCode" label="IFSC Code">
                                             <Input placeholder="e.g. HDFC0001234" className={inputCls} />
                                         </FField>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <FField control={form.control} name="bankName" label="Bank Name *">
+                                        <FField control={form.control} name="bankName" label="Bank Name">
                                             <Input placeholder="e.g. HDFC Bank" className={inputCls} />
                                         </FField>
-                                        <FField control={form.control} name="bankBranch" label="Branch *">
+                                        <FField control={form.control} name="bankBranch" label="Branch">
                                             <Input placeholder="e.g. MG Road, Bangalore" className={inputCls} />
                                         </FField>
                                     </div>
-                                    <FField control={form.control} name="bankMicrNumber" label="MICR Number (Optional)">
+                                    <FField control={form.control} name="bankMicrNumber" label="MICR Number">
                                         <Input placeholder="e.g. 110002034" className={inputCls} />
                                     </FField>
 
@@ -790,7 +800,8 @@ export function SharedAdmissionForm({
                                         </>
                                     )}
                                 </TabsContent>
-                            </div>
+                                </div>
+                            </ScrollArea>
 
                             {/* Footer */}
                             <div className="px-6 py-4 bg-muted/40 dark:bg-purple-950/10 border-t border-border
@@ -857,9 +868,9 @@ function TabNavButtons({
     );
 }
 
-function FField<T extends FieldValues, N extends FieldPath<T>>({
+function FField<T extends FieldValues>({
     control, name, label, children,
-}: { control: Control<T>; name: N; label: string; children: React.ReactElement }) {
+}: { control: Control<T>; name: FieldPath<T>; label: string; children: React.ReactElement }) {
     return (
         <FormField control={control} name={name} render={({ field }) => (
             <FormItem>
@@ -886,7 +897,7 @@ function buildDefaults(s: Student | null | undefined): AdmissionFormValues {
         dateOfBirth: "", previousSchoolDetails: "", status: "ACTIVE",
         guardianName: "", guardianRelationship: "", guardianPhone: "", guardianEmail: "",
         permanentAddress: "", currentAddress: "", sameAddress: false,
-        governmentId: "", bloodGroup: "", transportationMode: undefined,
+        governmentId: "", bloodGroup: "", transportationMode: "WALKER",
         feeQuota: "REGULAR", medicalNotes: "",
         bankAccountNumber: "", bankIfscCode: "", bankName: "", bankBranch: "", bankMicrNumber: "",
         customFields: {},
@@ -917,7 +928,7 @@ function buildDefaults(s: Student | null | undefined): AdmissionFormValues {
         sameAddress: false,
         governmentId: s.governmentId ?? "",
         bloodGroup: s.bloodGroup ?? "",
-        transportationMode: s.transportationMode ?? undefined,
+        transportationMode: s.transportationMode ?? "WALKER",
         feeQuota: s.feeQuota ?? "REGULAR",
         medicalNotes: s.medicalNotes ?? "",
         bankAccountNumber: (s as any).bankAccountNumber ?? "",

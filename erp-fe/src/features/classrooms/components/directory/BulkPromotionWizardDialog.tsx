@@ -31,6 +31,7 @@ import api from "@/lib/api";
 import {
     fetchClassrooms, evaluatePromotionCandidates
 } from "@/features/classrooms/api/classroomApi";
+import { fetchCurrentAcademicYear } from "@/features/school-config/api/academicYearApi";
 import type { Classroom, ClassroomEnrollment } from "@/types/erp";
 
 interface BulkPromotionWizardDialogProps {
@@ -65,12 +66,23 @@ export function BulkPromotionWizardDialog({
 }: BulkPromotionWizardDialogProps) {
     const [step, setStep] = useState<1 | 2 | 3>(1);
     const [selectedSourceSectionId, setSelectedSourceSectionId] = useState<string>("");
-    const [targetAcademicYear, setTargetAcademicYear] = useState("2026-2027");
+    const [targetAcademicYear, setTargetAcademicYear] = useState("");
     const [defaultTargetClassroomId, setDefaultTargetClassroomId] = useState("");
     const [promotionPlans, setPromotionPlans] = useState<Record<string, StudentPromotionPlan>>({});
     const [overrideDialogStudent, setOverrideDialogStudent] = useState<StudentPromotionPlan | null>(null);
     const [overrideReasonInput, setOverrideReasonInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+
+    // Fetch active academic year
+    const { data: currentYear } = useQuery({
+        queryKey: ["currentAcademicYear"],
+        queryFn: fetchCurrentAcademicYear,
+        staleTime: 60_000,
+        enabled: open,
+    });
+
+    const effectiveYear = currentYear?.name || "";
+    const activeTargetYear = targetAcademicYear || effectiveYear;
     const [resultSummary, setResultSummary] = useState<{
         promotedCount: number;
         retainedCount: number;
@@ -236,11 +248,16 @@ export function BulkPromotionWizardDialog({
             }
         }
 
+        if (!activeTargetYear.trim()) {
+            toast.error("Target academic session is required.");
+            return;
+        }
+
         setIsLoading(true);
         try {
             const payload = {
                 sourceClassroomId: effectiveClassroom.id,
-                targetAcademicYear: targetAcademicYear.trim(),
+                targetAcademicYear: activeTargetYear.trim(),
                 ruleId: evaluationData?.rule?.id,
                 promotions: plansList.map((p) => ({
                     studentId: p.studentId,
@@ -373,9 +390,9 @@ export function BulkPromotionWizardDialog({
                                 <div className="space-y-1.5">
                                     <Label className="text-xs font-bold text-foreground">Next Academic Session</Label>
                                     <Input
-                                        value={targetAcademicYear}
+                                        value={activeTargetYear}
                                         onChange={(e) => setTargetAcademicYear(e.target.value)}
-                                        placeholder="e.g. 2026-2027"
+                                        placeholder="e.g. 2026-27"
                                         className="h-10 rounded-xl bg-muted/30 border-border/70 text-xs font-mono font-bold"
                                     />
                                 </div>

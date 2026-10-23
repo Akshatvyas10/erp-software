@@ -23,72 +23,124 @@ router.use(authenticate);
 // Validation for POST — multipart form; body fields arrive as strings
 const createStudentValidation = [
     body('email')
-        .isEmail().withMessage('Valid email required')
+        .isEmail().withMessage('Valid email required for student account')
         .normalizeEmail(),
     body('password')
         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
     body('firstName')
         .trim().notEmpty().withMessage('First name is required')
-        .isLength({ max: 100 }),
+        .isLength({ max: 100 }).withMessage('First name cannot exceed 100 characters'),
     body('lastName')
         .trim().notEmpty().withMessage('Last name is required')
-        .isLength({ max: 100 }),
+        .isLength({ max: 100 }).withMessage('Last name cannot exceed 100 characters'),
     body('admissionNumber')
         .optional({ checkFalsy: true }).trim().isLength({ max: 50 }),
     body('rollNumber')
         .optional({ checkFalsy: true }).trim().isLength({ max: 20 }),
     body('grade')
-        .optional().trim().isLength({ max: 20 }),
+        .optional({ checkFalsy: true }).trim().isLength({ max: 20 }),
     body('section')
-        .optional().trim().isLength({ max: 10 }),
+        .optional({ checkFalsy: true }).trim().isLength({ max: 10 }),
     body('dateOfBirth')
-        .optional().isISO8601().withMessage('Invalid date (YYYY-MM-DD)'),
+        .notEmpty().withMessage('Date of birth is required')
+        .isISO8601().withMessage('Invalid date format (YYYY-MM-DD)')
+        .custom((val) => {
+            if (new Date(val) > new Date()) {
+                throw new Error('Date of birth cannot be in the future');
+            }
+            return true;
+        }),
     body('gender')
-        .optional().trim().isLength({ max: 20 }),
+        .notEmpty().withMessage('Gender is required')
+        .isIn(['Male', 'Female', 'Other', 'Prefer not to say'])
+        .withMessage('Invalid gender selection'),
     body('bloodGroup')
-        .optional().trim().isLength({ max: 5 }),
+        .optional({ checkFalsy: true }).trim()
+        .isIn(['A+', 'A−', 'B+', 'B−', 'AB+', 'AB−', 'O+', 'O−', 'A-', 'B-', 'AB-', 'O-'])
+        .withMessage('Invalid blood group'),
     body('transportationMode')
         .optional()
         .isIn(['SCHOOL_BUS', 'PRIVATE_TRANSPORT', 'WALKER'])
         .withMessage('Invalid transport mode'),
+    body('guardianName')
+        .trim().notEmpty().withMessage('Primary guardian name is required')
+        .isLength({ max: 200 }),
+    body('guardianRelationship')
+        .trim().notEmpty().withMessage('Guardian relationship is required')
+        .isLength({ max: 50 }),
     body('guardianPhone')
-        .optional().trim().isLength({ max: 20 }),
+        .trim().notEmpty().withMessage('Guardian phone number is required')
+        .matches(/^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/)
+        .withMessage('Invalid phone number format'),
     body('guardianEmail')
-        .optional().isEmail().withMessage('Invalid guardian email'),
+        .optional({ checkFalsy: true }).isEmail().withMessage('Invalid guardian email'),
+    body('permanentAddress')
+        .trim().notEmpty().withMessage('Permanent address is required')
+        .isLength({ min: 5, max: 1000 }).withMessage('Permanent address must be between 5 and 1000 characters'),
+    body('currentAddress')
+        .optional({ checkFalsy: true }).trim().isLength({ max: 1000 }),
+    body('governmentId')
+        .optional({ checkFalsy: true }).trim().isLength({ max: 50 }),
+    body('medicalNotes')
+        .optional({ checkFalsy: true }).trim().isLength({ max: 1000 }),
     body('feeQuota')
         .optional()
         .isIn(['REGULAR', 'STAFF_CHILD', 'SCHOLARSHIP_HALF', 'SCHOLARSHIP_FULL']),
     body('status')
         .optional()
         .isIn(['ACTIVE', 'SUSPENDED', 'GRADUATED', 'TRANSFERRED']),
-    // Optional classroom junction
     body('classroomId')
-        .optional()
+        .optional({ checkFalsy: true })
         .isUUID().withMessage('classroomId must be a valid UUID'),
 ];
 
 const updateStudentValidation = [
     param('id').isUUID().withMessage('Invalid student ID'),
-    body('email').optional().isEmail(),
-    body('firstName').optional().trim().isLength({ max: 100 }),
-    body('lastName').optional().trim().isLength({ max: 100 }),
+    body('email').optional().isEmail().withMessage('Valid email required'),
+    body('firstName').optional().trim().notEmpty().withMessage('First name cannot be empty').isLength({ max: 100 }),
+    body('lastName').optional().trim().notEmpty().withMessage('Last name cannot be empty').isLength({ max: 100 }),
     body('admissionNumber').optional({ checkFalsy: true }).trim().isLength({ max: 50 }),
     body('rollNumber').optional({ checkFalsy: true }).trim().isLength({ max: 20 }),
-    body('grade').optional().trim().isLength({ max: 20 }),
-    body('section').optional().trim().isLength({ max: 10 }),
-    body('dateOfBirth').optional().isISO8601(),
-    body('gender').optional().trim().isLength({ max: 20 }),
-    body('bloodGroup').optional().trim().isLength({ max: 5 }),
+    body('grade').optional({ checkFalsy: true }).trim().isLength({ max: 20 }),
+    body('section').optional({ checkFalsy: true }).trim().isLength({ max: 10 }),
+    body('dateOfBirth')
+        .optional({ checkFalsy: true })
+        .isISO8601().withMessage('Invalid date format')
+        .custom((val) => {
+            if (new Date(val) > new Date()) {
+                throw new Error('Date of birth cannot be in the future');
+            }
+            return true;
+        }),
+    body('gender')
+        .optional()
+        .isIn(['Male', 'Female', 'Other', 'Prefer not to say'])
+        .withMessage('Invalid gender selection'),
+    body('bloodGroup')
+        .optional({ checkFalsy: true })
+        .isIn(['A+', 'A−', 'B+', 'B−', 'AB+', 'AB−', 'O+', 'O−', 'A-', 'B-', 'AB-', 'O-']),
     body('transportationMode')
         .optional()
         .isIn(['SCHOOL_BUS', 'PRIVATE_TRANSPORT', 'WALKER']),
-    body('guardianEmail').optional().isEmail(),
+    body('guardianName').optional().trim().notEmpty().withMessage('Guardian name cannot be empty'),
+    body('guardianPhone')
+        .optional({ checkFalsy: true })
+        .matches(/^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/)
+        .withMessage('Invalid phone number format'),
+    body('guardianEmail').optional({ checkFalsy: true }).isEmail().withMessage('Invalid guardian email'),
+    body('permanentAddress').optional({ checkFalsy: true }).trim().isLength({ min: 5, max: 1000 }),
+    body('currentAddress').optional({ checkFalsy: true }).trim().isLength({ max: 1000 }),
+    body('governmentId').optional({ checkFalsy: true }).trim().isLength({ max: 50 }),
+    body('medicalNotes').optional({ checkFalsy: true }).trim().isLength({ max: 1000 }),
     body('feeQuota')
         .optional()
         .isIn(['REGULAR', 'STAFF_CHILD', 'SCHOLARSHIP_HALF', 'SCHOLARSHIP_FULL']),
     body('status')
         .optional()
         .isIn(['ACTIVE', 'SUSPENDED', 'GRADUATED', 'TRANSFERRED']),
+    body('classroomId')
+        .optional({ checkFalsy: true })
+        .isUUID().withMessage('classroomId must be a valid UUID'),
 ];
 
 const listQueryValidation = [
