@@ -66,6 +66,25 @@ export interface Teacher {
     joiningDate: string | null;
     phone: string | null;
     subjects: string[];
+    aadhaarNo?: string | null;
+    panNo?: string | null;
+    employmentType?: 'part_time' | 'full_time' | 'double_shift' | 'casual' | 'hourly' | null;
+    dailyWorkingHours?: number | null;
+    salaryType?: 'fixed_monthly' | 'hourly' | null;
+    fixedMonthlySalary?: number | null;
+    hourlyRate?: number | null;
+    casualLeaveBalance?: number | null;
+    sickLeaveBalance?: number | null;
+    bankName?: string | null;
+    accountHolderName?: string | null;
+    accountNumber?: string | null;
+    ifscCode?: string | null;
+    bankBranch?: string | null;
+    currentAddress?: string | null;
+    permanentAddress?: string | null;
+    emergencyContactName?: string | null;
+    emergencyContactPhone?: string | null;
+    profilePhotoUrl?: string | null;
     userId: string;
     createdAt: string;
     updatedAt: string;
@@ -75,11 +94,42 @@ export interface Teacher {
         email: string;
         firstName: string;
         lastName: string;
+        gender?: 'MALE' | 'FEMALE' | 'OTHER' | null;
+        dob?: string | null;
+        phone?: string | null;
         isActive: boolean;
         lastLoginAt: string | null;
         Roles?: Role[];
     };
+    classrooms?: Array<{
+        id: string;
+        name: string;
+        section: string;
+        academicYear: string;
+        roomNumber?: string | null;
+    }>;
+    assignedSubjects?: Array<{
+        id: string;
+        classroom?: {
+            id: string;
+            name: string;
+            section: string;
+            academicYear: string;
+        };
+        subject?: {
+            id: string;
+            code: string;
+            name: string;
+            type: string;
+        };
+    }>;
+    headedDepartments?: Array<{
+        id: string;
+        name: string;
+    }>;
+    canViewSensitive?: boolean;
 }
+
 
 export interface Pagination {
     total: number;
@@ -699,4 +749,111 @@ export interface PromotionLogRecord {
         academicYear: string;
     };
 }
+
+// ─── Teacher Leave Management Types ──────────────────────────────────────────
+
+export interface LeaveType {
+    id: string;
+    code: string;
+    name: string;
+    description?: string | null;
+    isPaid: boolean;
+    defaultDaysPerYear: number | string;
+    maxConsecutiveDays?: number | null;
+    requiresAttachment: boolean;
+    isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface TeacherLeaveBalance {
+    id: string;
+    teacherId: string;
+    leaveTypeId: string;
+    academicYearId: string;
+    openingBalance: number | string;
+    consumedDays: number | string;
+    remainingDays?: number;
+    academicYearName?: string;
+    leaveType?: LeaveType;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export type LeaveRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+export interface TeacherLeaveRequest {
+    id: string;
+    teacherId: string;
+    leaveTypeId: string;
+    academicYearId: string;
+    fromDate: string;
+    toDate: string;
+    totalDays: number | string;
+    reason: string;
+    attachmentUrl?: string | null;
+    status: LeaveRequestStatus;
+    decidedBy?: string | null;
+    actionByName?: string | null;
+    decidedAt?: string | null;
+    decisionRemark?: string | null;
+    cancelledAt?: string | null;
+    cancellationReason?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    leaveType?: {
+        id: string;
+        code: string;
+        name: string;
+        isPaid: boolean;
+    };
+    academicYear?: {
+        id: string;
+        name: string;
+    };
+    teacher?: Teacher;
+    decider?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+    };
+}
+
+export interface LeaveRule {
+    id: string;
+    academicYearId: string;
+    ruleName: string;
+    casualLeaveCount: number | string;
+    sickLeaveCount: number | string;
+    earnedLeaveCount: number | string;
+    maternityLeaveCount: number | string;
+    leaveWithoutPayCount: number | string;
+    isActive: boolean;
+    createdBy?: string | null;
+    createdByName?: string | null;
+    updatedBy?: string | null;
+    updatedByName?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    academicYear?: {
+        id: string;
+        name: string;
+        code?: string;
+        status?: string;
+    };
+    creator?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email?: string;
+    };
+    updater?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email?: string;
+    };
+}
+
+
 

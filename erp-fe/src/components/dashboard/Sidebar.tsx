@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
     LayoutDashboard, Users, GraduationCap, BookOpen,
     ShieldCheck, KeyRound, X, School, Building2, LayoutGrid,
-    LogOut, User, ChevronsUpDown, Calendar, ClipboardList
+    LogOut, User, ChevronsUpDown, Calendar, ClipboardList, CalendarCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermissions, useAuth } from "@/store/hooks";
@@ -35,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Teachers", to: "/dashboard/teachers", icon: BookOpen, resource: "teachers", action: "read" },
     { label: "Departments", to: "/dashboard/departments", icon: Building2, resource: "departments", action: "read" },
     { label: "Classrooms", to: "/dashboard/classrooms", icon: LayoutGrid, resource: "classrooms", action: "read" },
+    { label: "Leave Management", to: "/dashboard/leaves", icon: CalendarCheck, resource: "teacher_leaves", action: "read" },
     { label: "Homework", to: "/dashboard/homework", icon: BookOpen, resource: "homework", action: "read" },
     { label: "Calendar", to: "/dashboard/calendar", icon: Calendar, resource: "events", action: "read" },
     { label: "Admissions", to: "/dashboard/admissions", icon: ClipboardList, resource: "users", action: "read" },

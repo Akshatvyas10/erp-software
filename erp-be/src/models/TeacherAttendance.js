@@ -44,7 +44,7 @@ const TeacherAttendance = sequelize.define('TeacherAttendance', {
 
     source: {
         type: DataTypes.STRING(20), allowNull: false, defaultValue: 'manual',
-        validate: { isIn: [['manual', 'biometric']] },
+        validate: { isIn: [['manual', 'biometric', 'leave_module']] },
         comment: 'How the record was created',
     },
 

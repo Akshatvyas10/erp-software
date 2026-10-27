@@ -39,6 +39,7 @@ const StudentDetailsPage = lazy(() => import("./pages/dashboard/StudentDetailsPa
 const HomeworkPage = lazy(() => import("./pages/dashboard/HomeworkPage"));
 const HomeworkDetailsPage = lazy(() => import("./pages/dashboard/HomeworkDetailsPage"));
 const CalendarPage = lazy(() => import("./pages/dashboard/CalendarPage"));
+const TeacherLeavesHubPage = lazy(() => import("./pages/dashboard/leaves/TeacherLeavesHubPage"));
 
 // Admissions & Config Lazy Pages
 const ApplicationsListPage = lazy(() =>
@@ -282,6 +283,48 @@ function App() {
                             element={
                                 <Suspense fallback={<PageLoader />}>
                                     <SchoolConfigPage />
+                                </Suspense>
+                            }
+                        />
+
+                        {/* Teacher Leave Management Hub */}
+                        <Route
+                            path="/dashboard/leaves"
+                            element={
+                                <Suspense fallback={<PageLoader />}>
+                                    <TeacherLeavesHubPage />
+                                </Suspense>
+                            }
+                        />
+                        <Route
+                            path="/dashboard/teachers/leaves"
+                            element={
+                                <Suspense fallback={<PageLoader />}>
+                                    <TeacherLeavesHubPage />
+                                </Suspense>
+                            }
+                        />
+                        <Route
+                            path="/dashboard/hr/leave-rules"
+                            element={
+                                <Suspense fallback={<PageLoader />}>
+                                    <TeacherLeavesHubPage />
+                                </Suspense>
+                            }
+                        />
+                        <Route
+                            path="/dashboard/leaves/my"
+                            element={
+                                <Suspense fallback={<PageLoader />}>
+                                    <TeacherLeavesHubPage />
+                                </Suspense>
+                            }
+                        />
+                        <Route
+                            path="/dashboard/leaves/approvals"
+                            element={
+                                <Suspense fallback={<PageLoader />}>
+                                    <TeacherLeavesHubPage />
                                 </Suspense>
                             }
                         />

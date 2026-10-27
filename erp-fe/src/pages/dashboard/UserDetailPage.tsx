@@ -182,7 +182,6 @@ export default function UserDetailPage() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
                                 <DetailRow icon={Hash} label="Teacher ID" value={user.teacherProfile.teacherId} mono />
-                                <DetailRow icon={BookOpen} label="Department" value={user.teacherProfile.departmentName || user.teacherProfile.department} />
                                 <DetailRow icon={BookOpen} label="Designation" value={user.teacherProfile.designationName || user.teacherProfile.designation} />
                                 <DetailRow icon={Hash} label="Employee No." value={user.teacherProfile.employeeNumber} />
                                 <DetailRow icon={Calendar} label="Joining Date" value={user.teacherProfile.joiningDate ? new Date(user.teacherProfile.joiningDate).toLocaleDateString() : undefined} />

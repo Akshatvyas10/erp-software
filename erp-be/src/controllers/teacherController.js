@@ -4,24 +4,29 @@ import { Op } from 'sequelize';
 import db from '../models/index.js';
 const { Teacher, User, Role, Department } = db;
 import { success, error } from '../utils/apiResponse.js';
+import logger from '../utils/logger.js';
+import { sendTeacherEnrollmentWelcomeEmail } from '../services/email.service.js';
+import { buildTeacherPhotoUrl } from '../middlewares/uploadMiddleware.js';
 
 // All teacher-owned fields allowed on create / update
 const TEACHER_FIELDS = [
     'employeeNumber', 'department', 'designation', 'qualification',
     'joiningDate', 'phone', 'subjects',
-    // new
     'aadhaarNo', 'panNo',
     'employmentType', 'dailyWorkingHours',
     'salaryType', 'fixedMonthlySalary', 'hourlyRate',
     'casualLeaveBalance', 'sickLeaveBalance',
-    'bankName', 'accountNumber', 'ifscCode',
+    'bankName', 'accountHolderName', 'accountNumber', 'ifscCode', 'bankBranch',
+    'currentAddress', 'permanentAddress',
+    'emergencyContactName', 'emergencyContactPhone',
+    'profilePhotoUrl',
 ];
 
 const teacherWithAccount = {
     include: [{
         model: User,
         as: 'account',
-        attributes: ['id', 'userId', 'email', 'firstName', 'lastName', 'isActive', 'lastLoginAt'],
+        attributes: ['id', 'userId', 'email', 'firstName', 'lastName', 'gender', 'dob', 'phone', 'isActive', 'lastLoginAt'],
         include: [{ model: Role, as: 'Roles', through: { attributes: [] }, required: false }],
     }],
 };
@@ -34,6 +39,8 @@ const listTeachers = async (req, res, next) => {
         const offset = (page - 1) * limit;
         const search = req.query.search || '';
         const dept = req.query.department || '';
+        const status = req.query.status || '';
+        const employmentType = req.query.employmentType || '';
 
         const where = {};
         if (search) {
@@ -45,10 +52,29 @@ const listTeachers = async (req, res, next) => {
             ];
         }
         if (dept) where.department = { [Op.iLike]: `%${dept}%` };
+        if (employmentType && employmentType !== 'all') {
+            where.employmentType = employmentType;
+        }
+
+        const accountWhere = {};
+        if (status === 'active') {
+            accountWhere.isActive = true;
+        } else if (status === 'inactive') {
+            accountWhere.isActive = false;
+        }
+
+        const userRolesLower = (req.userRoles || []).map(r => String(r).toLowerCase());
+        const canViewSensitive = userRolesLower.some(r => ['super_admin', 'admin', 'hr'].includes(r));
 
         const { count, rows } = await Teacher.findAndCountAll({
             where,
-            ...teacherWithAccount,
+            include: [{
+                model: User,
+                as: 'account',
+                where: Object.keys(accountWhere).length > 0 ? accountWhere : undefined,
+                attributes: ['id', 'userId', 'email', 'firstName', 'lastName', 'gender', 'dob', 'phone', 'isActive', 'lastLoginAt'],
+                include: [{ model: Role, as: 'Roles', through: { attributes: [] }, required: false }],
+            }],
             limit, offset,
             order: [['createdAt', 'DESC']],
             distinct: true,
@@ -73,6 +99,20 @@ const listTeachers = async (req, res, next) => {
             const data = t.toJSON();
             data.departmentName = deptMap[data.department] || data.department;
             data.designationName = designationLabels[data.designation] || data.designation;
+
+            const isSelf = req.user && req.user.id === data.userId;
+            if (!canViewSensitive && !isSelf) {
+                data.bankName = null;
+                data.accountHolderName = null;
+                data.accountNumber = null;
+                data.ifscCode = null;
+                data.bankBranch = null;
+                data.fixedMonthlySalary = null;
+                data.hourlyRate = null;
+                data.aadhaarNo = null;
+                data.panNo = null;
+            }
+
             return data;
         });
 
@@ -86,7 +126,30 @@ const listTeachers = async (req, res, next) => {
 /** GET /api/teachers/me  — must be registered BEFORE /:id in routes */
 const getMyTeacherProfile = async (req, res, next) => {
     try {
-        const teacher = await Teacher.findOne({ where: { userId: req.user.id }, ...teacherWithAccount });
+        const teacher = await Teacher.findOne({
+            where: { userId: req.user.id },
+            include: [
+                ...teacherWithAccount.include,
+                {
+                    model: db.Classroom,
+                    as: 'classrooms',
+                    attributes: ['id', 'name', 'section', 'academicYear', 'roomNumber'],
+                },
+                {
+                    model: db.ClassroomSubject,
+                    as: 'assignedSubjects',
+                    include: [
+                        { model: db.Classroom, as: 'classroom', attributes: ['id', 'name', 'section', 'academicYear'] },
+                        { model: db.Subject, as: 'subject', attributes: ['id', 'code', 'name', 'type'] },
+                    ],
+                },
+                {
+                    model: db.Department,
+                    as: 'headedDepartments',
+                    attributes: ['id', 'name'],
+                },
+            ],
+        });
         if (!teacher) return error(res, 'Teacher profile not found', 404);
         return success(res, { teacher });
     } catch (err) { next(err); }
@@ -95,7 +158,29 @@ const getMyTeacherProfile = async (req, res, next) => {
 /** GET /api/teachers/:id */
 const getTeacher = async (req, res, next) => {
     try {
-        const teacher = await Teacher.findByPk(req.params.id, teacherWithAccount);
+        const teacher = await Teacher.findByPk(req.params.id, {
+            include: [
+                ...teacherWithAccount.include,
+                {
+                    model: db.Classroom,
+                    as: 'classrooms',
+                    attributes: ['id', 'name', 'section', 'academicYear', 'roomNumber'],
+                },
+                {
+                    model: db.ClassroomSubject,
+                    as: 'assignedSubjects',
+                    include: [
+                        { model: db.Classroom, as: 'classroom', attributes: ['id', 'name', 'section', 'academicYear'] },
+                        { model: db.Subject, as: 'subject', attributes: ['id', 'code', 'name', 'type'] },
+                    ],
+                },
+                {
+                    model: db.Department,
+                    as: 'headedDepartments',
+                    attributes: ['id', 'name'],
+                },
+            ],
+        });
         if (!teacher) return error(res, 'Teacher not found', 404);
 
         const data = teacher.toJSON();
@@ -115,16 +200,64 @@ const getTeacher = async (req, res, next) => {
             data.departmentName = dept ? dept.name : data.department;
         }
 
+        // RBAC Sensitive Data Guard:
+        // Sensitive financial & identity items masked unless Super Admin, Admin, HR, or the Teacher themselves
+        const userRolesLower = (req.userRoles || []).map(r => String(r).toLowerCase());
+        const canViewSensitive = userRolesLower.some(r => ['super_admin', 'admin', 'hr'].includes(r));
+        const isSelf = req.user && req.user.id === data.userId;
+
+        data.canViewSensitive = canViewSensitive || isSelf;
+
+        if (!canViewSensitive && !isSelf) {
+            data.bankName = null;
+            data.accountHolderName = null;
+            data.accountNumber = null;
+            data.ifscCode = null;
+            data.bankBranch = null;
+            data.fixedMonthlySalary = null;
+            data.hourlyRate = null;
+            data.aadhaarNo = null;
+            data.panNo = null;
+        }
+
         return success(res, { teacher: data });
     } catch (err) { next(err); }
+};
+
+// Auto-generate helper using sequences
+const generateNextTeacherCode = async (seqName, prefix, transaction) => {
+    let uniqueFound = false;
+    let code = '';
+    while (!uniqueFound) {
+        const [results] = await Teacher.sequelize.query(`SELECT nextval('${seqName}') as seq`, { transaction });
+        const candidate = `${prefix}-${String(results[0].seq).padStart(5, '0')}`;
+        const exists = await Teacher.findOne({
+            where: prefix === 'TCH' ? { teacherId: candidate } : { employeeNumber: candidate },
+            paranoid: false,
+            transaction
+        });
+        if (!exists) {
+            code = candidate;
+            uniqueFound = true;
+        }
+    }
+    return code;
 };
 
 /** POST /api/teachers — creates user account + teacher profile atomically */
 const createTeacher = async (req, res, next) => {
     const t = await Teacher.sequelize.transaction();
+
     try {
         const {
-            email, password, firstName, lastName, phone, gender, dob
+            email, password, firstName, lastName, phone, gender, dob,
+            aadhaarNo, panNo,
+            bankName, accountHolderName, accountNumber, ifscCode, bankBranch,
+            currentAddress, permanentAddress,
+            emergencyContactName, emergencyContactPhone,
+            department, designation, employmentType, qualification, subjects,
+            salaryType, fixedMonthlySalary, hourlyRate, dailyWorkingHours,
+            casualLeaveBalance, sickLeaveBalance, joiningDate
         } = req.body;
 
         // Uniqueness checks for email
@@ -153,33 +286,15 @@ const createTeacher = async (req, res, next) => {
             }
         }
 
-        // Auto-generate teacherId and employeeNumber safely
+        // Auto-generate teacherId and employeeNumber safely using dedicated sequences
         let teacherId = req.body.teacherId?.trim();
+        if (!teacherId) {
+            teacherId = await generateNextTeacherCode('teacher_id_seq', 'TCH', t);
+        }
+
         let employeeNumber = req.body.employeeNumber?.trim();
-        if (!teacherId || !employeeNumber) {
-            const allTeachers = await Teacher.findAll({
-                attributes: ['teacherId', 'employeeNumber'],
-                paranoid: false,
-                transaction: t
-            });
-            let maxTchNum = 0;
-            let maxEmpNum = 0;
-            for (const tch of allTeachers) {
-                if (tch.teacherId && tch.teacherId.startsWith('TCH-')) {
-                    const num = parseInt(tch.teacherId.replace('TCH-', ''), 10);
-                    if (!isNaN(num) && num > maxTchNum) maxTchNum = num;
-                }
-                if (tch.employeeNumber && tch.employeeNumber.startsWith('EMP-')) {
-                    const num = parseInt(tch.employeeNumber.replace('EMP-', ''), 10);
-                    if (!isNaN(num) && num > maxEmpNum) maxEmpNum = num;
-                }
-            }
-            if (!teacherId) {
-                teacherId = `TCH-${String(maxTchNum + 1).padStart(5, '0')}`;
-            }
-            if (!employeeNumber) {
-                employeeNumber = `EMP-${String(maxEmpNum + 1).padStart(5, '0')}`;
-            }
+        if (!employeeNumber) {
+            employeeNumber = await generateNextTeacherCode('employee_num_seq', 'EMP', t);
         }
 
         // Create user
@@ -192,6 +307,7 @@ const createTeacher = async (req, res, next) => {
             phone: phone ? String(phone).trim() : undefined,
             gender: gender || undefined,
             dob: dob || undefined,
+            isActive: req.body.isActive !== undefined ? Boolean(req.body.isActive) : true,
         }, { transaction: t });
 
         // Assign teacher role
@@ -201,19 +317,78 @@ const createTeacher = async (req, res, next) => {
         });
         if (teacherRole) await user.addRole(teacherRole, { transaction: t });
 
-        // Build teacher payload — pick all allowed fields from body
-        const teacherPayload = { teacherId, userId: user.id, employeeNumber };
-        for (const k of TEACHER_FIELDS) {
-            if (req.body[k] !== undefined && k !== 'employeeNumber' && k !== 'teacherId') {
-                teacherPayload[k] = req.body[k];
+        // Build teacher payload
+        let profilePhotoUrl = req.body.profilePhotoUrl || null;
+        if (req.file) {
+            profilePhotoUrl = buildTeacherPhotoUrl(req.file.filename);
+        }
+
+        let parsedSubjects = [];
+        if (Array.isArray(subjects)) {
+            parsedSubjects = subjects;
+        } else if (typeof subjects === 'string') {
+            try {
+                parsedSubjects = JSON.parse(subjects);
+            } catch {
+                parsedSubjects = subjects.split(',').map(s => s.trim()).filter(Boolean);
             }
         }
-        if (!teacherPayload.subjects) teacherPayload.subjects = [];
+
+        const teacherPayload = {
+            teacherId,
+            userId: user.id,
+            employeeNumber,
+            department: department || null,
+            designation: designation || null,
+            qualification: qualification || null,
+            joiningDate: joiningDate || new Date(),
+            phone: phone ? String(phone).trim() : null,
+            subjects: parsedSubjects,
+            aadhaarNo: aadhaarNo?.trim() || null,
+            panNo: panNo ? panNo.trim().toUpperCase() : null,
+            employmentType: employmentType || 'full_time',
+            dailyWorkingHours: dailyWorkingHours ? Number(dailyWorkingHours) : 8.0,
+            salaryType: salaryType || 'fixed_monthly',
+            fixedMonthlySalary: fixedMonthlySalary ? Number(fixedMonthlySalary) : null,
+            hourlyRate: hourlyRate ? Number(hourlyRate) : null,
+            casualLeaveBalance: casualLeaveBalance !== undefined ? Number(casualLeaveBalance) : 12,
+            sickLeaveBalance: sickLeaveBalance !== undefined ? Number(sickLeaveBalance) : 10,
+            bankName: bankName?.trim() || null,
+            accountHolderName: accountHolderName?.trim() || null,
+            accountNumber: accountNumber?.trim() || null,
+            ifscCode: ifscCode ? ifscCode.trim().toUpperCase() : null,
+            bankBranch: bankBranch?.trim() || null,
+            currentAddress: currentAddress?.trim() || null,
+            permanentAddress: permanentAddress?.trim() || null,
+            emergencyContactName: emergencyContactName?.trim() || null,
+            emergencyContactPhone: emergencyContactPhone?.trim() || null,
+            profilePhotoUrl,
+        };
 
         const teacher = await Teacher.create(teacherPayload, { transaction: t });
         await t.commit();
 
         const result = await Teacher.findByPk(teacher.id, teacherWithAccount);
+
+        // Asynchronously dispatch welcome email (non-blocking)
+        setImmediate(async () => {
+            try {
+                await sendTeacherEnrollmentWelcomeEmail({
+                    to: user.email,
+                    teacherName: `${user.firstName} ${user.lastName}`.trim(),
+                    employeeNumber: teacher.employeeNumber,
+                    teacherId: teacher.teacherId,
+                    email: user.email,
+                    password: password, // plain password for initial login welcome note
+                    department: teacher.department,
+                    designation: teacher.designation,
+                });
+                logger.info(`[TeacherController] Welcome email successfully sent to ${user.email}`);
+            } catch (mailErr) {
+                logger.warn(`[TeacherController] Welcome email failed for ${user.email}: ${mailErr.message}`);
+            }
+        });
+
         return success(res, { teacher: result }, 'Teacher created successfully', 201);
     } catch (err) {
         await t.rollback();
@@ -230,19 +405,43 @@ const updateTeacher = async (req, res, next) => {
         // Teacher profile fields
         const teacherUpdates = {};
         for (const k of TEACHER_FIELDS) {
-            if (req.body[k] !== undefined) teacherUpdates[k] = req.body[k];
+            if (req.body[k] !== undefined) {
+                if (k === 'subjects' && typeof req.body[k] === 'string') {
+                    try {
+                        teacherUpdates[k] = JSON.parse(req.body[k]);
+                    } catch {
+                        teacherUpdates[k] = req.body[k].split(',').map(s => s.trim()).filter(Boolean);
+                    }
+                } else if (k === 'panNo' && req.body[k]) {
+                    teacherUpdates[k] = req.body[k].trim().toUpperCase();
+                } else if (k === 'ifscCode' && req.body[k]) {
+                    teacherUpdates[k] = req.body[k].trim().toUpperCase();
+                } else {
+                    teacherUpdates[k] = req.body[k];
+                }
+            }
         }
+
+        if (req.file) {
+            teacherUpdates.profilePhotoUrl = buildTeacherPhotoUrl(req.file.filename);
+        }
+
         if (Object.keys(teacherUpdates).length) await teacher.update(teacherUpdates);
 
         // Linked user fields
-        const { firstName, lastName, email } = req.body;
-        if (firstName || lastName || email) {
-            const user = await User.findByPk(teacher.userId);
-            if (user) {
-                const userUpdates = {};
-                if (firstName) userUpdates.firstName = firstName;
-                if (lastName) userUpdates.lastName = lastName;
-                if (email) userUpdates.email = email;
+        const { firstName, lastName, email, phone, gender, dob, isActive } = req.body;
+        const user = await User.findByPk(teacher.userId);
+        if (user) {
+            const userUpdates = {};
+            if (firstName !== undefined) userUpdates.firstName = firstName.trim();
+            if (lastName !== undefined) userUpdates.lastName = lastName.trim();
+            if (email !== undefined) userUpdates.email = email.trim().toLowerCase();
+            if (phone !== undefined) userUpdates.phone = phone ? String(phone).trim() : null;
+            if (gender !== undefined) userUpdates.gender = gender;
+            if (dob !== undefined) userUpdates.dob = dob;
+            if (isActive !== undefined) userUpdates.isActive = Boolean(isActive);
+
+            if (Object.keys(userUpdates).length) {
                 await user.update(userUpdates);
             }
         }
@@ -263,3 +462,4 @@ const deleteTeacher = async (req, res, next) => {
 };
 
 export { listTeachers, getMyTeacherProfile, getTeacher, createTeacher, updateTeacher, deleteTeacher };
+

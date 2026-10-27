@@ -143,7 +143,13 @@ export function RoleFormDialog({ open, onClose, allPermissions, existing, onSave
                                                         <Checkbox id={`p-${p.id}`} checked={selectedIds.includes(p.id)} disabled={isDisabled} onCheckedChange={() => !isDisabled && toggle(p)} className="mt-0.5 data-[state=checked]:bg-primary data-[state=checked]:border-primary" onClick={(e) => e.stopPropagation()} />
                                                         <div className="space-y-1 select-none flex-1">
                                                             <div className="flex items-center gap-2.5 flex-wrap">
-                                                                <span className="text-sm font-semibold text-foreground capitalize group-hover:text-primary transition-colors">{p.action}</span>
+                                                                <span className="text-sm font-semibold text-foreground capitalize group-hover:text-primary transition-colors">
+                                                                    {p.resource === "teacher_leaves" && p.action === "create"
+                                                                        ? "Apply (Create)"
+                                                                        : p.resource === "teacher_leaves" && p.action === "update"
+                                                                        ? "Approve / Reject (Action)"
+                                                                        : p.action}
+                                                                </span>
                                                                 <Badge variant="outline" className={`text-[10px] uppercase font-bold tracking-tight px-1.5 py-0 shadow-sm ${ACTION_COLOR[p.action] ?? ""}`}>{p.action}</Badge>
                                                             </div>
                                                             {p.description && <p className="text-[11px] text-muted-foreground leading-relaxed">{p.description}</p>}

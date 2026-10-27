@@ -88,8 +88,19 @@ const Teacher = sequelize.define('Teacher', {
 
     // ── Bank details ──────────────────────────────────────────────────────────
     bankName: { type: DataTypes.STRING(100), allowNull: true },
-    accountNumber: { type: DataTypes.STRING(20), allowNull: true },   // stored encrypted at app level
-    ifscCode: { type: DataTypes.STRING(11), allowNull: true },
+    accountHolderName: { type: DataTypes.STRING(150), allowNull: true, field: 'account_holder_name' },
+    accountNumber: { type: DataTypes.STRING(50), allowNull: true, field: 'account_number' },
+    ifscCode: { type: DataTypes.STRING(15), allowNull: true, field: 'ifsc_code' },
+    bankBranch: { type: DataTypes.STRING(100), allowNull: true, field: 'bank_branch' },
+
+    // ── Address & Personal Contact ─────────────────────────────────────────────
+    currentAddress: { type: DataTypes.TEXT, allowNull: true, field: 'current_address' },
+    permanentAddress: { type: DataTypes.TEXT, allowNull: true, field: 'permanent_address' },
+    emergencyContactName: { type: DataTypes.STRING(100), allowNull: true, field: 'emergency_contact_name' },
+    emergencyContactPhone: { type: DataTypes.STRING(20), allowNull: true, field: 'emergency_contact_phone' },
+
+    // ── Profile photo ─────────────────────────────────────────────────────────
+    profilePhotoUrl: { type: DataTypes.STRING(255), allowNull: true, field: 'profile_photo_url' },
 
 }, { tableName: 'teachers' });
 

@@ -307,6 +307,57 @@ export const sendParentEnrollmentWelcomeEmail = async ({
 };
 
 /**
+ * 1d. Teacher / Faculty Enrollment Welcome Email
+ */
+export const sendTeacherEnrollmentWelcomeEmail = async ({
+    teacherEmail,
+    teacherName,
+    teacherId,
+    employeeNumber,
+    erpUserId,
+    temporaryPassword,
+    departmentName,
+    designationName,
+}) => {
+    const ctx = await getSchoolContext();
+    const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+    const subject = `Welcome to the Faculty of ${ctx.schoolName} - Account Credentials (${employeeNumber || teacherId})`;
+
+    const contentHtml = `
+      <h1 style="margin: 0 0 16px 0; color: #0F172A; font-size: 22px; font-weight: 700;">
+        Welcome to the Faculty, ${teacherName}!
+      </h1>
+      <p style="margin: 0 0 20px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        We are thrilled to welcome you to <strong>${ctx.schoolName}</strong>. Your staff account has been set up with access to teacher attendance, timetable rosters, student gradebooks, and classroom management.
+      </p>
+
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; margin-bottom: 24px;">
+        <tr>
+          <td style="padding: 18px 22px;">
+            <p style="margin: 0 0 10px 0; color: #64748B; font-size: 12px; font-weight: 700; text-transform: uppercase;">Faculty Credentials & Details</p>
+            <p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Employee ID:</strong> <span style="font-family: monospace; color: #4F46E5; font-weight: 700; font-size: 15px;">${employeeNumber || teacherId}</span></p>
+            <p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Teacher ID:</strong> <span style="font-family: monospace; font-size: 14px;">${teacherId}</span></p>
+            <p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>ERP User ID:</strong> <span style="font-family: monospace; color: #4F46E5; font-size: 15px;">${erpUserId}</span></p>
+            ${temporaryPassword ? `<p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Temporary Password:</strong> <span style="font-family: monospace; font-size: 15px;">${temporaryPassword}</span></p>` : ''}
+            <p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Official Email:</strong> ${teacherEmail}</p>
+            ${designationName ? `<p style="margin: 0 0 6px 0; color: #0F172A; font-size: 14px;"><strong>Designation:</strong> ${designationName}</p>` : ''}
+            ${departmentName ? `<p style="margin: 0; color: #0F172A; font-size: 14px;"><strong>Department:</strong> ${departmentName}</p>` : ''}
+          </td>
+        </tr>
+      </table>
+
+      ${getButtonHtml(loginUrl, 'Sign In to Faculty Portal', '#4F46E5')}
+
+      <p style="margin: 0; color: #64748B; font-size: 13px; line-height: 1.6;">
+        For account assistance or curriculum orientation, please connect with the Academic Administration Office.
+      </p>
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, 'linear-gradient(135deg, #1E1B4B 0%, #4338CA 100%)', contentHtml, ctx);
+    return sendEmail(teacherEmail, subject, html);
+};
+
+/**
  * 2. Login OTP / Verification Code
  */
 export const sendLoginOtpEmail = async (email, userName, otp) => {

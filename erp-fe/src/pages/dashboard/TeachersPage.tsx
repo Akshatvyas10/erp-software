@@ -35,6 +35,7 @@ import {
     Search,
     Trash2,
     Eye,
+    Edit2,
     BookOpen,
     RefreshCw,
     Loader2,
@@ -43,10 +44,19 @@ import { toast } from "sonner";
 import AccessDenied from "@/components/auth/AccessDenied";
 import { motion } from "framer-motion";
 
-const fetchTeachers = async (page: number, search: string, department: string) => {
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
+const fetchTeachers = async (page: number, search: string, status: string, employmentType: string) => {
     const params = new URLSearchParams({ page: String(page), limit: "15" });
     if (search) params.set("search", search);
-    if (department) params.set("department", department);
+    if (status && status !== "all") params.set("status", status);
+    if (employmentType && employmentType !== "all") params.set("employmentType", employmentType);
     const { data } = await api.get(`/teachers?${params}`);
     return data.data as { teachers: Teacher[]; pagination: Pagination };
 };
@@ -58,21 +68,68 @@ export default function TeachersPage() {
 
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState("");
-    const department = "";
+    const [statusFilter, setStatusFilter] = useState("all");
+    const [employmentTypeFilter, setEmploymentTypeFilter] = useState("all");
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [teacherToEdit, setTeacherToEdit] = useState<Teacher | null>(null);
     const [teacherToDelete, setTeacherToDelete] = useState<string | null>(null);
 
     const { data, isLoading, isFetching, refetch } = useQuery({
-        queryKey: ["teachers", page, search, department],
-        queryFn: () => fetchTeachers(page, search, department),
+        queryKey: ["teachers", page, search, statusFilter, employmentTypeFilter],
+        queryFn: () => fetchTeachers(page, search, statusFilter, employmentTypeFilter),
         enabled: can("teachers", "read"),
         staleTime: 60_000,
     });
 
-    const createTeacher = useMutation({
-        mutationFn: (values: TeacherFormValues & { subjects: string[] }) => api.post("/teachers", values),
+    const updateTeacher = useMutation({
+        mutationFn: async ({ id, values, subjects, photoFile }: { id: string; values: TeacherFormValues; subjects: string[]; photoFile?: File }) => {
+            const formData = new FormData();
+            Object.entries(values).forEach(([key, val]) => {
+                if (val !== undefined && val !== null && val !== '') {
+                    formData.append(key, String(val));
+                }
+            });
+            formData.append("subjects", JSON.stringify(subjects));
+            if (photoFile) {
+                formData.append("profilePhoto", photoFile);
+            }
+            return api.put(`/teachers/${id}`, formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+        },
         onSuccess: () => {
-            toast.success("Teacher profile created successfully");
+            toast.success("Teacher profile updated successfully");
+            setTeacherToEdit(null);
+            qc.invalidateQueries({ queryKey: ["teachers"] });
+        },
+        onError: (err: any) => {
+            toast.error(err?.response?.data?.message || "Failed to update teacher profile");
+        }
+    });
+
+    const createTeacher = useMutation({
+        mutationFn: async (params: { values: TeacherFormValues; subjects: string[]; photoFile?: File }) => {
+            const formData = new FormData();
+            const { values, subjects, photoFile } = params;
+
+            Object.entries(values).forEach(([key, val]) => {
+                if (val !== undefined && val !== null && val !== '') {
+                    formData.append(key, String(val));
+                }
+            });
+
+            formData.append("subjects", JSON.stringify(subjects));
+
+            if (photoFile) {
+                formData.append("profilePhoto", photoFile);
+            }
+
+            return api.post("/teachers", formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+        },
+        onSuccess: () => {
+            toast.success("Teacher profile created successfully with welcome credentials");
             setIsCreateOpen(false);
             qc.invalidateQueries({ queryKey: ["teachers"] });
         },
@@ -80,6 +137,7 @@ export default function TeachersPage() {
             toast.error(err.response?.data?.message || "Failed to create teacher profile");
         },
     });
+
 
     const deleteTeacher = useMutation({
         mutationFn: (id: string) => api.delete(`/teachers/${id}`),
@@ -127,14 +185,6 @@ export default function TeachersPage() {
             header: "Teacher ID",
             cell: (teacher) => <span className="font-mono text-xs text-muted-foreground">{teacher.teacherId}</span>,
             mobileHide: true,
-        },
-        {
-            header: "Department",
-            cell: (teacher) => (
-                <span className="text-xs font-medium text-foreground">
-                    {teacher.departmentName ?? teacher.department ?? "—"}
-                </span>
-            ),
         },
         {
             header: "Designation",
@@ -192,12 +242,24 @@ export default function TeachersPage() {
                     >
                         <Eye className="h-4 w-4" />
                     </Button>
+                    <PermissionGate resource="teachers" action="update">
+                        <Button
+                            size="icon-xs"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-purple-600 hover:bg-purple-500/10"
+                            onClick={() => setTeacherToEdit(teacher)}
+                            title="Edit Faculty"
+                        >
+                            <Edit2 className="h-4 w-4" />
+                        </Button>
+                    </PermissionGate>
                     <PermissionGate resource="teachers" action="delete">
                         <Button
                             size="icon-xs"
                             variant="ghost"
                             className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             onClick={() => setTeacherToDelete(teacher.id)}
+                            title="Delete Faculty"
                         >
                             <Trash2 className="h-4 w-4" />
                         </Button>
@@ -223,7 +285,7 @@ export default function TeachersPage() {
                         {teacher.account.firstName} {teacher.account.lastName}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
-                        {teacher.departmentName ?? teacher.department ?? "General"} • {teacher.teacherId}
+                        {teacher.designationName ?? teacher.designation ?? "Faculty"} • {teacher.teacherId}
                     </p>
                     <div className="flex items-center gap-2 mt-1">
                         <Badge
@@ -278,35 +340,84 @@ export default function TeachersPage() {
                     <ResponsiveModal
                         open={isCreateOpen}
                         onOpenChange={setIsCreateOpen}
-                        title="Add New Teacher"
-                        description="Register a new academic staff member with institutional designations."
-                        maxWidth="sm:max-w-2xl md:max-w-3xl"
+                        maxWidth="sm:max-w-2xl md:max-w-4xl"
+                        contentClassName="p-0 overflow-hidden"
                     >
                         <TeacherForm
-                            onSubmit={(values: TeacherFormValues, subjects: string[]) =>
-                                createTeacher.mutate({ ...values, subjects })
+                            onSubmit={(values: TeacherFormValues, subjects: string[], photoFile?: File) =>
+                                createTeacher.mutate({ values, subjects, photoFile })
                             }
                             onCancel={() => setIsCreateOpen(false)}
                             isSubmitting={createTeacher.isPending}
                         />
                     </ResponsiveModal>
+
                 </PermissionGate>
             </PageHeader>
 
             {/* Filter Bar */}
             <Card className="p-4 border-border/60 bg-card rounded-2xl shadow-xs">
-                <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-                    <div className="relative w-full sm:w-80">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search by name, ID or email..."
-                            className="pl-9 h-10 bg-muted/40 border-border/60 rounded-xl text-sm"
-                            value={search}
-                            onChange={(e) => {
-                                setSearch(e.target.value);
-                                setPage(1);
-                            }}
-                        />
+                <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+                    <div className="flex flex-col sm:flex-row gap-3 items-center flex-1">
+                        <div className="relative w-full sm:w-72">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search by name, ID or email..."
+                                className="pl-9 h-10 bg-muted/40 border-border/60 rounded-xl text-sm"
+                                value={search}
+                                onChange={(e) => {
+                                    setSearch(e.target.value);
+                                    setPage(1);
+                                }}
+                            />
+                        </div>
+
+                        {/* Status Filter */}
+                        <div className="w-full sm:w-44">
+                            <Select
+                                value={statusFilter}
+                                onValueChange={(val) => {
+                                    setStatusFilter(val);
+                                    setPage(1);
+                                }}
+                            >
+                                <SelectTrigger className="h-10 bg-muted/40 border-border/60 rounded-xl text-sm">
+                                    <SelectValue placeholder="Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Statuses</SelectItem>
+                                    <SelectItem value="active">Active Only</SelectItem>
+                                    <SelectItem value="inactive">Inactive Only</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Employment Type Filter */}
+                        <div className="w-full sm:w-48">
+                            <Select
+                                value={employmentTypeFilter}
+                                onValueChange={(val) => {
+                                    setEmploymentTypeFilter(val);
+                                    setPage(1);
+                                }}
+                            >
+                                <SelectTrigger className="h-10 bg-muted/40 border-border/60 rounded-xl text-sm">
+                                    <SelectValue placeholder="Employment Type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Types</SelectItem>
+                                    <SelectItem value="full_time">Full Time</SelectItem>
+                                    <SelectItem value="part_time">Part Time</SelectItem>
+                                    <SelectItem value="double_shift">Double Shift</SelectItem>
+                                    <SelectItem value="casual">Casual</SelectItem>
+                                    <SelectItem value="hourly">Hourly</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end md:self-auto text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">{pagination.total}</span> total teachers found
                     </div>
                 </div>
             </Card>
@@ -331,6 +442,62 @@ export default function TeachersPage() {
                 onEmptyAction={() => setIsCreateOpen(true)}
                 renderMobileCard={renderMobileCard}
             />
+
+            {/* Edit Teacher Wizard Modal */}
+            <ResponsiveModal
+                open={!!teacherToEdit}
+                onOpenChange={(open) => !open && setTeacherToEdit(null)}
+                maxWidth="sm:max-w-2xl md:max-w-4xl"
+                contentClassName="p-0 overflow-hidden"
+            >
+                {teacherToEdit && (
+                    <TeacherForm
+                        isEditMode
+                        initialData={{
+                            userId: teacherToEdit.account?.userId || "",
+                            email: teacherToEdit.account?.email || "",
+                            password: "",
+                            firstName: teacherToEdit.account?.firstName || "",
+                            lastName: teacherToEdit.account?.lastName || "",
+                            gender: teacherToEdit.account?.gender || undefined,
+                            dob: teacherToEdit.account?.dob || "",
+                            phone: teacherToEdit.phone || teacherToEdit.account?.phone || "",
+                            isActive: teacherToEdit.account?.isActive,
+                            employeeNumber: teacherToEdit.employeeNumber ?? "",
+                            teacherId: teacherToEdit.teacherId,
+                            department: teacherToEdit.department ?? "none",
+                            designation: teacherToEdit.designation ?? "",
+                            employmentType: teacherToEdit.employmentType || "full_time",
+                            qualification: teacherToEdit.qualification ?? "",
+                            joiningDate: teacherToEdit.joiningDate ?? "",
+                            dailyWorkingHours: teacherToEdit.dailyWorkingHours !== undefined && teacherToEdit.dailyWorkingHours !== null ? String(teacherToEdit.dailyWorkingHours) : "8",
+                            salaryType: teacherToEdit.salaryType || "fixed_monthly",
+                            fixedMonthlySalary: teacherToEdit.fixedMonthlySalary !== undefined && teacherToEdit.fixedMonthlySalary !== null ? String(teacherToEdit.fixedMonthlySalary) : "",
+                            hourlyRate: teacherToEdit.hourlyRate !== undefined && teacherToEdit.hourlyRate !== null ? String(teacherToEdit.hourlyRate) : "",
+                            casualLeaveBalance: teacherToEdit.casualLeaveBalance !== undefined && teacherToEdit.casualLeaveBalance !== null ? String(teacherToEdit.casualLeaveBalance) : "12",
+                            sickLeaveBalance: teacherToEdit.sickLeaveBalance !== undefined && teacherToEdit.sickLeaveBalance !== null ? String(teacherToEdit.sickLeaveBalance) : "10",
+                            aadhaarNo: teacherToEdit.aadhaarNo || "",
+                            panNo: teacherToEdit.panNo || "",
+                            accountHolderName: teacherToEdit.accountHolderName || "",
+                            bankName: teacherToEdit.bankName || "",
+                            accountNumber: teacherToEdit.accountNumber || "",
+                            ifscCode: teacherToEdit.ifscCode || "",
+                            bankBranch: teacherToEdit.bankBranch || "",
+                            currentAddress: teacherToEdit.currentAddress || "",
+                            permanentAddress: teacherToEdit.permanentAddress || "",
+                            emergencyContactName: teacherToEdit.emergencyContactName || "",
+                            emergencyContactPhone: teacherToEdit.emergencyContactPhone || "",
+                            profilePhotoUrl: teacherToEdit.profilePhotoUrl || "",
+                        }}
+                        initialSubjects={teacherToEdit.subjects ?? []}
+                        onSubmit={(values, subjects, photoFile) => {
+                            updateTeacher.mutate({ id: teacherToEdit.id, values, subjects, photoFile });
+                        }}
+                        onCancel={() => setTeacherToEdit(null)}
+                        isSubmitting={updateTeacher.isPending}
+                    />
+                )}
+            </ResponsiveModal>
 
             {/* Delete Modal */}
             <AlertDialog open={!!teacherToDelete} onOpenChange={(v) => !v && setTeacherToDelete(null)}>

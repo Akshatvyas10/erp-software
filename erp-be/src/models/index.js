@@ -36,6 +36,10 @@ import PromotionRule from './PromotionRule.js';
 import PromotionLog from './PromotionLog.js';
 import StudentAcademicHistory from './StudentAcademicHistory.js';
 import AcademicYear from './AcademicYear.js';
+import LeaveType from './LeaveType.js';
+import TeacherLeaveBalance from './TeacherLeaveBalance.js';
+import TeacherLeaveRequest from './TeacherLeaveRequest.js';
+import LeaveRule from './LeaveRule.js';
 
 const PermissionAuditLog = PermissionAuditLogInit(sequelize);
 
@@ -150,7 +154,8 @@ export default {
     PermissionAuditLog, ExamSchedule, Exam, ExamResult,
     AdmissionForm, AdmissionApplication, SchoolConfig,
     BuildingBlock, ClassroomRoom, TestExamConfig, AcademicClass, TimetableSubstitute,
-    PromotionRule, PromotionLog, StudentAcademicHistory, AcademicYear
+    PromotionRule, PromotionLog, StudentAcademicHistory, AcademicYear,
+    LeaveType, TeacherLeaveBalance, TeacherLeaveRequest, LeaveRule
 };
 
 // ─── StudentAcademicHistory associations ──────────────────────────────────────
@@ -250,4 +255,42 @@ Classroom.hasMany(AdmissionForm, { foreignKey: 'classroomId', as: 'admissionForm
 // ─── AdmissionApplication ↔ AdmissionForm ────────────────────────────────────
 AdmissionApplication.belongsTo(AdmissionForm, { foreignKey: 'formId', as: 'form' });
 AdmissionForm.hasMany(AdmissionApplication, { foreignKey: 'formId', as: 'applications' });
+
+// ─── Teacher Leave Management Associations ──────────────────────────────────
+// LeaveType ↔ TeacherLeaveBalance
+LeaveType.hasMany(TeacherLeaveBalance, { foreignKey: 'leave_type_id', as: 'balances', onDelete: 'RESTRICT' });
+TeacherLeaveBalance.belongsTo(LeaveType, { foreignKey: 'leave_type_id', as: 'leaveType' });
+
+// Teacher ↔ TeacherLeaveBalance
+Teacher.hasMany(TeacherLeaveBalance, { foreignKey: 'teacher_id', as: 'leaveBalances', onDelete: 'CASCADE' });
+TeacherLeaveBalance.belongsTo(Teacher, { foreignKey: 'teacher_id', as: 'teacher' });
+
+// AcademicYear ↔ TeacherLeaveBalance
+AcademicYear.hasMany(TeacherLeaveBalance, { foreignKey: 'academic_year_id', as: 'teacherLeaveBalances', onDelete: 'RESTRICT' });
+TeacherLeaveBalance.belongsTo(AcademicYear, { foreignKey: 'academic_year_id', as: 'academicYear' });
+
+// Teacher ↔ TeacherLeaveRequest
+Teacher.hasMany(TeacherLeaveRequest, { foreignKey: 'teacher_id', as: 'leaveRequests', onDelete: 'CASCADE' });
+TeacherLeaveRequest.belongsTo(Teacher, { foreignKey: 'teacher_id', as: 'teacher' });
+
+// LeaveType ↔ TeacherLeaveRequest
+LeaveType.hasMany(TeacherLeaveRequest, { foreignKey: 'leave_type_id', as: 'requests', onDelete: 'RESTRICT' });
+TeacherLeaveRequest.belongsTo(LeaveType, { foreignKey: 'leave_type_id', as: 'leaveType' });
+
+// AcademicYear ↔ TeacherLeaveRequest
+AcademicYear.hasMany(TeacherLeaveRequest, { foreignKey: 'academic_year_id', as: 'teacherLeaveRequests', onDelete: 'RESTRICT' });
+TeacherLeaveRequest.belongsTo(AcademicYear, { foreignKey: 'academic_year_id', as: 'academicYear' });
+
+// User (Decided By) ↔ TeacherLeaveRequest
+TeacherLeaveRequest.belongsTo(User, { foreignKey: 'decided_by', as: 'decider' });
+User.hasMany(TeacherLeaveRequest, { foreignKey: 'decided_by', as: 'decidedLeaveRequests' });
+
+// ─── LeaveRule Associations ─────────────────────────────────────────────────
+AcademicYear.hasMany(LeaveRule, { foreignKey: 'academic_year_id', as: 'leaveRules', onDelete: 'CASCADE' });
+LeaveRule.belongsTo(AcademicYear, { foreignKey: 'academic_year_id', as: 'academicYear' });
+
+LeaveRule.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
+LeaveRule.belongsTo(User, { foreignKey: 'updated_by', as: 'updater' });
+
+
 
