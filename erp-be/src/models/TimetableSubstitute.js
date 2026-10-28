@@ -32,7 +32,7 @@ const TimetableSubstitute = sequelize.define('TimetableSubstitute', {
     },
     substituteTeacherId: {
         type: DataTypes.UUID,
-        allowNull: false,
+        allowNull: true,
         field: 'substitute_teacher_id',
         references: { model: 'teachers', key: 'id' },
         onDelete: 'CASCADE'
@@ -46,13 +46,13 @@ const TimetableSubstitute = sequelize.define('TimetableSubstitute', {
         allowNull: true
     },
     status: {
-        type: DataTypes.ENUM('ASSIGNED', 'COMPLETED', 'CANCELLED'),
+        type: DataTypes.ENUM('PENDING', 'ASSIGNED', 'COMPLETED', 'CANCELLED'),
         allowNull: false,
-        defaultValue: 'ASSIGNED'
+        defaultValue: 'PENDING'
     },
     assignedBy: {
         type: DataTypes.UUID,
-        allowNull: false,
+        allowNull: true,
         field: 'assigned_by',
         references: { model: 'users', key: 'id' }
     }

@@ -294,11 +294,11 @@ export interface TimetableSubstitute {
     classroomId: string;
     timetableId: string;
     originalTeacherId?: string | null;
-    substituteTeacherId: string;
+    substituteTeacherId?: string | null;
     date: string;
     reason?: string | null;
-    status: 'ASSIGNED' | 'COMPLETED' | 'CANCELLED';
-    assignedBy: string;
+    status: 'PENDING' | 'ASSIGNED' | 'COMPLETED' | 'CANCELLED';
+    assignedBy?: string | null;
     substituteTeacher?: {
         id: string;
         teacherId: string;

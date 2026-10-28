@@ -23,6 +23,8 @@ const {
     StudentAttendance,
     AcademicYear
 } = db;
+import { TeacherAvailabilityService } from './teacherAvailability.service.js';
+
 
 const teacherAccount = () => ({
     model: User,
@@ -707,7 +709,7 @@ export class ClassroomService {
     }
 
     /**
-     * Assign a substitute teacher to a scheduled slot with clash detection.
+     * Assign a substitute teacher to a scheduled slot with strict clash and availability detection.
      */
     static async assignSubstituteTeacher({ classroomId, timetableId, substituteTeacherId, date, reason, userId }) {
         const classroom = await Classroom.findByPk(classroomId);
@@ -751,100 +753,59 @@ export class ClassroomService {
             throw err;
         }
 
-        const dayOfWeek = slot.dayOfWeek || dateDayOfWeek;
-
-        // Check regular lecture clash
-        const regularClash = await Timetable.findOne({
-            include: [{
-                model: ClassroomSubject,
-                as: 'classroomSubject',
-                where: { teacherId: substituteTeacherId },
-                include: [
-                    {
-                        model: Classroom,
-                        as: 'classroom',
-                        where: { academicYear: classroom.academicYear, status: 'ACTIVE' },
-                        attributes: ['id', 'name', 'section']
-                    },
-                    {
-                        model: Subject,
-                        as: 'subject',
-                        attributes: ['id', 'name', 'code']
-                    }
-                ]
-            }],
-            where: {
-                dayOfWeek,
-                startTime: { [Op.lt]: slot.endTime },
-                endTime: { [Op.gt]: slot.startTime },
-            }
+        // Run thorough availability check (Leaves, Timetable overlap, Substitute conflicts)
+        const availability = await TeacherAvailabilityService.checkAvailability({
+            teacherId: substituteTeacherId,
+            date,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
         });
 
-        if (regularClash) {
-            const clashClass = regularClash.classroomSubject?.classroom;
-            const clashSubj = regularClash.classroomSubject?.subject;
-            const cName = clashClass ? `${clashClass.name} - Section ${clashClass.section}` : 'another classroom';
-            const sName = clashSubj ? clashSubj.name : 'a lecture';
-            const tName = substituteTeacher.account ? `${substituteTeacher.account.firstName} ${substituteTeacher.account.lastName}` : 'Teacher';
-            const err = new Error(`${tName} already has a regular lecture (${sName}) in ${cName} at this time (${regularClash.startTime.slice(0, 5)} - ${regularClash.endTime.slice(0, 5)}).`);
+        if (!availability.isFree) {
+            const tName = substituteTeacher.account
+                ? `${substituteTeacher.account.firstName} ${substituteTeacher.account.lastName}`.trim()
+                : 'Selected faculty';
+            const primaryMsg = availability.conflicts.map((c) => c.message).join(' | ');
+            const err = new Error(`Cannot assign ${tName}: ${primaryMsg}`);
             err.statusCode = 409;
+            err.conflicts = availability.conflicts;
             throw err;
         }
 
-        // Check proxy duty clash on same date
-        const proxyClash = await TimetableSubstitute.findOne({
-            where: {
-                substituteTeacherId,
-                date,
-                status: 'ASSIGNED'
-            },
-            include: [{
-                model: Timetable,
-                as: 'slot',
-                where: {
-                    startTime: { [Op.lt]: slot.endTime },
-                    endTime: { [Op.gt]: slot.startTime }
-                }
-            }]
-        });
-
-        if (proxyClash) {
-            const tName = substituteTeacher.account ? `${substituteTeacher.account.firstName} ${substituteTeacher.account.lastName}` : 'Teacher';
-            const err = new Error(`${tName} is already assigned as a substitute teacher for another lecture at this time on ${date}.`);
-            err.statusCode = 409;
-            throw err;
-        }
-
-        const [substitute, created] = await TimetableSubstitute.findOrCreate({
-            where: { timetableId, date },
-            defaults: {
-                classroomId,
-                timetableId,
-                originalTeacherId: slot.classroomSubject?.teacherId || null,
-                substituteTeacherId,
-                date,
-                reason,
-                status: 'ASSIGNED',
-                assignedBy: userId
-            }
-        });
-
-        if (!created) {
-            await substitute.update({
-                substituteTeacherId,
-                reason,
-                status: 'ASSIGNED',
-                assignedBy: userId
+        return await sequelize.transaction(async (t) => {
+            const [substitute, created] = await TimetableSubstitute.findOrCreate({
+                where: { timetableId, date },
+                defaults: {
+                    classroomId,
+                    timetableId,
+                    originalTeacherId: slot.classroomSubject?.teacherId || null,
+                    substituteTeacherId,
+                    date,
+                    reason,
+                    status: 'ASSIGNED',
+                    assignedBy: userId
+                },
+                transaction: t,
             });
-        }
 
-        const result = await TimetableSubstitute.findByPk(substitute.id, {
-            include: [
-                { model: Teacher, as: 'substituteTeacher', attributes: ['id', 'teacherId'], include: [teacherAccount()] },
-                { model: Teacher, as: 'originalTeacher', attributes: ['id', 'teacherId'], include: [teacherAccount()] }
-            ]
+            if (!created) {
+                await substitute.update({
+                    substituteTeacherId,
+                    reason,
+                    status: 'ASSIGNED',
+                    assignedBy: userId
+                }, { transaction: t });
+            }
+
+            const result = await TimetableSubstitute.findByPk(substitute.id, {
+                include: [
+                    { model: Teacher, as: 'substituteTeacher', attributes: ['id', 'teacherId'], include: [teacherAccount()] },
+                    { model: Teacher, as: 'originalTeacher', attributes: ['id', 'teacherId'], include: [teacherAccount()] }
+                ],
+                transaction: t,
+            });
+
+            return result;
         });
-
-        return result;
     }
 }

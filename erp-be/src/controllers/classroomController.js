@@ -10,6 +10,7 @@ const {
 import { success, error } from '../utils/apiResponse.js';
 import { ClassroomService } from '../services/classroomService.js';
 import { ExamScheduleAutomationService } from '../services/examScheduleAutomationService.js';
+import { TeacherAvailabilityService } from '../services/teacherAvailability.service.js';
 
 const studentAccount = () => ({
     model: User, as: 'account',
@@ -913,14 +914,33 @@ const getSubstitutes = async (req, res, next) => {
         const substitutes = await TimetableSubstitute.findAll({
             where,
             include: [
-                { model: Teacher, as: 'substituteTeacher', attributes: ['id', 'teacherId'], include: [teacherAccount()] },
-                { model: Teacher, as: 'originalTeacher', attributes: ['id', 'teacherId'], include: [teacherAccount()] },
+                { model: Teacher, as: 'substituteTeacher', attributes: ['id', 'teacherId'], required: false, include: [teacherAccount()] },
+                { model: Teacher, as: 'originalTeacher', attributes: ['id', 'teacherId'], required: false, include: [teacherAccount()] },
                 { model: Timetable, as: 'slot', attributes: ['id', 'dayOfWeek', 'startTime', 'endTime'] }
             ],
             order: [['date', 'ASC']]
         });
 
         return success(res, { substitutes });
+    } catch (err) { next(err); }
+};
+
+// ── GET /api/classrooms/:id/substitutes/candidates ────────────────────────────
+const getSubstituteCandidates = async (req, res, next) => {
+    try {
+        const { date, startTime, endTime, excludeTeacherId } = req.query;
+        if (!date || !startTime || !endTime) {
+            return error(res, 'date, startTime, and endTime are required query parameters', 400);
+        }
+
+        const candidates = await TeacherAvailabilityService.getTeachersWithAvailability({
+            date,
+            startTime,
+            endTime,
+            excludeTeacherId,
+        });
+
+        return success(res, { candidates });
     } catch (err) { next(err); }
 };
 
@@ -1042,7 +1062,7 @@ export {
     addPeriod, generatePeriods, deletePeriod,
     updateStudentRollNumber, autoAssignRollNumbers,
     transferStudentSection, cloneClassroomStructure,
-    assignSubstituteTeacher, getSubstitutes, cancelSubstitute,
+    assignSubstituteTeacher, getSubstitutes, getSubstituteCandidates, cancelSubstitute,
     bulkPromoteStudents,
     evaluatePromotionCandidates,
     getPromotionRules,

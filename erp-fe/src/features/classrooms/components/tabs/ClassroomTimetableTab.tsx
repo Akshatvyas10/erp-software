@@ -609,10 +609,17 @@ export function ClassroomTimetableTab({
                                                                         {existing.subject.teacher?.account ? `${existing.subject.teacher.account.firstName} ${existing.subject.teacher.account.lastName}` : "No Teacher"}
                                                                     </div>
                                                                     {hasProxy && (
-                                                                        <div className="mt-1 flex items-center gap-1 bg-amber-500/20 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded text-[8px] font-extrabold border border-amber-500/35 truncate max-w-full">
-                                                                            <UserCheck className="w-2.5 h-2.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                                                                            <span className="truncate">Proxy: {slotSubs[0].substituteTeacher?.account?.firstName}</span>
-                                                                        </div>
+                                                                        slotSubs[0].status === 'PENDING' ? (
+                                                                            <div className="mt-1 flex items-center gap-1 bg-rose-500/20 text-rose-800 dark:text-rose-200 px-1.5 py-0.5 rounded text-[8px] font-extrabold border border-rose-500/35 truncate max-w-full animate-pulse">
+                                                                                <AlertCircle className="w-2.5 h-2.5 shrink-0 text-rose-600 dark:text-rose-400" />
+                                                                                <span className="truncate">Substitute Needed</span>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="mt-1 flex items-center gap-1 bg-amber-500/20 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded text-[8px] font-extrabold border border-amber-500/35 truncate max-w-full">
+                                                                                <UserCheck className="w-2.5 h-2.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                                                                                <span className="truncate">Proxy: {slotSubs[0].substituteTeacher?.account?.firstName || 'Assigned'}</span>
+                                                                            </div>
+                                                                        )
                                                                     )}
                                                                 </>
                                                             ) : canEdit ? (
@@ -691,36 +698,50 @@ export function ClassroomTimetableTab({
                                             </div>
                                         ) : (
                                             <div className="space-y-2 max-h-40 overflow-y-auto">
-                                                {slotSubs.map(sub => (
-                                                    <div key={sub.id} className="p-2.5 rounded-xl border border-amber-500/30 bg-amber-500/5 flex items-center justify-between text-xs">
-                                                        <div>
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span className="font-bold text-foreground">
-                                                                    {sub.substituteTeacher?.account?.firstName} {sub.substituteTeacher?.account?.lastName}
-                                                                </span>
-                                                                <span className="text-[10px] text-muted-foreground">
-                                                                    ({sub.substituteTeacher?.teacherId})
-                                                                </span>
+                                                {slotSubs.map(sub => {
+                                                    const isPending = sub.status === 'PENDING';
+                                                    return (
+                                                        <div key={sub.id} className={cn(
+                                                            "p-2.5 rounded-xl border flex items-center justify-between text-xs",
+                                                            isPending ? "border-rose-500/40 bg-rose-500/5" : "border-amber-500/30 bg-amber-500/5"
+                                                        )}>
+                                                            <div>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    {isPending ? (
+                                                                        <span className="font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                                                                            <AlertCircle className="w-3 h-3" /> Substitute Required (On Leave)
+                                                                        </span>
+                                                                    ) : (
+                                                                        <>
+                                                                            <span className="font-bold text-foreground">
+                                                                                {sub.substituteTeacher?.account?.firstName} {sub.substituteTeacher?.account?.lastName}
+                                                                            </span>
+                                                                            <span className="text-[10px] text-muted-foreground">
+                                                                                ({sub.substituteTeacher?.teacherId})
+                                                                            </span>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+                                                                    <span>Date: <strong className="text-foreground">{format(new Date(sub.date), 'dd MMM yyyy')}</strong></span>
+                                                                    {sub.reason && <span>• {sub.reason}</span>}
+                                                                </div>
                                                             </div>
-                                                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
-                                                                <span>Date: <strong className="text-foreground">{format(new Date(sub.date), 'dd MMM yyyy')}</strong></span>
-                                                                {sub.reason && <span>• {sub.reason}</span>}
-                                                            </div>
+                                                            {canEdit && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-7 w-7 text-destructive hover:bg-destructive/10 rounded-lg"
+                                                                    title="Cancel Substitute"
+                                                                    onClick={() => cancelSubMutation.mutate(sub.id)}
+                                                                    disabled={cancelSubMutation.isPending}
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </Button>
+                                                            )}
                                                         </div>
-                                                        {canEdit && (
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-7 w-7 text-destructive hover:bg-destructive/10 rounded-lg"
-                                                                title="Cancel Substitute"
-                                                                onClick={() => cancelSubMutation.mutate(sub.id)}
-                                                                disabled={cancelSubMutation.isPending}
-                                                            >
-                                                                <Trash2 className="w-3.5 h-3.5" />
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>

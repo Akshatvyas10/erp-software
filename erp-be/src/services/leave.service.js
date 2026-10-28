@@ -10,11 +10,17 @@ const {
     User,
     AcademicYear,
     TeacherAttendance,
-    Department
+    Department,
+    ClassroomSubject,
+    Timetable,
+    TimetableSubstitute,
+    Role
 } = db;
 import { Op } from 'sequelize';
 import logger from '../utils/logger.js';
 import { calculateEffectiveLeaveDays } from './leavePolicy.service.js';
+import { sendSystemNotificationEmail } from './email.service.js';
+import { getIo } from '../config/socket.js';
 
 /**
  * Ensures an active academic year exists or returns the specified one.
@@ -183,6 +189,101 @@ export const applyLeaveRequest = async ({
     });
 
     logger.info(`Teacher ${teacherId} submitted leave request ${newRequest.id} for ${totalDays} days.`);
+
+    // Async notification to approvers (HOD, Principals, Admins)
+    setImmediate(async () => {
+        try {
+            const applicantTeacher = await Teacher.findByPk(teacherId, {
+                include: [{ model: User, as: 'account', attributes: ['id', 'firstName', 'lastName', 'email'] }],
+            });
+            const applicantName = applicantTeacher?.account
+                ? `${applicantTeacher.account.firstName} ${applicantTeacher.account.lastName}`.trim()
+                : 'Teacher';
+
+            // Find recipient approvers
+            // 1. Department HOD if teacher belongs to a department
+            const approverUserIds = new Set();
+            if (applicantTeacher?.department) {
+                const depts = await Department.findAll({
+                    where: {
+                        [Op.or]: [
+                            { id: applicantTeacher.department },
+                            { name: applicantTeacher.department },
+                        ],
+                    },
+                    include: [{ model: Teacher, as: 'head', include: [{ model: User, as: 'account' }] }],
+                });
+                for (const d of depts) {
+                    if (d.head?.account?.id) {
+                        approverUserIds.add(d.head.account.id);
+                    }
+                }
+            }
+
+            // 2. Admins & Super Admins
+            const adminRoles = await Role.findAll({
+                where: { name: { [Op.in]: ['admin', 'super_admin', 'ADMIN', 'SUPER_ADMIN'] } },
+                include: [{ model: User, attributes: ['id', 'email', 'firstName', 'lastName'] }],
+            });
+            for (const r of adminRoles) {
+                for (const u of (r.Users || [])) {
+                    approverUserIds.add(u.id);
+                }
+            }
+
+            // In-app Socket broadcast to approvers
+            try {
+                const io = getIo();
+                if (io) {
+                    const payload = {
+                        type: 'leave:applied',
+                        requestId: newRequest.id,
+                        teacherName: applicantName,
+                        leaveTypeName: leaveType.name,
+                        fromDate,
+                        toDate,
+                        totalDays,
+                        reason,
+                    };
+                    for (const uId of approverUserIds) {
+                        io.to(`user:${uId}`).emit('notification', {
+                            title: 'New Teacher Leave Application',
+                            message: `${applicantName} has applied for ${totalDays} days of ${leaveType.name} (${fromDate} to ${toDate}).`,
+                            data: payload,
+                        });
+                    }
+                }
+            } catch (sockErr) {
+                logger.warn(`[LeaveNotify] Socket emit skipped: ${sockErr.message}`);
+            }
+
+            // Email to approvers
+            const approverUsers = await User.findAll({
+                where: { id: { [Op.in]: Array.from(approverUserIds) } },
+                attributes: ['id', 'email', 'firstName', 'lastName'],
+            });
+
+            const actionUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/leaves?tab=approvals`;
+            for (const approver of approverUsers) {
+                if (approver.email) {
+                    await sendSystemNotificationEmail(
+                        approver.email,
+                        `${approver.firstName} ${approver.lastName}`,
+                        'New Leave Application Awaiting Review',
+                        `<strong>${applicantName}</strong> has submitted a new leave application:<br/><br/>
+                        • <strong>Type:</strong> ${leaveType.name} (${leaveType.code})<br/>
+                        • <strong>Dates:</strong> ${fromDate} to ${toDate} (${totalDays} working days)<br/>
+                        • <strong>Reason:</strong> ${reason}<br/><br/>
+                        Please review the application in the institutional leave approval queue.`,
+                        actionUrl
+                    ).catch((err) => logger.warn(`[LeaveEmail] Failed notifying approver ${approver.email}: ${err.message}`));
+                }
+            }
+        } catch (notifErr) {
+            logger.error('[LeaveNotify] Error dispatching leave apply notifications:', notifErr);
+        }
+    });
+
     return newRequest;
 };
 
@@ -200,7 +301,7 @@ export const decideLeaveRequest = async ({
         throw new Error('Invalid decision. Must be APPROVED or REJECTED');
     }
 
-    return await sequelize.transaction(async (t) => {
+    const decidedRequest = await sequelize.transaction(async (t) => {
         // Lock the request row specifically (without LEFT OUTER JOINs to prevent Postgres lock error)
         const request = await TeacherLeaveRequest.findByPk(requestId, {
             transaction: t,
@@ -290,6 +391,147 @@ export const decideLeaveRequest = async ({
         logger.info(`Leave request ${request.id} decided as ${decision} by ${deciderFullName} (${decidedByUserId}).`);
         return request;
     });
+
+    // Post-transaction side-effects (resilient, non-blocking)
+    setImmediate(async () => {
+        try {
+            const reqData = await TeacherLeaveRequest.findByPk(requestId, {
+                include: [
+                    { model: LeaveType, as: 'leaveType' },
+                    {
+                        model: Teacher,
+                        as: 'teacher',
+                        include: [{ model: User, as: 'account', attributes: ['id', 'email', 'firstName', 'lastName'] }],
+                    },
+                ],
+            });
+
+            if (!reqData) return;
+
+            const applicantUser = reqData.teacher?.account;
+            const applicantEmail = applicantUser?.email;
+            const applicantName = applicantUser ? `${applicantUser.firstName} ${applicantUser.lastName}`.trim() : 'Teacher';
+            const leaveTypeName = reqData.leaveType?.name || 'Leave';
+
+            // 1. Timetable Substitution Need Trigger (on APPROVED)
+            if (decision === 'APPROVED') {
+                try {
+                    // Find all subjects taught by this teacher
+                    const teacherClassroomSubjects = await ClassroomSubject.findAll({
+                        where: { teacherId: reqData.teacherId },
+                        attributes: ['id', 'classroomId', 'subjectId'],
+                    });
+
+                    if (teacherClassroomSubjects.length > 0) {
+                        const cSubIds = teacherClassroomSubjects.map((cs) => cs.id);
+                        const cSubMap = new Map(teacherClassroomSubjects.map((cs) => [cs.id, cs.classroomId]));
+
+                        // Find all timetable slots for these subjects
+                        const timetableSlots = await Timetable.findAll({
+                            where: { classroomSubjectId: { [Op.in]: cSubIds } },
+                            attributes: ['id', 'classroomSubjectId', 'dayOfWeek', 'startTime', 'endTime'],
+                        });
+
+                        const dayMap = {
+                            0: 'Sunday',
+                            1: 'Monday',
+                            2: 'Tuesday',
+                            3: 'Wednesday',
+                            4: 'Thursday',
+                            5: 'Friday',
+                            6: 'Saturday',
+                        };
+
+                        const cur = new Date(reqData.fromDate);
+                        const end = new Date(reqData.toDate);
+
+                        while (cur <= end) {
+                            const dayName = dayMap[cur.getDay()];
+                            const dateStr = cur.toISOString().slice(0, 10);
+
+                            // Skip Sundays
+                            if (cur.getDay() !== 0) {
+                                const matchingSlots = timetableSlots.filter((s) => s.dayOfWeek === dayName);
+
+                                for (const slot of matchingSlots) {
+                                    const classroomId = cSubMap.get(slot.classroomSubjectId);
+
+                                    // Create PENDING substitution entry if not already assigned
+                                    await TimetableSubstitute.findOrCreate({
+                                        where: { timetableId: slot.id, date: dateStr },
+                                        defaults: {
+                                            classroomId,
+                                            timetableId: slot.id,
+                                            originalTeacherId: reqData.teacherId,
+                                            substituteTeacherId: null,
+                                            date: dateStr,
+                                            reason: `Leave approved: ${leaveTypeName} (${reqData.reason || 'On Leave'})`,
+                                            status: 'PENDING',
+                                            assignedBy: null,
+                                        },
+                                    });
+                                }
+                            }
+                            cur.setDate(cur.getDate() + 1);
+                        }
+                        logger.info(`[SubstitutionTrigger] Substitution needs evaluated for leave request ${reqData.id}.`);
+                    }
+                } catch (subErr) {
+                    logger.error('[SubstitutionTrigger] Error generating substitution slots:', subErr);
+                }
+            }
+
+            // 2. In-App Real-time Socket Notification to Applicant
+            try {
+                const io = getIo();
+                if (io && applicantUser?.id) {
+                    io.to(`user:${applicantUser.id}`).emit('notification', {
+                        title: `Leave Application ${decision}`,
+                        message: `Your leave request for ${leaveTypeName} (${reqData.fromDate} to ${reqData.toDate}) has been ${decision.toLowerCase()} by ${reqData.actionByName || 'Administrator'}.`,
+                        data: {
+                            type: 'leave:decided',
+                            decision,
+                            requestId: reqData.id,
+                            decisionRemark: reqData.decisionRemark,
+                            actionByName: reqData.actionByName,
+                        },
+                    });
+                }
+            } catch (sockErr) {
+                logger.warn(`[LeaveNotify] Socket emit skipped: ${sockErr.message}`);
+            }
+
+            // 3. Email Notification to Applicant
+            if (applicantEmail) {
+                const actionUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/leaves`;
+                const isApproved = decision === 'APPROVED';
+                const statusColor = isApproved ? '#059669' : '#DC2626';
+
+                const remarkHtml = reqData.decisionRemark
+                    ? `<br/>• <strong>Approver Remark:</strong> ${reqData.decisionRemark}`
+                    : '';
+
+                await sendSystemNotificationEmail(
+                    applicantEmail,
+                    applicantName,
+                    `Leave Application ${decision} (${leaveTypeName})`,
+                    `<div style="padding: 12px 16px; border-radius: 8px; background: ${isApproved ? '#ECFDF5' : '#FEF2F2'}; border: 1px solid ${isApproved ? '#A7F3D0' : '#FECACA'}; margin-bottom: 16px;">
+                        <span style="font-size: 16px; font-weight: 700; color: ${statusColor};">Status: ${decision}</span>
+                    </div>
+                    Your leave application details:<br/><br/>
+                    • <strong>Leave Type:</strong> ${leaveTypeName}<br/>
+                    • <strong>Period:</strong> ${reqData.fromDate} to ${reqData.toDate} (${reqData.totalDays} working days)<br/>
+                    • <strong>Decided By:</strong> ${reqData.actionByName || 'Authorized Staff'}${remarkHtml}<br/><br/>
+                    You can check your updated balances and history in your portal.`,
+                    actionUrl
+                ).catch((mailErr) => logger.warn(`[LeaveEmail] Failed notifying applicant ${applicantEmail}: ${mailErr.message}`));
+            }
+        } catch (notifErr) {
+            logger.error('[LeaveNotify] Error in post-decision notification workflow:', notifErr);
+        }
+    });
+
+    return decidedRequest;
 };
 
 /**
@@ -343,6 +585,19 @@ export const cancelLeaveRequest = async ({ requestId, cancelledByUserId, cancell
                         [Op.between]: [request.fromDate, request.toDate],
                     },
                     status: 'on_leave',
+                },
+                transaction: t,
+            });
+
+            // Clean up unassigned PENDING substitution slots for these dates
+            await TimetableSubstitute.destroy({
+                where: {
+                    originalTeacherId: request.teacherId,
+                    date: {
+                        [Op.gte]: today,
+                        [Op.between]: [request.fromDate, request.toDate],
+                    },
+                    status: 'PENDING',
                 },
                 transaction: t,
             });

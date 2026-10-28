@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Loader2, UserCheck, Calendar as CalendarIcon, AlertCircle } from "lucide-react";
+import { Loader2, UserCheck, Calendar as CalendarIcon, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
     Dialog,
@@ -23,8 +23,8 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
-import { fetchAllTeachers } from "@/features/classrooms/api/classroomApi";
 import type { TimetableSlot, ClassroomSubject, DayOfWeek } from "@/types/erp";
 
 interface AssignSubstituteTeacherDialogProps {
@@ -34,6 +34,18 @@ interface AssignSubstituteTeacherDialogProps {
     slot: TimetableSlot | null;
     subject: ClassroomSubject | null;
     onSuccess: () => void;
+}
+
+interface TeacherCandidate {
+    id: string;
+    teacherId: string;
+    name: string;
+    email: string | null;
+    department: string | null;
+    designationName: string | null;
+    isFree: boolean;
+    conflicts: Array<{ type: string; message: string; details?: any }>;
+    primaryConflict: { type: string; message: string } | null;
 }
 
 const DAY_MAP: Record<DayOfWeek, number> = {
@@ -77,22 +89,47 @@ export function AssignSubstituteTeacherDialog({
         if (open && slot?.dayOfWeek) {
             setSelectedDate(getNextDateForDay(slot.dayOfWeek));
             setConflictError(null);
+            setSubstituteTeacherId("");
         }
     }, [open, slot?.dayOfWeek]);
 
-    const { data: teachers = [], isLoading: teachersLoading } = useQuery({
-        queryKey: ["teachers-all"],
-        queryFn: fetchAllTeachers,
-        enabled: open,
-        staleTime: 60_000,
+    const formattedDate = format(selectedDate, "yyyy-MM-dd");
+
+    // Fetch live candidate availability for this date & slot time
+    const {
+        data: candidates = [],
+        isLoading: candidatesLoading,
+    } = useQuery({
+        queryKey: ["substitute-candidates", classroomId, slot?.id, formattedDate, slot?.startTime, slot?.endTime],
+        queryFn: async () => {
+            if (!slot?.startTime || !slot?.endTime) return [];
+            const params = new URLSearchParams({
+                date: formattedDate,
+                startTime: slot.startTime,
+                endTime: slot.endTime,
+                excludeTeacherId: subject?.teacherId || "",
+            });
+            const res = await api.get(`/classrooms/${classroomId}/substitutes/candidates?${params}`);
+            return (res.data?.data?.candidates || []) as TeacherCandidate[];
+        },
+        enabled: open && !!slot?.startTime && !!slot?.endTime,
+        staleTime: 5_000,
     });
 
-    // Exclude original teacher from substitute dropdown
-    const availableTeachers = teachers.filter((t) => t.id !== subject?.teacherId);
+    const selectedCandidate = candidates.find((c) => c.id === substituteTeacherId);
 
     const handleAssign = async () => {
         if (!slot || !substituteTeacherId) {
             toast.error("Please select a substitute teacher");
+            return;
+        }
+
+        // Client-side block if already marked busy
+        if (selectedCandidate && !selectedCandidate.isFree) {
+            setConflictError(
+                selectedCandidate.primaryConflict?.message ||
+                "Selected teacher is busy with another commitment at this time."
+            );
             return;
         }
 
@@ -115,10 +152,9 @@ export function AssignSubstituteTeacherDialog({
         } catch (err: any) {
             const status = err?.response?.status;
             const message = err?.response?.data?.message || "Failed to assign substitute teacher";
-            const isConflict = status === 409 || message.toLowerCase().includes("conflict") || message.toLowerCase().includes("already") || message.toLowerCase().includes("clash");
+            const isConflict = status === 409 || message.toLowerCase().includes("conflict") || message.toLowerCase().includes("already") || message.toLowerCase().includes("clash") || message.toLowerCase().includes("cannot assign");
 
             if (isConflict) {
-                // Show conflict error inside the dialog, not in toaster
                 setConflictError(message);
             } else {
                 toast.error(message);
@@ -134,9 +170,11 @@ export function AssignSubstituteTeacherDialog({
         ? `${subject.teacher.account.firstName} ${subject.teacher.account.lastName}`
         : "Unassigned Faculty";
 
+    const freeCandidatesCount = candidates.filter((c) => c.isFree).length;
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[460px] rounded-2xl border-border/80 shadow-2xl p-0 overflow-hidden">
+            <DialogContent className="sm:max-w-[480px] rounded-2xl border-border/80 shadow-2xl p-0 overflow-hidden">
                 <DialogHeader className="px-6 pt-6 pb-4 bg-muted/30 border-b border-border/70">
                     <div className="flex items-center gap-2.5">
                         <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
@@ -196,6 +234,7 @@ export function AssignSubstituteTeacherDialog({
                                         if (d) {
                                             setSelectedDate(d);
                                             setConflictError(null);
+                                            setSubstituteTeacherId("");
                                         }
                                     }}
                                 />
@@ -204,30 +243,65 @@ export function AssignSubstituteTeacherDialog({
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-bold text-foreground">
-                            Substitute Teacher <span className="text-destructive">*</span>
-                        </Label>
+                        <div className="flex items-center justify-between">
+                            <Label className="text-xs font-bold text-foreground">
+                                Substitute Teacher <span className="text-destructive">*</span>
+                            </Label>
+                            {!candidatesLoading && (
+                                <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                    {freeCandidatesCount} available
+                                </span>
+                            )}
+                        </div>
                         <Select
                             value={substituteTeacherId}
                             onValueChange={(val) => {
                                 setSubstituteTeacherId(val);
                                 setConflictError(null);
                             }}
-                            disabled={teachersLoading}
+                            disabled={candidatesLoading}
                         >
                             <SelectTrigger className="h-10 rounded-xl bg-muted/30 border-border/70 text-xs font-semibold">
-                                <SelectValue placeholder={teachersLoading ? "Loading faculty..." : "Select available teacher"} />
+                                <SelectValue placeholder={candidatesLoading ? "Verifying faculty availability..." : "Select available teacher"} />
                             </SelectTrigger>
-                            <SelectContent className="rounded-xl border-border/80 max-h-56">
-                                {availableTeachers.map((t) => (
-                                    <SelectItem key={t.id} value={t.id} className="text-xs py-2">
-                                        <span className="font-semibold text-foreground">
-                                            {t.account?.firstName} {t.account?.lastName} ({t.teacherId})
-                                        </span>
+                            <SelectContent className="rounded-xl border-border/80 max-h-60">
+                                {candidates.map((c) => (
+                                    <SelectItem
+                                        key={c.id}
+                                        value={c.id}
+                                        disabled={!c.isFree}
+                                        className="text-xs py-2"
+                                    >
+                                        <div className="flex items-center justify-between gap-3 w-full">
+                                            <span className="font-semibold text-foreground">
+                                                {c.name} ({c.teacherId})
+                                            </span>
+                                            {c.isFree ? (
+                                                <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1 font-bold">
+                                                    <CheckCircle2 className="w-2.5 h-2.5" /> Free
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30 gap-1 font-bold">
+                                                    <AlertTriangle className="w-2.5 h-2.5" />
+                                                    {c.primaryConflict?.type === "LEAVE"
+                                                        ? "On Leave"
+                                                        : c.primaryConflict?.type === "SUBSTITUTE_DUTY"
+                                                            ? "Busy (Proxy)"
+                                                            : "Busy (Lecture)"}
+                                                </Badge>
+                                            )}
+                                        </div>
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
+                        {selectedCandidate && !selectedCandidate.isFree && (
+                            <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-1">
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                {selectedCandidate.primaryConflict?.message}
+                            </p>
+                        )}
                     </div>
 
                     <div className="space-y-1.5">
@@ -258,7 +332,7 @@ export function AssignSubstituteTeacherDialog({
                         <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-2 text-xs text-blue-800 dark:text-blue-300">
                             <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                             <span>
-                                The system will automatically verify whether the selected substitute teacher is free from other lecture duties at this time.
+                                Live verification active: Teachers on approved leave, teaching lectures, or on proxy duty at this hour are flagged and blocked.
                             </span>
                         </div>
                     )}
@@ -277,8 +351,8 @@ export function AssignSubstituteTeacherDialog({
                     <Button
                         type="button"
                         onClick={handleAssign}
-                        disabled={isLoading || !substituteTeacherId}
-                        className="rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white h-9 gap-1.5 shadow-sm"
+                        disabled={isLoading || !substituteTeacherId || (selectedCandidate && !selectedCandidate.isFree)}
+                        className="rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white h-9 gap-1.5 shadow-sm disabled:opacity-50"
                     >
                         {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                         Appoint Substitute

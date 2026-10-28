@@ -144,6 +144,7 @@ router.delete('/:id/subjects/:subjectId/timetable/:slotId',
     requirePermission('classrooms', 'update'), enforceClassroomScope, C.deleteTimetableSlot);
 
 // ── Substitutes ───────────────────────────────────────────────────────────────
+router.get('/:id/substitutes/candidates', [isUUID('id')], validate, requirePermission('classrooms', 'read'), enforceClassroomScope, C.getSubstituteCandidates);
 router.get('/:id/substitutes', [isUUID('id')], validate, requirePermission('classrooms', 'read'), enforceClassroomScope, C.getSubstitutes);
 router.post('/:id/substitutes',
     [isUUID('id'), body('timetableId').isUUID(), body('substituteTeacherId').isUUID(), body('date').notEmpty()],
