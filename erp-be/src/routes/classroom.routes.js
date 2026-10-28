@@ -147,7 +147,13 @@ router.delete('/:id/subjects/:subjectId/timetable/:slotId',
 router.get('/:id/substitutes/candidates', [isUUID('id')], validate, requirePermission('classrooms', 'read'), enforceClassroomScope, C.getSubstituteCandidates);
 router.get('/:id/substitutes', [isUUID('id')], validate, requirePermission('classrooms', 'read'), enforceClassroomScope, C.getSubstitutes);
 router.post('/:id/substitutes',
-    [isUUID('id'), body('timetableId').isUUID(), body('substituteTeacherId').isUUID(), body('date').notEmpty()],
+    [
+        isUUID('id'),
+        body('timetableId').isUUID().withMessage('Valid timetableId is required'),
+        body('substituteTeacherId').isUUID().withMessage('Valid substituteTeacherId is required'),
+        body('date').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Valid date in YYYY-MM-DD format is required'),
+        body('reason').optional().isString().trim().isLength({ max: 255 })
+    ],
     validate, requirePermission('classrooms', 'update'), enforceClassroomScope, C.assignSubstituteTeacher);
 router.delete('/:id/substitutes/:substituteId',
     [isUUID('id'), isUUID('substituteId')], validate,

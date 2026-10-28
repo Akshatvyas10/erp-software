@@ -239,13 +239,30 @@ export class TeacherAvailabilityService {
     }
 
     /**
-     * Evaluates availability for all active teachers in school for a specific slot/date.
-     * Useful for populate the substitute selection dropdown with live availability badges.
+     * Evaluates availability and calculates intelligent recommendation scores for substitute candidates.
+     * Scoring Criteria:
+     * - Availability (Must be free; busy candidates receive 0 score)
+     * - Subject capability match: +50 points (if candidate teaches the subject or has it in profile subjects)
+     * - Department match: +30 points (if candidate belongs to same department)
+     * - Workload balance: up to +20 points (candidates with fewer proxy duties this week get higher priority)
+     * 
+     * @param {Object} params
+     * @param {string} params.date 'YYYY-MM-DD'
+     * @param {string} params.startTime 'HH:mm'
+     * @param {string} params.endTime 'HH:mm'
+     * @param {string} [params.subjectId]
+     * @param {string} [params.subjectName]
+     * @param {string} [params.department]
+     * @param {string} [params.excludeTeacherId]
+     * @param {object} [params.transaction]
      */
     static async getTeachersWithAvailability({
         date,
         startTime,
         endTime,
+        subjectId = null,
+        subjectName = null,
+        department = null,
         excludeTeacherId = null,
         transaction = null,
     }) {
@@ -271,6 +288,59 @@ export class TeacherAvailabilityService {
             transaction,
         });
 
+        // Calculate start and end of target week for proxy workload balancing
+        const [y, m, d] = date.split('-').map(Number);
+        const targetDate = new Date(y, m - 1, d);
+        const dayIdx = targetDate.getDay(); // 0 is Sun, 1 is Mon...
+        const diffToMon = dayIdx === 0 ? -6 : 1 - dayIdx;
+        const monday = new Date(targetDate);
+        monday.setDate(targetDate.getDate() + diffToMon);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+
+        const formatIsoDate = (dt) => {
+            const yr = dt.getFullYear();
+            const mo = String(dt.getMonth() + 1).padStart(2, '0');
+            const dy = String(dt.getDate()).padStart(2, '0');
+            return `${yr}-${mo}-${dy}`;
+        };
+
+        const weekStartStr = formatIsoDate(monday);
+        const weekEndStr = formatIsoDate(sunday);
+
+        // Fetch proxy duties for all candidate teachers in this week
+        const teacherIds = teachers.map((t) => t.id);
+        const weeklyProxies = await TimetableSubstitute.findAll({
+            where: {
+                substituteTeacherId: { [Op.in]: teacherIds },
+                date: { [Op.between]: [weekStartStr, weekEndStr] },
+                status: 'ASSIGNED',
+            },
+            attributes: ['substituteTeacherId'],
+            raw: true,
+            transaction,
+        });
+
+        const proxyCountMap = new Map();
+        for (const wp of weeklyProxies) {
+            proxyCountMap.set(wp.substituteTeacherId, (proxyCountMap.get(wp.substituteTeacherId) || 0) + 1);
+        }
+
+        // Query which teachers actively teach the target subject across classrooms
+        const subjectTeacherIds = new Set();
+        if (subjectId) {
+            const subjectTaught = await ClassroomSubject.findAll({
+                where: { subjectId, teacherId: { [Op.in]: teacherIds } },
+                attributes: ['teacherId'],
+                raw: true,
+                transaction,
+            });
+            subjectTaught.forEach((st) => subjectTeacherIds.add(st.teacherId));
+        }
+
+        const normalizedSubjectName = subjectName ? subjectName.toLowerCase().trim() : null;
+        const normalizedDept = department ? department.toLowerCase().trim() : null;
+
         const results = [];
         for (const t of teachers) {
             const check = await this.checkAvailability({
@@ -281,6 +351,46 @@ export class TeacherAvailabilityService {
                 transaction,
             });
 
+            let matchScore = 0;
+            const matchBadges = [];
+
+            if (check.isFree) {
+                // Baseline free score
+                matchScore += 10;
+                matchBadges.push('Free Period');
+
+                // Subject capability check
+                let teachesSubject = subjectTeacherIds.has(t.id);
+                if (!teachesSubject && normalizedSubjectName && Array.isArray(t.subjects)) {
+                    teachesSubject = t.subjects.some((s) => {
+                        const val = typeof s === 'string' ? s : s?.name || '';
+                        return val.toLowerCase().trim() === normalizedSubjectName;
+                    });
+                }
+
+                if (teachesSubject) {
+                    matchScore += 50;
+                    matchBadges.unshift('Same Subject');
+                }
+
+                // Department match check
+                if (normalizedDept && t.department && t.department.toLowerCase().trim() === normalizedDept) {
+                    matchScore += 30;
+                    matchBadges.push('Same Department');
+                }
+
+                // Workload balancing
+                const proxiesThisWeek = proxyCountMap.get(t.id) || 0;
+                if (proxiesThisWeek === 0) {
+                    matchScore += 20;
+                    matchBadges.push('Light Load');
+                } else if (proxiesThisWeek === 1) {
+                    matchScore += 10;
+                } else if (proxiesThisWeek === 2) {
+                    matchScore += 5;
+                }
+            }
+
             results.push({
                 id: t.id,
                 teacherId: t.teacherId,
@@ -289,10 +399,21 @@ export class TeacherAvailabilityService {
                 department: t.department || null,
                 designationName: t.designationName || null,
                 isFree: check.isFree,
+                matchScore: check.isFree ? matchScore : 0,
+                matchBadges: check.isFree ? matchBadges : [],
+                proxiesThisWeek: proxyCountMap.get(t.id) || 0,
+                isTopSuggestion: check.isFree && matchScore >= 60,
                 conflicts: check.conflicts,
                 primaryConflict: check.conflicts[0] || null,
             });
         }
+
+        // Sort descending: Free teachers first with highest match score, then alphabetical
+        results.sort((a, b) => {
+            if (a.isFree !== b.isFree) return a.isFree ? -1 : 1;
+            if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+            return a.name.localeCompare(b.name);
+        });
 
         return results;
     }

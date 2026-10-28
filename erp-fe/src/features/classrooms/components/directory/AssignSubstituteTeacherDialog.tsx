@@ -33,6 +33,7 @@ interface AssignSubstituteTeacherDialogProps {
     classroomId: string;
     slot: TimetableSlot | null;
     subject: ClassroomSubject | null;
+    initialDate?: string | Date | null;
     onSuccess: () => void;
 }
 
@@ -44,6 +45,10 @@ interface TeacherCandidate {
     department: string | null;
     designationName: string | null;
     isFree: boolean;
+    matchScore?: number;
+    matchBadges?: string[];
+    proxiesThisWeek?: number;
+    isTopSuggestion?: boolean;
     conflicts: Array<{ type: string; message: string; details?: any }>;
     primaryConflict: { type: string; message: string } | null;
 }
@@ -58,15 +63,26 @@ const DAY_MAP: Record<DayOfWeek, number> = {
     Saturday: 6,
 };
 
-function getNextDateForDay(dayName?: string): Date {
+function parseOrComputeDate(initialDate?: string | Date | null, dayName?: string): Date {
+    if (initialDate) {
+        if (typeof initialDate === 'string') {
+            const [y, m, d] = initialDate.split('-').map(Number);
+            if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+                return new Date(y, m - 1, d, 12, 0, 0);
+            }
+        } else if (initialDate instanceof Date && !isNaN(initialDate.getTime())) {
+            return initialDate;
+        }
+    }
+
     const now = new Date();
     if (!dayName || DAY_MAP[dayName as DayOfWeek] === undefined) return now;
     const targetDay = DAY_MAP[dayName as DayOfWeek];
     const currentDay = now.getDay();
     let diff = targetDay - currentDay;
     if (diff < 0) diff += 7;
-    const result = new Date(now);
-    result.setDate(now.getDate() + diff);
+    const result = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+    result.setDate(result.getDate() + diff);
     return result;
 }
 
@@ -76,31 +92,32 @@ export function AssignSubstituteTeacherDialog({
     classroomId,
     slot,
     subject,
+    initialDate,
     onSuccess,
 }: AssignSubstituteTeacherDialogProps) {
     const [substituteTeacherId, setSubstituteTeacherId] = useState("");
-    const [selectedDate, setSelectedDate] = useState<Date>(() => getNextDateForDay(slot?.dayOfWeek));
+    const [selectedDate, setSelectedDate] = useState<Date>(() => parseOrComputeDate(initialDate, slot?.dayOfWeek));
     const [reason, setReason] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [conflictError, setConflictError] = useState<string | null>(null);
 
-    // Whenever dialog opens or slot changes, snap selectedDate to the slot's day
+    // Whenever dialog opens or slot/initialDate changes, initialize selectedDate cleanly
     useEffect(() => {
-        if (open && slot?.dayOfWeek) {
-            setSelectedDate(getNextDateForDay(slot.dayOfWeek));
+        if (open) {
+            setSelectedDate(parseOrComputeDate(initialDate, slot?.dayOfWeek));
             setConflictError(null);
             setSubstituteTeacherId("");
         }
-    }, [open, slot?.dayOfWeek]);
+    }, [open, slot?.dayOfWeek, initialDate]);
 
     const formattedDate = format(selectedDate, "yyyy-MM-dd");
 
-    // Fetch live candidate availability for this date & slot time
+    // Fetch live candidate availability with smart scoring for this date & slot time
     const {
         data: candidates = [],
         isLoading: candidatesLoading,
     } = useQuery({
-        queryKey: ["substitute-candidates", classroomId, slot?.id, formattedDate, slot?.startTime, slot?.endTime],
+        queryKey: ["substitute-candidates", classroomId, slot?.id, formattedDate, slot?.startTime, slot?.endTime, subject?.subjectId],
         queryFn: async () => {
             if (!slot?.startTime || !slot?.endTime) return [];
             const params = new URLSearchParams({
@@ -108,6 +125,8 @@ export function AssignSubstituteTeacherDialog({
                 startTime: slot.startTime,
                 endTime: slot.endTime,
                 excludeTeacherId: subject?.teacherId || "",
+                subjectId: subject?.subjectId || "",
+                subjectName: subject?.subject?.name || "",
             });
             const res = await api.get(`/classrooms/${classroomId}/substitutes/candidates?${params}`);
             return (res.data?.data?.candidates || []) as TeacherCandidate[];
@@ -117,6 +136,7 @@ export function AssignSubstituteTeacherDialog({
     });
 
     const selectedCandidate = candidates.find((c) => c.id === substituteTeacherId);
+    const topSuggestions = candidates.filter((c) => c.isFree && ((c.matchScore && c.matchScore >= 40) || c.isTopSuggestion));
 
     const handleAssign = async () => {
         if (!slot || !substituteTeacherId) {
@@ -182,7 +202,7 @@ export function AssignSubstituteTeacherDialog({
                         </div>
                         <div>
                             <DialogTitle className="text-base font-bold text-foreground">
-                                Assign Substitute Teacher
+                                Assign Substitute for {format(selectedDate, "EEEE, dd MMM yyyy")}
                             </DialogTitle>
                             <DialogDescription className="text-xs text-muted-foreground mt-0.5">
                                 Appoint an arrangement faculty for {slot.dayOfWeek} ({slot.startTime?.slice(0, 5) || "--:--"} - {slot.endTime?.slice(0, 5) || "--:--"}).
@@ -242,6 +262,69 @@ export function AssignSubstituteTeacherDialog({
                         </Popover>
                     </div>
 
+                    {/* ── Smart Recommendations Panel ── */}
+                    {!candidatesLoading && topSuggestions.length > 0 && (
+                        <div className="space-y-2 pt-1">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                    <span className="text-amber-500">⚡</span> Smart Suggestions
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/20">
+                                        Best Fit
+                                    </span>
+                                </Label>
+                                <span className="text-[10px] text-muted-foreground">
+                                    Ranked by subject match & low proxy load
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {topSuggestions.slice(0, 4).map((c) => {
+                                    const isSelected = substituteTeacherId === c.id;
+                                    return (
+                                        <button
+                                            key={c.id}
+                                            type="button"
+                                            onClick={() => {
+                                                setSubstituteTeacherId(c.id);
+                                                setConflictError(null);
+                                            }}
+                                            className={`p-2.5 rounded-xl border text-left transition-all ${
+                                                isSelected
+                                                    ? "bg-primary/10 border-primary shadow-sm"
+                                                    : "bg-muted/30 hover:bg-muted/50 border-border/70"
+                                            }`}
+                                        >
+                                            <div className="flex items-start justify-between gap-1">
+                                                <div className="font-bold text-xs text-foreground line-clamp-1">
+                                                    {c.name}
+                                                </div>
+                                                {c.matchScore !== undefined && (
+                                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold shrink-0">
+                                                        {c.matchScore} pts
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                                                {c.teacherId} {c.department ? `• ${c.department}` : ""}
+                                            </div>
+                                            {c.matchBadges && c.matchBadges.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                                    {c.matchBadges.map((badge, idx) => (
+                                                        <span
+                                                            key={idx}
+                                                            className="text-[9px] px-1.5 py-0.2 rounded bg-background/80 text-foreground/80 border border-border/60 font-medium"
+                                                        >
+                                                            {badge}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
                             <Label className="text-xs font-bold text-foreground">
@@ -278,9 +361,16 @@ export function AssignSubstituteTeacherDialog({
                                                 {c.name} ({c.teacherId})
                                             </span>
                                             {c.isFree ? (
-                                                <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1 font-bold">
-                                                    <CheckCircle2 className="w-2.5 h-2.5" /> Free
-                                                </Badge>
+                                                <div className="flex items-center gap-1.5">
+                                                    {c.matchScore && c.matchScore >= 40 && (
+                                                        <Badge variant="outline" className="h-5 px-1.5 text-[9px] bg-amber-500/10 text-amber-600 border-amber-500/30 font-bold">
+                                                            ★ {c.matchScore} pts
+                                                        </Badge>
+                                                    )}
+                                                    <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1 font-bold">
+                                                        <CheckCircle2 className="w-2.5 h-2.5" /> Free
+                                                    </Badge>
+                                                </div>
                                             ) : (
                                                 <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30 gap-1 font-bold">
                                                     <AlertTriangle className="w-2.5 h-2.5" />

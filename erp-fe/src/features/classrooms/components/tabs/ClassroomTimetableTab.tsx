@@ -433,10 +433,12 @@ export function ClassroomTimetableTab({
         open: boolean;
         slot: TimetableSlot | null;
         subject: ClassroomSubject | null;
+        initialDate?: string | null;
     }>({
         open: false,
         slot: null,
-        subject: null
+        subject: null,
+        initialDate: null,
     });
 
     // Fetch active substitutes for this classroom
@@ -495,12 +497,103 @@ export function ClassroomTimetableTab({
         return map;
     }, [subjects, periods]);
 
-    // Map substitutes by timetable slot id
+    // Current Week Anchor (defaults to Monday of the current week)
+    const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
+        const now = new Date();
+        const day = now.getDay(); // 0 is Sunday, 1 is Monday...
+        const diffToMonday = (day === 0 ? -6 : 1) - day;
+        const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday, 12, 0, 0);
+        return monday;
+    });
+
+    // Helper: calculate exact calendar date string (YYYY-MM-DD) for each weekday in current week
+    const weekDates = useMemo(() => {
+        const dates: Record<string, { date: Date; dateStr: string; label: string }> = {};
+        const dayOffsets: Record<DayOfWeek, number> = {
+            Monday: 0,
+            Tuesday: 1,
+            Wednesday: 2,
+            Thursday: 3,
+            Friday: 4,
+            Saturday: 5,
+            Sunday: 6,
+        };
+
+        for (const day of WEEKDAYS) {
+            const offset = dayOffsets[day] ?? 0;
+            const d = new Date(currentWeekStart);
+            d.setDate(currentWeekStart.getDate() + offset);
+            const dateStr = format(d, 'yyyy-MM-dd');
+            const label = format(d, 'dd MMM');
+            dates[day] = { date: d, dateStr, label };
+        }
+        return dates;
+    }, [currentWeekStart]);
+
+    const weekRangeLabel = useMemo(() => {
+        const saturday = new Date(currentWeekStart);
+        saturday.setDate(currentWeekStart.getDate() + 5);
+        return `${format(currentWeekStart, 'dd MMM yyyy')} - ${format(saturday, 'dd MMM yyyy')}`;
+    }, [currentWeekStart]);
+
+    const isCurrentCalendarWeek = useMemo(() => {
+        const now = new Date();
+        const day = now.getDay();
+        const diff = (day === 0 ? -6 : 1) - day;
+        const thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff, 12, 0, 0);
+        return format(thisMonday, 'yyyy-MM-dd') === format(currentWeekStart, 'yyyy-MM-dd');
+    }, [currentWeekStart]);
+
+    const handlePrevWeek = () => {
+        setCurrentWeekStart(prev => {
+            const d = new Date(prev);
+            d.setDate(prev.getDate() - 7);
+            return d;
+        });
+    };
+
+    const handleNextWeek = () => {
+        setCurrentWeekStart(prev => {
+            const d = new Date(prev);
+            d.setDate(prev.getDate() + 7);
+            return d;
+        });
+    };
+
+    const handleCurrentWeek = () => {
+        const now = new Date();
+        const day = now.getDay();
+        const diff = (day === 0 ? -6 : 1) - day;
+        setCurrentWeekStart(new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff, 12, 0, 0));
+    };
+
+    // Map substitutes by "timetableId::date" for instant exact-date matching
+    const substitutesBySlotAndDate = useMemo(() => {
+        const map: Record<string, TimetableSubstitute[]> = {};
+        for (const sub of substitutes) {
+            const key = `${sub.timetableId}::${sub.date}`;
+            if (!map[key]) map[key] = [];
+            map[key].push(sub);
+        }
+        return map;
+    }, [substitutes]);
+
+    // Map all substitutes by timetableId for the modal list view
     const substitutesBySlotId = useMemo(() => {
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
         const map: Record<string, TimetableSubstitute[]> = {};
         for (const sub of substitutes) {
             if (!map[sub.timetableId]) map[sub.timetableId] = [];
             map[sub.timetableId].push(sub);
+        }
+        for (const slotId in map) {
+            map[slotId].sort((a, b) => {
+                const aFuture = a.date >= todayStr;
+                const bFuture = b.date >= todayStr;
+                if (aFuture && !bFuture) return -1;
+                if (!aFuture && bFuture) return 1;
+                return a.date.localeCompare(b.date);
+            });
         }
         return map;
     }, [substitutes]);
@@ -516,9 +609,47 @@ export function ClassroomTimetableTab({
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
-                <p className="text-xs font-bold uppercase tracking-wider text-purple-900/50 dark:text-zinc-500">
-                    {periods.length} Lecture{periods.length !== 1 ? "s" : ""} configured
-                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs font-bold uppercase tracking-wider text-purple-900/50 dark:text-zinc-500">
+                        {periods.length} Lecture{periods.length !== 1 ? "s" : ""} configured
+                    </p>
+
+                    {/* Week Selector / Date-Scope Controls */}
+                    <div className="flex items-center bg-muted/60 dark:bg-zinc-900/70 p-1 rounded-xl border border-border/80 text-xs shadow-2xs gap-1">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                            onClick={handlePrevWeek}
+                            title="Previous Week"
+                        >
+                            &larr;
+                        </Button>
+                        <span className="px-2 font-bold font-mono text-[11px] text-foreground tracking-tight select-none">
+                            Week: {weekRangeLabel}
+                        </span>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                            onClick={handleNextWeek}
+                            title="Next Week"
+                        >
+                            &rarr;
+                        </Button>
+                        {!isCurrentCalendarWeek && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 px-2 text-[10px] font-bold rounded-lg border-primary/30 text-primary hover:bg-primary/10 ml-1"
+                                onClick={handleCurrentWeek}
+                            >
+                                This Week
+                            </Button>
+                        )}
+                    </div>
+                </div>
+
                 <div className="flex items-center gap-2 flex-wrap">
                     <Button
                         size="sm"
@@ -557,8 +688,8 @@ export function ClassroomTimetableTab({
                         <Table className="min-w-[800px] border-collapse">
                             <TableHeader>
                                 <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/60">
-                                    <TableHead className="pl-5 py-3.5 text-left min-w-[120px] text-[11px] font-bold uppercase tracking-wider text-muted-foreground sticky left-0 bg-background/95 z-10 backdrop-blur-sm">
-                                        Day
+                                    <TableHead className="pl-5 py-3.5 text-left min-w-[130px] text-[11px] font-bold uppercase tracking-wider text-muted-foreground sticky left-0 bg-background/95 z-10 backdrop-blur-sm">
+                                        Day & Date
                                     </TableHead>
                                     {sortedPeriods.map(p => (
                                         <TableHead key={p.id} className="py-3.5 px-3 text-center min-w-[140px] border-l border-border/50">
@@ -569,71 +700,85 @@ export function ClassroomTimetableTab({
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {WEEKDAYS.map((day) => (
-                                    <TableRow key={day} className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors">
-                                        <TableCell className="pl-5 py-4 font-bold text-[12px] text-foreground sticky left-0 bg-background/95 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] backdrop-blur-sm">
-                                            {day}
-                                        </TableCell>
-                                        {sortedPeriods.map(p => {
-                                            const existing = slotMatrix[day]?.[p.id];
-                                            const colorCls = existing ? SUBJECT_COLORS[(subjects.findIndex(s => s.id === existing.subject.id) || 0) % SUBJECT_COLORS.length] : "";
-                                            const isBreak = p.name.toLowerCase().includes('lunch') || p.name.toLowerCase().includes('break');
-                                            const slotSubs = existing ? (substitutesBySlotId[existing.slot.id] || []) : [];
-                                            const hasProxy = slotSubs.length > 0;
+                                {WEEKDAYS.map((day) => {
+                                    const dayInfo = weekDates[day];
+                                    const cellDateStr = dayInfo?.dateStr;
 
-                                            return (
-                                                <TableCell key={p.id} className="py-2 px-2 border-l border-border/50 align-middle">
-                                                    {isBreak ? (
-                                                        <div className="h-16 rounded-xl flex items-center justify-center bg-muted/40 border border-border/50">
-                                                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
-                                                                {p.name}
-                                                            </span>
-                                                        </div>
-                                                    ) : (
-                                                        <div
-                                                            onClick={() => handleCellClick(day, p, existing)}
-                                                            className={cn(
-                                                                "min-h-16 py-1.5 px-2 rounded-xl flex flex-col items-center justify-center text-center transition-all border",
-                                                                existing ? "cursor-pointer" : canEdit ? "cursor-pointer" : "cursor-default",
-                                                                existing
-                                                                    ? `${colorCls} group relative hover:shadow-md`
-                                                                    : canEdit
-                                                                        ? "border-dashed border-border hover:border-primary/50 hover:bg-primary/5 text-transparent hover:text-primary/70"
-                                                                        : "border-border/40 text-transparent"
-                                                            )}
-                                                        >
-                                                            {existing ? (
-                                                                <>
-                                                                    <div className="text-[11px] font-bold leading-tight line-clamp-1">{existing.subject.subject?.name}</div>
-                                                                    <div className="text-[9px] opacity-80 mt-0.5 line-clamp-1 truncate w-full px-1">
-                                                                        {existing.subject.teacher?.account ? `${existing.subject.teacher.account.firstName} ${existing.subject.teacher.account.lastName}` : "No Teacher"}
-                                                                    </div>
-                                                                    {hasProxy && (
-                                                                        slotSubs[0].status === 'PENDING' ? (
-                                                                            <div className="mt-1 flex items-center gap-1 bg-rose-500/20 text-rose-800 dark:text-rose-200 px-1.5 py-0.5 rounded text-[8px] font-extrabold border border-rose-500/35 truncate max-w-full animate-pulse">
-                                                                                <AlertCircle className="w-2.5 h-2.5 shrink-0 text-rose-600 dark:text-rose-400" />
-                                                                                <span className="truncate">Substitute Needed</span>
-                                                                            </div>
-                                                                        ) : (
-                                                                            <div className="mt-1 flex items-center gap-1 bg-amber-500/20 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded text-[8px] font-extrabold border border-amber-500/35 truncate max-w-full">
-                                                                                <UserCheck className="w-2.5 h-2.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                                                                                <span className="truncate">Proxy: {slotSubs[0].substituteTeacher?.account?.firstName || 'Assigned'}</span>
-                                                                            </div>
-                                                                        )
-                                                                    )}
-                                                                </>
-                                                            ) : canEdit ? (
-                                                                <Plus className="h-4 w-4" />
-                                                            ) : (
-                                                                <span className="text-[10px] text-muted-foreground/30 font-bold">—</span>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </TableCell>
-                                            );
-                                        })}
-                                    </TableRow>
-                                ))}
+                                    return (
+                                        <TableRow key={day} className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors">
+                                            <TableCell className="pl-5 py-4 font-bold text-[12px] text-foreground sticky left-0 bg-background/95 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] backdrop-blur-sm">
+                                                <div>{day}</div>
+                                                {dayInfo && (
+                                                    <div className="text-[10px] font-normal text-muted-foreground font-mono mt-0.5">
+                                                        {dayInfo.label}
+                                                    </div>
+                                                )}
+                                            </TableCell>
+                                            {sortedPeriods.map(p => {
+                                                const existing = slotMatrix[day]?.[p.id];
+                                                const colorCls = existing ? SUBJECT_COLORS[(subjects.findIndex(s => s.id === existing.subject.id) || 0) % SUBJECT_COLORS.length] : "";
+                                                const isBreak = p.name.toLowerCase().includes('lunch') || p.name.toLowerCase().includes('break');
+                                                
+                                                // EXACT DATE MATCH: Only show proxy if it belongs to this exact calendar date in this week!
+                                                const exactDateKey = existing && cellDateStr ? `${existing.slot.id}::${cellDateStr}` : '';
+                                                const slotDateSubs = exactDateKey ? (substitutesBySlotAndDate[exactDateKey] || []) : [];
+                                                const hasProxyOnThisDate = slotDateSubs.length > 0;
+                                                const activeSubOnDate = slotDateSubs[0];
+
+                                                return (
+                                                    <TableCell key={p.id} className="py-2 px-2 border-l border-border/50 align-middle">
+                                                        {isBreak ? (
+                                                            <div className="h-16 rounded-xl flex items-center justify-center bg-muted/40 border border-border/50">
+                                                                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                                                                    {p.name}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <div
+                                                                onClick={() => handleCellClick(day, p, existing)}
+                                                                className={cn(
+                                                                    "min-h-16 py-1.5 px-2 rounded-xl flex flex-col items-center justify-center text-center transition-all border",
+                                                                    existing ? "cursor-pointer" : canEdit ? "cursor-pointer" : "cursor-default",
+                                                                    existing
+                                                                        ? `${colorCls} group relative hover:shadow-md`
+                                                                        : canEdit
+                                                                            ? "border-dashed border-border hover:border-primary/50 hover:bg-primary/5 text-transparent hover:text-primary/70"
+                                                                            : "border-border/40 text-transparent"
+                                                                )}
+                                                            >
+                                                                {existing ? (
+                                                                    <>
+                                                                        <div className="text-[11px] font-bold leading-tight line-clamp-1">{existing.subject.subject?.name}</div>
+                                                                        <div className="text-[9px] opacity-80 mt-0.5 line-clamp-1 truncate w-full px-1">
+                                                                            {existing.subject.teacher?.account ? `${existing.subject.teacher.account.firstName} ${existing.subject.teacher.account.lastName}` : "No Teacher"}
+                                                                        </div>
+                                                                        {hasProxyOnThisDate && (
+                                                                            activeSubOnDate.status === 'PENDING' ? (
+                                                                                <div className="mt-1 flex items-center gap-1 bg-rose-500/20 text-rose-800 dark:text-rose-200 px-1.5 py-0.5 rounded text-[8px] font-extrabold border border-rose-500/35 truncate max-w-full animate-pulse" title={`Substitute needed for ${format(new Date(activeSubOnDate.date + 'T12:00:00'), 'dd MMM yyyy')}`}>
+                                                                                    <AlertCircle className="w-2.5 h-2.5 shrink-0 text-rose-600 dark:text-rose-400" />
+                                                                                    <span className="truncate">Need Sub ({format(new Date(activeSubOnDate.date + 'T12:00:00'), 'dd MMM')})</span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div className="mt-1 flex items-center gap-1 bg-amber-500/20 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded text-[8px] font-extrabold border border-amber-500/35 truncate max-w-full" title={`Proxy assigned for ${format(new Date(activeSubOnDate.date + 'T12:00:00'), 'dd MMM yyyy')}`}>
+                                                                                    <UserCheck className="w-2.5 h-2.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                                                                                    <span className="truncate">Proxy: {activeSubOnDate.substituteTeacher?.account?.firstName || 'Assigned'} ({format(new Date(activeSubOnDate.date + 'T12:00:00'), 'dd MMM')})</span>
+                                                                                </div>
+                                                                            )
+                                                                        )}
+                                                                    </>
+                                                                ) : canEdit ? (
+                                                                    <Plus className="h-4 w-4" />
+                                                                ) : (
+                                                                    <span className="text-[10px] text-muted-foreground/30 font-bold">—</span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </TableCell>
+                                                );
+                                            })}
+                                        </TableRow>
+                                    );
+                                })}
                             </TableBody>
                         </Table>
                     </div>
@@ -649,6 +794,7 @@ export function ClassroomTimetableTab({
                         const teacher = subject.teacher?.account
                             ? `${subject.teacher.account.firstName} ${subject.teacher.account.lastName}`
                             : "No Teacher Assigned";
+                        const activeWeekDateForDay = weekDates[day]?.dateStr;
 
                         return (
                             <>
@@ -697,7 +843,7 @@ export function ClassroomTimetableTab({
                                                 No substitute assigned for this period slot.
                                             </div>
                                         ) : (
-                                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                                            <div className="space-y-2 max-h-48 overflow-y-auto">
                                                 {slotSubs.map(sub => {
                                                     const isPending = sub.status === 'PENDING';
                                                     return (
@@ -723,22 +869,42 @@ export function ClassroomTimetableTab({
                                                                     )}
                                                                 </div>
                                                                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
-                                                                    <span>Date: <strong className="text-foreground">{format(new Date(sub.date), 'dd MMM yyyy')}</strong></span>
+                                                                    <span>Date: <strong className="text-foreground">{format(new Date(sub.date + 'T12:00:00'), 'EEEE, dd MMM yyyy')}</strong></span>
                                                                     {sub.reason && <span>• {sub.reason}</span>}
                                                                 </div>
                                                             </div>
-                                                            {canEdit && (
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-7 w-7 text-destructive hover:bg-destructive/10 rounded-lg"
-                                                                    title="Cancel Substitute"
-                                                                    onClick={() => cancelSubMutation.mutate(sub.id)}
-                                                                    disabled={cancelSubMutation.isPending}
-                                                                >
-                                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                                </Button>
-                                                            )}
+                                                            <div className="flex items-center gap-1">
+                                                                {isPending && canEdit && (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="h-7 px-2 rounded-lg text-[10px] font-bold border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10 gap-1"
+                                                                        onClick={() => {
+                                                                            setSelectedSlotManage(null);
+                                                                            setSubstituteModalData({
+                                                                                open: true,
+                                                                                slot,
+                                                                                subject,
+                                                                                initialDate: sub.date,
+                                                                            });
+                                                                        }}
+                                                                    >
+                                                                        <UserCheck className="w-3 h-3" /> Assign
+                                                                    </Button>
+                                                                )}
+                                                                {canEdit && (
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-7 w-7 text-destructive hover:bg-destructive/10 rounded-lg"
+                                                                        title="Cancel Substitute"
+                                                                        onClick={() => cancelSubMutation.mutate(sub.id)}
+                                                                        disabled={cancelSubMutation.isPending}
+                                                                    >
+                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                    </Button>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     );
                                                 })}
@@ -775,10 +941,13 @@ export function ClassroomTimetableTab({
                                                 size="sm"
                                                 className="gap-1.5 rounded-xl text-xs font-bold bg-primary text-primary-foreground shadow-xs"
                                                 onClick={() => {
+                                                    const subInitialDate = activeWeekDateForDay || (slotSubs[0]?.date) || null;
+                                                    setSelectedSlotManage(null);
                                                     setSubstituteModalData({
                                                         open: true,
                                                         slot,
                                                         subject,
+                                                        initialDate: subInitialDate,
                                                     });
                                                 }}
                                             >
@@ -838,6 +1007,7 @@ export function ClassroomTimetableTab({
                 classroomId={classroomId}
                 slot={substituteModalData.slot}
                 subject={substituteModalData.subject}
+                initialDate={substituteModalData.initialDate}
                 onSuccess={() => {
                     refetchSubstitutes();
                     onRefresh();

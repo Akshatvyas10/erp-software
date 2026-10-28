@@ -442,16 +442,21 @@ export const decideLeaveRequest = async ({
                             6: 'Saturday',
                         };
 
-                        const cur = new Date(reqData.fromDate);
-                        const end = new Date(reqData.toDate);
+                        const [fromY, fromM, fromD] = reqData.fromDate.split('-').map(Number);
+                        const [toY, toM, toD] = reqData.toDate.split('-').map(Number);
+                        const cur = new Date(fromY, fromM - 1, fromD, 12, 0, 0); // Noon anchor prevents any DST/timezone rollover
+                        const end = new Date(toY, toM - 1, toD, 12, 0, 0);
 
                         while (cur <= end) {
                             const dayName = dayMap[cur.getDay()];
-                            const dateStr = cur.toISOString().slice(0, 10);
+                            const yr = cur.getFullYear();
+                            const mo = String(cur.getMonth() + 1).padStart(2, '0');
+                            const dy = String(cur.getDate()).padStart(2, '0');
+                            const dateStr = `${yr}-${mo}-${dy}`;
 
                             // Skip Sundays
                             if (cur.getDay() !== 0) {
-                                const matchingSlots = timetableSlots.filter((s) => s.dayOfWeek === dayName);
+                                const matchingSlots = timetableSlots.filter((s) => s.dayOfWeek.toLowerCase() === dayName.toLowerCase());
 
                                 for (const slot of matchingSlots) {
                                     const classroomId = cSubMap.get(slot.classroomSubjectId);

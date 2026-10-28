@@ -421,7 +421,7 @@ const createClassroom = async (req, res, next) => {
 
 // ── PUT /api/classrooms/:id ──────────────────────────────────────────────────
 const updateClassroom = async (req, res, next) => {
-    const t = await db.sequelize.transaction();
+    const t = await sequelize.transaction();
     try {
         const classroom = await Classroom.findByPk(req.params.id, { transaction: t });
         if (!classroom) {
@@ -928,7 +928,7 @@ const getSubstitutes = async (req, res, next) => {
 // ── GET /api/classrooms/:id/substitutes/candidates ────────────────────────────
 const getSubstituteCandidates = async (req, res, next) => {
     try {
-        const { date, startTime, endTime, excludeTeacherId } = req.query;
+        const { date, startTime, endTime, excludeTeacherId, subjectId, subjectName, department } = req.query;
         if (!date || !startTime || !endTime) {
             return error(res, 'date, startTime, and endTime are required query parameters', 400);
         }
@@ -938,6 +938,9 @@ const getSubstituteCandidates = async (req, res, next) => {
             startTime,
             endTime,
             excludeTeacherId,
+            subjectId,
+            subjectName,
+            department
         });
 
         return success(res, { candidates });
