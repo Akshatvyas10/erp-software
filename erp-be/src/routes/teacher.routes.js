@@ -4,8 +4,6 @@ import express from 'express';
 const router = express.Router();
 import { body, param } from 'express-validator';
 import * as teacherController from '../controllers/teacherController.js';
-const { listTeachers, getMyTeacherProfile, getTeacher,
-    createTeacher, updateTeacher, deleteTeacher, } = teacherController;
 import authenticate from '../middlewares/authenticate.js';
 import { requirePermission, requireRole } from '../middlewares/authorize.js';
 import validate from '../middlewares/validate.js';
@@ -49,6 +47,21 @@ const updateValidation = [
     body('fixedMonthlySalary').optional({ checkFalsy: true }).isDecimal(),
     body('hourlyRate').optional({ checkFalsy: true }).isDecimal(),
 ];
+
+const {
+    listTeachers,
+    getMyTeacherProfile,
+    getTeacher,
+    createTeacher,
+    updateTeacher,
+    deleteTeacher,
+    getWorkloadMatrix,
+    getTeacherWorkload,
+} = teacherController;
+
+// ── Workload Analytics (MUST come before /:id) ────────────────────────────────
+router.get('/workload', requirePermission('teachers', 'read'), getWorkloadMatrix);
+router.get('/:id/workload', [param('id').isUUID()], validate, requirePermission('teachers', 'read'), getTeacherWorkload);
 
 // /me MUST come before /:id to avoid Express treating "me" as a UUID param
 router.get('/me', requireRole('teacher', 'admin', 'super_admin'), getMyTeacherProfile);

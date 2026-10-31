@@ -3,6 +3,7 @@ import express from 'express';
 const router = express.Router();
 import { body, param } from 'express-validator';
 import * as C from '../controllers/classroomController.js';
+import { getClassroomRemarks, createClassroomRemark, deleteClassroomRemark } from '../controllers/classroomRemark.controller.js';
 import authenticate from '../middlewares/authenticate.js';
 import { requirePermission } from '../middlewares/authorize.js';
 import validate from '../middlewares/validate.js';
@@ -158,5 +159,30 @@ router.post('/:id/substitutes',
 router.delete('/:id/substitutes/:substituteId',
     [isUUID('id'), isUUID('substituteId')], validate,
     requirePermission('classrooms', 'update'), enforceClassroomScope, C.cancelSubstitute);
+
+// ── Classroom Remarks (Teacher ↔ Student) ────────────────────────────────────
+router.get('/:classroomId/remarks',
+    [isUUID('classroomId')],
+    validate,
+    requirePermission('classrooms', 'read'),
+    getClassroomRemarks
+);
+
+router.post('/:classroomId/remarks',
+    [
+        isUUID('classroomId'),
+        body('studentId').isUUID().withMessage('Valid studentId required'),
+        body('remark').trim().notEmpty().withMessage('Remark cannot be empty'),
+        body('type').optional().isIn(['Homework', 'Academic', 'Behavior', 'General'])
+    ],
+    validate,
+    createClassroomRemark
+);
+
+router.delete('/:classroomId/remarks/:id',
+    [isUUID('classroomId'), isUUID('id')],
+    validate,
+    deleteClassroomRemark
+);
 
 export default router;

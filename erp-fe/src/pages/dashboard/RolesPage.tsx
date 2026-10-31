@@ -30,6 +30,8 @@ import AccessDenied from "@/components/auth/AccessDenied";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { RoleFormDialog } from "@/components/roles/RoleFormDialog";
+import { isProtectedRole } from "@/constants/roles";
+import { Lock } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Permission { id: number; name: string; resource: string; action: string; description: string | null; }
@@ -252,6 +254,14 @@ export function RoleCard({
                             <CardTitle className="text-sm font-bold capitalize truncate max-w-[140px] md:max-w-none">
                                 {role.name.replace(/_/g, " ")}
                             </CardTitle>
+                            {isProtectedRole(role.name) && (
+                                <Badge
+                                    variant="secondary"
+                                    className="text-[9px] uppercase font-black tracking-wider shrink-0 px-1.5 py-0 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center gap-1"
+                                >
+                                    <Lock className="w-2.5 h-2.5" /> System Role
+                                </Badge>
+                            )}
                             <Badge
                                 variant={role.isActive ? "default" : "outline"}
                                 className={cn(
@@ -287,16 +297,20 @@ export function RoleCard({
                                 <DropdownMenuItem onClick={() => setViewDetailsOpen(true)} className="gap-2 text-xs text-foreground focus:bg-muted/5">
                                     <Eye className="h-3.5 w-3.5 text-muted-foreground" /> Details
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                    onClick={onDelete}
-                                    disabled={deleting || role.Users.length > 0}
-                                    title={role.Users.length > 0 ? "Cannot delete role assigned to users" : ""}
-                                    className={`gap-2 text-xs focus:bg-destructive/5 ${role.Users.length > 0 ? 'text-muted-foreground cursor-not-allowed opacity-50' : 'text-destructive focus:text-destructive'}`}
-                                >
-                                    {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                                    Delete Role
-                                </DropdownMenuItem>
+                                {!isProtectedRole(role.name) && (
+                                    <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            onClick={onDelete}
+                                            disabled={deleting || role.Users.length > 0}
+                                            title={role.Users.length > 0 ? "Cannot delete role assigned to users" : ""}
+                                            className={`gap-2 text-xs focus:bg-destructive/5 ${role.Users.length > 0 ? 'text-muted-foreground cursor-not-allowed opacity-50' : 'text-destructive focus:text-destructive'}`}
+                                        >
+                                            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                            Delete Role
+                                        </DropdownMenuItem>
+                                    </>
+                                )}
                             </DropdownMenuContent>
                         </DropdownMenu>
                     )}

@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     School, ArrowLeft, Users, LayoutGrid, BookOpen, ClipboardCheck,
     FileText, AlertTriangle, Pencil, Sparkles, Crown, DoorOpen,
-    Building2, GraduationCap, ChevronRight, ShieldCheck, Copy
+    Building2, GraduationCap, ChevronRight, ShieldCheck, Copy, MessageSquare
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/store/hooks";
@@ -27,6 +27,7 @@ import {
     ClassroomStudentsTab,
     ClassroomTimetableTab,
     ClassroomAttendanceTab,
+    ClassroomRemarksTab,
 } from "@/features/classrooms/components/tabs";
 import type { ClassroomEnrollment, ClassroomSubject, Subject } from "@/types/erp";
 import { lazy, Suspense } from "react";
@@ -34,19 +35,25 @@ import { AssignClassTeacherDialog } from "@/features/classrooms/components/direc
 import { EditClassroomDialog } from "@/features/classrooms/components/directory/EditClassroomDialog";
 import { CloneStructureDialog } from "@/features/classrooms/components/directory/CloneStructureDialog";
 
+const StudentClassroomPortalView = lazy(() =>
+    import("@/features/classrooms/components/portal/StudentClassroomPortalView").then((m) => ({
+        default: m.StudentClassroomPortalView,
+    }))
+);
+
 const BulkPromotionWizardDialog = lazy(() =>
     import("@/features/classrooms/components/directory/BulkPromotionWizardDialog").then((m) => ({
         default: m.BulkPromotionWizardDialog,
     }))
 );
 
-type ActiveTab = "overview" | "roster" | "timetable" | "homework" | "gradebook" | "attendance";
+type ActiveTab = "overview" | "roster" | "timetable" | "homework" | "gradebook" | "attendance" | "remarks";
 
 export default function ClassroomDetails() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const qc = useQueryClient();
-    const { can } = usePermissions();
+    const { can, hasRole } = usePermissions();
 
     const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
     const [isAssignTeacherOpen, setIsAssignTeacherOpen] = useState(false);
@@ -108,8 +115,22 @@ export default function ClassroomDetails() {
 
     if (!can("classrooms", "read")) return <AccessDenied />;
 
+    const isSuperAdminOrAdmin = hasRole("super_admin", "admin", "principal");
+    const isTeacher = hasRole("teacher");
+    const isStudentOnly = !isSuperAdminOrAdmin && !isTeacher && hasRole("student");
+
     if (isLoading) {
         return <ClassroomDetailsSkeleton />;
+    }
+
+    // ── Dedicated Student-Safe Classroom View ─────────────────────────────────
+    // Prevent students from ever viewing staff controls, classmate rosters, or marks entry
+    if (isStudentOnly && id) {
+        return (
+            <Suspense fallback={<ClassroomDetailsSkeleton />}>
+                <StudentClassroomPortalView classroomId={id} />
+            </Suspense>
+        );
     }
 
     if (!classroom) {
@@ -405,7 +426,7 @@ export default function ClassroomDetails() {
                     </div>
 
                     <div className="mt-2 sm:mt-2.5 pt-1.5 sm:pt-2 border-t border-border/60 flex items-center justify-between text-[10px] sm:text-[11px] font-bold text-amber-600 dark:text-amber-400">
-                        <span>Roster</span>
+                        <span>Students</span>
                         <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 transition-transform group-hover:translate-x-0.5" />
                     </div>
                 </div>
@@ -514,7 +535,7 @@ export default function ClassroomDetails() {
 
                     {scope.canAccessRoster && (
                         <TabsTrigger value="roster" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs">
-                            <Users className="h-3.5 w-3.5 text-primary" /> Roster
+                            <Users className="h-3.5 w-3.5 text-primary" /> Students
                             <Badge variant="secondary" className="ml-1 text-[10px] sm:text-[11px] font-black px-1.5 py-0 rounded-full bg-primary/15 text-primary">
                                 {studentCount}
                             </Badge>
@@ -545,6 +566,12 @@ export default function ClassroomDetails() {
                     {scope.canAccessAttendance && (
                         <TabsTrigger value="attendance" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs">
                             <ClipboardCheck className="h-3.5 w-3.5 text-primary" /> Attendance
+                        </TabsTrigger>
+                    )}
+
+                    {scope.canAccessRemarks && (
+                        <TabsTrigger value="remarks" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs">
+                            <MessageSquare className="h-3.5 w-3.5 text-primary" /> Remarks
                         </TabsTrigger>
                     )}
                 </TabsList>
@@ -654,6 +681,28 @@ export default function ClassroomDetails() {
                                 <ClassroomAttendanceTab
                                     classroomId={classroom.id}
                                     canEdit={can("attendance", "update") || can("attendance", "create") || isClassTeacher || scope.isDepartmentIncharge || scope.isSuperAdmin}
+                                />
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                )}
+
+                {/* Tab 7: Remarks */}
+                {scope.canAccessRemarks && (
+                    <TabsContent value="remarks" className="outline-none focus:outline-none">
+                        <Card className="border-border shadow-xs rounded-2xl overflow-hidden">
+                            <CardHeader className="py-4 px-6 border-b border-border/70 bg-muted/20">
+                                <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
+                                    <MessageSquare className="w-4 h-4 text-primary" /> Classroom Student Remarks & Behavioral Log
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-4 sm:p-6">
+                                <ClassroomRemarksTab
+                                    classroomId={classroom.id}
+                                    classroomName={`${classNameDisplay} - Section ${classroom.section}`}
+                                    enrollments={enrollments}
+                                    canCreateRemark={scope.canCreateRemark}
+                                    canManageRemarks={scope.isSuperAdmin || scope.isClassTeacher}
                                 />
                             </CardContent>
                         </Card>

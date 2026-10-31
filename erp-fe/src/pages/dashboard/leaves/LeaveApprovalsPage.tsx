@@ -89,8 +89,9 @@ export default function LeaveApprovalsPage() {
             qc.invalidateQueries({ queryKey: ["leave-approvals-queue"] });
             qc.invalidateQueries({ queryKey: ["my-leave-balances"] });
         },
-        onError: (err: any) => {
-            toast.error(err.response?.data?.message || "Failed to submit decision");
+        onError: (err: unknown) => {
+            const apiErr = err as { response?: { data?: { message?: string } } };
+            toast.error(apiErr.response?.data?.message || "Failed to submit decision");
         },
     });
 

@@ -598,6 +598,12 @@ export function ClassroomTimetableTab({
         return map;
     }, [substitutes]);
 
+    // Mobile Selected Day State (defaults to current weekday if Mon-Sat, else Monday)
+    const [selectedMobileDay, setSelectedMobileDay] = useState<DayOfWeek>(() => {
+        const todayName = format(new Date(), "EEEE") as DayOfWeek;
+        return (WEEKDAYS as readonly string[]).includes(todayName) ? todayName : "Monday";
+    });
+
     const handleCellClick = (day: DayOfWeek, period: ClassroomPeriod, existing?: { slot: TimetableSlot, subject: ClassroomSubject }) => {
         if (existing) {
             setSelectedSlotManage({ slot: existing.slot, subject: existing.subject, day, period });
@@ -608,7 +614,7 @@ export function ClassroomTimetableTab({
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-xs font-bold uppercase tracking-wider text-purple-900/50 dark:text-zinc-500">
                         {periods.length} Lecture{periods.length !== 1 ? "s" : ""} configured
@@ -625,7 +631,7 @@ export function ClassroomTimetableTab({
                         >
                             &larr;
                         </Button>
-                        <span className="px-2 font-bold font-mono text-[11px] text-foreground tracking-tight select-none">
+                        <span className="px-2 font-bold font-mono text-[10px] sm:text-[11px] text-foreground tracking-tight select-none">
                             Week: {weekRangeLabel}
                         </span>
                         <Button
@@ -641,7 +647,7 @@ export function ClassroomTimetableTab({
                             <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-6 px-2 text-[10px] font-bold rounded-lg border-primary/30 text-primary hover:bg-primary/10 ml-1"
+                                className="h-6 px-1.5 sm:px-2 text-[9px] sm:text-[10px] font-bold rounded-lg border-primary/30 text-primary hover:bg-primary/10 ml-0.5 sm:ml-1"
                                 onClick={handleCurrentWeek}
                             >
                                 This Week
@@ -650,24 +656,24 @@ export function ClassroomTimetableTab({
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap w-full sm:w-auto">
                     <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setPrintModalOpen(true)}
-                        className="gap-1.5 h-9 px-3 rounded-xl font-bold border-border/80 hover:bg-muted text-xs shadow-2xs"
+                        className="gap-1.5 h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg sm:rounded-xl font-bold border-border/80 hover:bg-muted text-[11px] sm:text-xs shadow-2xs flex-1 sm:flex-none justify-center"
                     >
-                        <Printer className="h-3.5 w-3.5 text-primary" /> Print / PDF Timetable
+                        <Printer className="h-3.5 w-3.5 text-primary" /> Print / PDF
                     </Button>
                     {canEdit && (
                         <>
                             <Button size="sm" onClick={() => setAddSubjectOpen(true)}
-                                className="gap-2 h-9 px-4 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-semibold shadow-sm border border-primary/20 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                                className="gap-1.5 sm:gap-2 h-8 sm:h-9 px-2.5 sm:px-4 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg sm:rounded-xl font-semibold shadow-xs border border-primary/20 transition-colors text-[11px] sm:text-xs flex-1 sm:flex-none justify-center">
                                 <BookOpen className="h-3.5 w-3.5" /> Add Subject
                             </Button>
                             <Button size="sm" onClick={() => setManagePeriodsOpen(true)}
-                                className="gap-2 h-9 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold shadow-md transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-                                <Clock className="h-3.5 w-3.5" /> Manage Lectures
+                                className="gap-1.5 sm:gap-2 h-8 sm:h-9 px-2.5 sm:px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg sm:rounded-xl font-semibold shadow-xs transition-colors text-[11px] sm:text-xs flex-1 sm:flex-none justify-center">
+                                <Clock className="h-3.5 w-3.5" /> Lectures
                             </Button>
                         </>
                     )}
@@ -683,110 +689,260 @@ export function ClassroomTimetableTab({
                     <p className="text-xs text-muted-foreground/60">Add lectures to construct the timetable grid.</p>
                 </div>
             ) : (
-                <div className="rounded-2xl border border-border overflow-hidden shadow-sm">
-                    <div className="overflow-x-auto custom-scrollbar">
-                        <Table className="min-w-[800px] border-collapse">
-                            <TableHeader>
-                                <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/60">
-                                    <TableHead className="pl-5 py-3.5 text-left min-w-[130px] text-[11px] font-bold uppercase tracking-wider text-muted-foreground sticky left-0 bg-background/95 z-10 backdrop-blur-sm">
-                                        Day & Date
-                                    </TableHead>
-                                    {sortedPeriods.map(p => (
-                                        <TableHead key={p.id} className="py-3.5 px-3 text-center min-w-[140px] border-l border-border/50">
-                                            <div className="text-[11px] font-bold uppercase tracking-wider text-primary">{p.name}</div>
-                                            <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">{(p.startTime?.substring(0, 5) || "--:--")} - {(p.endTime?.substring(0, 5) || "--:--")}</div>
-                                        </TableHead>
-                                    ))}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {WEEKDAYS.map((day) => {
-                                    const dayInfo = weekDates[day];
-                                    const cellDateStr = dayInfo?.dateStr;
+                <>
+                    {/* ── MOBILE VIEW: Compact Day Selector Chips + Stacked Period Cards (< 768px) ── */}
+                    <div className="block md:hidden space-y-3">
+                        {/* Day Selector Chips Strip */}
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                            {WEEKDAYS.map((day) => {
+                                const isSelected = selectedMobileDay === day;
+                                const dayInfo = weekDates[day];
+                                const hasPeriods = sortedPeriods.some(p => slotMatrix[day]?.[p.id]);
 
+                                return (
+                                    <button
+                                        key={day}
+                                        type="button"
+                                        onClick={() => setSelectedMobileDay(day)}
+                                        className={cn(
+                                            "flex flex-col items-center px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shrink-0",
+                                            isSelected
+                                                ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                                : "bg-card text-muted-foreground border-border/70 hover:bg-muted/60"
+                                        )}
+                                    >
+                                        <span className="text-[11px] uppercase tracking-wider">{day.slice(0, 3)}</span>
+                                        <span className={cn("text-[9px] font-mono", isSelected ? "text-primary-foreground/90 font-bold" : "text-muted-foreground/70")}>
+                                            {dayInfo?.label || ""}
+                                        </span>
+                                        {hasPeriods && !isSelected && (
+                                            <span className="w-1 h-1 rounded-full bg-primary mt-0.5" />
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Selected Day Header Label */}
+                        <div className="flex items-center justify-between px-1">
+                            <span className="text-xs font-bold text-foreground">
+                                {selectedMobileDay} Schedule
+                            </span>
+                            <span className="text-[10px] font-mono text-muted-foreground">
+                                {weekDates[selectedMobileDay]?.label}
+                            </span>
+                        </div>
+
+                        {/* Mobile Period Cards List for Selected Day */}
+                        <div className="space-y-2">
+                            {sortedPeriods.map((p, idx) => {
+                                const existing = slotMatrix[selectedMobileDay]?.[p.id];
+                                const isBreak = p.name.toLowerCase().includes('lunch') || p.name.toLowerCase().includes('break');
+                                const cellDateStr = weekDates[selectedMobileDay]?.dateStr;
+                                const exactDateKey = existing && cellDateStr ? `${existing.slot.id}::${cellDateStr}` : '';
+                                const slotDateSubs = exactDateKey ? (substitutesBySlotAndDate[exactDateKey] || []) : [];
+                                const hasProxyOnThisDate = slotDateSubs.length > 0;
+                                const activeSubOnDate = slotDateSubs[0];
+                                const colorCls = existing ? SUBJECT_COLORS[(subjects.findIndex(s => s.id === existing.subject.id) || 0) % SUBJECT_COLORS.length] : "";
+
+                                if (isBreak) {
                                     return (
-                                        <TableRow key={day} className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors">
-                                            <TableCell className="pl-5 py-4 font-bold text-[12px] text-foreground sticky left-0 bg-background/95 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] backdrop-blur-sm">
-                                                <div>{day}</div>
-                                                {dayInfo && (
-                                                    <div className="text-[10px] font-normal text-muted-foreground font-mono mt-0.5">
-                                                        {dayInfo.label}
+                                        <div
+                                            key={p.id}
+                                            className="p-2.5 rounded-xl border border-dashed border-border bg-muted/30 flex items-center justify-between text-xs"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-md bg-muted text-muted-foreground font-mono text-[10px] flex items-center justify-center font-bold">
+                                                    {idx + 1}
+                                                </div>
+                                                <span className="font-bold text-[11px] text-muted-foreground uppercase tracking-wider">
+                                                    {p.name}
+                                                </span>
+                                            </div>
+                                            <Badge variant="outline" className="text-[9px] font-mono text-muted-foreground bg-background">
+                                                {(p.startTime?.substring(0, 5) || "--:--")} - {(p.endTime?.substring(0, 5) || "--:--")}
+                                            </Badge>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div
+                                        key={p.id}
+                                        onClick={() => handleCellClick(selectedMobileDay, p, existing)}
+                                        className={cn(
+                                            "p-3 rounded-xl border transition-all flex flex-col justify-between gap-2",
+                                            existing
+                                                ? cn(colorCls, "shadow-2xs cursor-pointer active:scale-[0.99]")
+                                                : canEdit
+                                                    ? "border-dashed border-border bg-card/50 hover:border-primary/40 hover:bg-primary/5 cursor-pointer text-muted-foreground"
+                                                    : "border-border/40 bg-muted/10 opacity-60 cursor-default"
+                                        )}
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <div className="w-6 h-6 rounded-md bg-background/80 text-foreground font-bold text-[10px] flex items-center justify-center shrink-0 border border-border/40">
+                                                    {idx + 1}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                                                        {p.name}
+                                                    </span>
+                                                    <h4 className="text-xs font-black text-foreground truncate">
+                                                        {existing ? existing.subject.subject?.name : canEdit ? "+ Assign Subject" : "Free Period"}
+                                                    </h4>
+                                                </div>
+                                            </div>
+                                            <Badge variant="outline" className="text-[9px] font-mono bg-background/90 text-foreground shrink-0 border-border/60">
+                                                {(p.startTime?.substring(0, 5) || "--:--")} - {(p.endTime?.substring(0, 5) || "--:--")}
+                                            </Badge>
+                                        </div>
+
+                                        {existing && (
+                                            <div className="flex items-center justify-between pt-1.5 border-t border-border/40 text-[11px]">
+                                                <span className="text-muted-foreground truncate">
+                                                    Faculty: <strong className="text-foreground font-semibold">
+                                                        {existing.subject.teacher?.account
+                                                            ? `${existing.subject.teacher.account.firstName} ${existing.subject.teacher.account.lastName}`
+                                                            : "Unassigned"}
+                                                    </strong>
+                                                </span>
+                                                {roomNumber && (
+                                                    <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                                                        Room {roomNumber}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {hasProxyOnThisDate && (
+                                            <div className="pt-1">
+                                                {activeSubOnDate.status === 'PENDING' ? (
+                                                    <div className="flex items-center gap-1 bg-rose-500/20 text-rose-800 dark:text-rose-200 px-2 py-0.5 rounded text-[9px] font-extrabold border border-rose-500/35">
+                                                        <AlertCircle className="w-3 h-3 shrink-0 text-rose-600 dark:text-rose-400" />
+                                                        <span>Need Substitute Teacher</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-1 bg-amber-500/20 text-amber-800 dark:text-amber-200 px-2 py-0.5 rounded text-[9px] font-extrabold border border-amber-500/35">
+                                                        <UserCheck className="w-3 h-3 shrink-0 text-amber-600 dark:text-amber-400" />
+                                                        <span>Proxy: {activeSubOnDate.substituteTeacher?.account?.firstName || 'Assigned'}</span>
                                                     </div>
                                                 )}
-                                            </TableCell>
-                                            {sortedPeriods.map(p => {
-                                                const existing = slotMatrix[day]?.[p.id];
-                                                const colorCls = existing ? SUBJECT_COLORS[(subjects.findIndex(s => s.id === existing.subject.id) || 0) % SUBJECT_COLORS.length] : "";
-                                                const isBreak = p.name.toLowerCase().includes('lunch') || p.name.toLowerCase().includes('break');
-                                                
-                                                // EXACT DATE MATCH: Only show proxy if it belongs to this exact calendar date in this week!
-                                                const exactDateKey = existing && cellDateStr ? `${existing.slot.id}::${cellDateStr}` : '';
-                                                const slotDateSubs = exactDateKey ? (substitutesBySlotAndDate[exactDateKey] || []) : [];
-                                                const hasProxyOnThisDate = slotDateSubs.length > 0;
-                                                const activeSubOnDate = slotDateSubs[0];
-
-                                                return (
-                                                    <TableCell key={p.id} className="py-2 px-2 border-l border-border/50 align-middle">
-                                                        {isBreak ? (
-                                                            <div className="h-16 rounded-xl flex items-center justify-center bg-muted/40 border border-border/50">
-                                                                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
-                                                                    {p.name}
-                                                                </span>
-                                                            </div>
-                                                        ) : (
-                                                            <div
-                                                                onClick={() => handleCellClick(day, p, existing)}
-                                                                className={cn(
-                                                                    "min-h-16 py-1.5 px-2 rounded-xl flex flex-col items-center justify-center text-center transition-all border",
-                                                                    existing ? "cursor-pointer" : canEdit ? "cursor-pointer" : "cursor-default",
-                                                                    existing
-                                                                        ? `${colorCls} group relative hover:shadow-md`
-                                                                        : canEdit
-                                                                            ? "border-dashed border-border hover:border-primary/50 hover:bg-primary/5 text-transparent hover:text-primary/70"
-                                                                            : "border-border/40 text-transparent"
-                                                                )}
-                                                            >
-                                                                {existing ? (
-                                                                    <>
-                                                                        <div className="text-[11px] font-bold leading-tight line-clamp-1">{existing.subject.subject?.name}</div>
-                                                                        <div className="text-[9px] opacity-80 mt-0.5 line-clamp-1 truncate w-full px-1">
-                                                                            {existing.subject.teacher?.account ? `${existing.subject.teacher.account.firstName} ${existing.subject.teacher.account.lastName}` : "No Teacher"}
-                                                                        </div>
-                                                                        {hasProxyOnThisDate && (
-                                                                            activeSubOnDate.status === 'PENDING' ? (
-                                                                                <div className="mt-1 flex items-center gap-1 bg-rose-500/20 text-rose-800 dark:text-rose-200 px-1.5 py-0.5 rounded text-[8px] font-extrabold border border-rose-500/35 truncate max-w-full animate-pulse" title={`Substitute needed for ${format(new Date(activeSubOnDate.date + 'T12:00:00'), 'dd MMM yyyy')}`}>
-                                                                                    <AlertCircle className="w-2.5 h-2.5 shrink-0 text-rose-600 dark:text-rose-400" />
-                                                                                    <span className="truncate">Need Sub ({format(new Date(activeSubOnDate.date + 'T12:00:00'), 'dd MMM')})</span>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <div className="mt-1 flex items-center gap-1 bg-amber-500/20 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded text-[8px] font-extrabold border border-amber-500/35 truncate max-w-full" title={`Proxy assigned for ${format(new Date(activeSubOnDate.date + 'T12:00:00'), 'dd MMM yyyy')}`}>
-                                                                                    <UserCheck className="w-2.5 h-2.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                                                                                    <span className="truncate">Proxy: {activeSubOnDate.substituteTeacher?.account?.firstName || 'Assigned'} ({format(new Date(activeSubOnDate.date + 'T12:00:00'), 'dd MMM')})</span>
-                                                                                </div>
-                                                                            )
-                                                                        )}
-                                                                    </>
-                                                                ) : canEdit ? (
-                                                                    <Plus className="h-4 w-4" />
-                                                                ) : (
-                                                                    <span className="text-[10px] text-muted-foreground/30 font-bold">—</span>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </TableCell>
-                                                );
-                                            })}
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
-                </div>
+
+                    {/* ── DESKTOP VIEW: Full Weekly Matrix Grid (hidden on mobile md:block) ── */}
+                    <div className="hidden md:block rounded-2xl border border-border overflow-hidden shadow-sm">
+                        <div className="overflow-x-auto custom-scrollbar">
+                            <Table className="min-w-[800px] border-collapse">
+                                <TableHeader>
+                                    <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/60">
+                                        <TableHead className="pl-5 py-3.5 text-left min-w-[130px] text-[11px] font-bold uppercase tracking-wider text-muted-foreground sticky left-0 bg-background/95 z-10 backdrop-blur-sm">
+                                            Day & Date
+                                        </TableHead>
+                                        {sortedPeriods.map(p => (
+                                            <TableHead key={p.id} className="py-3.5 px-3 text-center min-w-[140px] border-l border-border/50">
+                                                <div className="text-[11px] font-bold uppercase tracking-wider text-primary">{p.name}</div>
+                                                <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">{(p.startTime?.substring(0, 5) || "--:--")} - {(p.endTime?.substring(0, 5) || "--:--")}</div>
+                                            </TableHead>
+                                        ))}
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {WEEKDAYS.map((day) => {
+                                        const dayInfo = weekDates[day];
+                                        const cellDateStr = dayInfo?.dateStr;
+
+                                        return (
+                                            <TableRow key={day} className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors">
+                                                <TableCell className="pl-5 py-4 font-bold text-[12px] text-foreground sticky left-0 bg-background/95 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] backdrop-blur-sm">
+                                                    <div>{day}</div>
+                                                    {dayInfo && (
+                                                        <div className="text-[10px] font-normal text-muted-foreground font-mono mt-0.5">
+                                                            {dayInfo.label}
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+                                                {sortedPeriods.map(p => {
+                                                    const existing = slotMatrix[day]?.[p.id];
+                                                    const colorCls = existing ? SUBJECT_COLORS[(subjects.findIndex(s => s.id === existing.subject.id) || 0) % SUBJECT_COLORS.length] : "";
+                                                    const isBreak = p.name.toLowerCase().includes('lunch') || p.name.toLowerCase().includes('break');
+                                                    
+                                                    // EXACT DATE MATCH: Only show proxy if it belongs to this exact calendar date in this week!
+                                                    const exactDateKey = existing && cellDateStr ? `${existing.slot.id}::${cellDateStr}` : '';
+                                                    const slotDateSubs = exactDateKey ? (substitutesBySlotAndDate[exactDateKey] || []) : [];
+                                                    const hasProxyOnThisDate = slotDateSubs.length > 0;
+                                                    const activeSubOnDate = slotDateSubs[0];
+
+                                                    return (
+                                                        <TableCell key={p.id} className="py-2 px-2 border-l border-border/50 align-middle">
+                                                            {isBreak ? (
+                                                                <div className="h-16 rounded-xl flex items-center justify-center bg-muted/40 border border-border/50">
+                                                                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                                                                        {p.name}
+                                                                    </span>
+                                                                </div>
+                                                            ) : (
+                                                                <div
+                                                                    onClick={() => handleCellClick(day, p, existing)}
+                                                                    className={cn(
+                                                                        "min-h-16 py-1.5 px-2 rounded-xl flex flex-col items-center justify-center text-center transition-all border",
+                                                                        existing ? "cursor-pointer" : canEdit ? "cursor-pointer" : "cursor-default",
+                                                                        existing
+                                                                            ? `${colorCls} group relative hover:shadow-md`
+                                                                            : canEdit
+                                                                                ? "border-dashed border-border hover:border-primary/50 hover:bg-primary/5 text-transparent hover:text-primary/70"
+                                                                                : "border-border/40 text-transparent"
+                                                                    )}
+                                                                >
+                                                                    {existing ? (
+                                                                        <>
+                                                                            <div className="text-[11px] font-bold leading-tight line-clamp-1">{existing.subject.subject?.name}</div>
+                                                                            <div className="text-[9px] opacity-80 mt-0.5 line-clamp-1 truncate w-full px-1">
+                                                                                {existing.subject.teacher?.account ? `${existing.subject.teacher.account.firstName} ${existing.subject.teacher.account.lastName}` : "No Teacher"}
+                                                                            </div>
+                                                                            {hasProxyOnThisDate && (
+                                                                                activeSubOnDate.status === 'PENDING' ? (
+                                                                                    <div className="mt-1 flex items-center gap-1 bg-rose-500/20 text-rose-800 dark:text-rose-200 px-1.5 py-0.5 rounded text-[8px] font-extrabold border border-rose-500/35 truncate max-w-full animate-pulse" title={`Substitute needed for ${format(new Date(activeSubOnDate.date + 'T12:00:00'), 'dd MMM yyyy')}`}>
+                                                                                        <AlertCircle className="w-2.5 h-2.5 shrink-0 text-rose-600 dark:text-rose-400" />
+                                                                                        <span className="truncate">Need Sub ({format(new Date(activeSubOnDate.date + 'T12:00:00'), 'dd MMM')})</span>
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <div className="mt-1 flex items-center gap-1 bg-amber-500/20 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded text-[8px] font-extrabold border border-amber-500/35 truncate max-w-full" title={`Proxy assigned for ${format(new Date(activeSubOnDate.date + 'T12:00:00'), 'dd MMM yyyy')}`}>
+                                                                                        <UserCheck className="w-2.5 h-2.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                                                                                        <span className="truncate">Proxy: {activeSubOnDate.substituteTeacher?.account?.firstName || 'Assigned'} ({format(new Date(activeSubOnDate.date + 'T12:00:00'), 'dd MMM')})</span>
+                                                                                    </div>
+                                                                                )
+                                                                            )}
+                                                                        </>
+                                                                    ) : canEdit ? (
+                                                                        <Plus className="h-4 w-4" />
+                                                                    ) : (
+                                                                        <span className="text-[10px] text-muted-foreground/30 font-bold">—</span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </TableCell>
+                                                    );
+                                                })}
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
+                </>
             )}
 
             {/* ── Manage Period Slot Details & Proxy Dialog ────────────────────────── */}
             <Dialog open={!!selectedSlotManage} onOpenChange={v => !v && setSelectedSlotManage(null)}>
+
                 <DialogContent className="sm:max-w-md p-0 rounded-2xl border border-border shadow-2xl bg-card">
                     {selectedSlotManage && (() => {
                         const { slot, subject, day, period } = selectedSlotManage;

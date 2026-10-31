@@ -124,8 +124,15 @@ export const submitApplication = async (req, res, next) => {
             ...validated
         });
 
-        // Send confirmation email
-        await sendAdmissionSubmissionEmail(validated.parentEmail, `${validated.studentFirstName} ${validated.studentLastName}`);
+        // Send confirmation email asynchronously (non-blocking)
+        setImmediate(async () => {
+            try {
+                await sendAdmissionSubmissionEmail(validated.parentEmail, `${validated.studentFirstName} ${validated.studentLastName}`);
+                logger.info(`[Admission] Confirmation email dispatched to ${validated.parentEmail}`);
+            } catch (mailErr) {
+                logger.warn(`[Admission] Confirmation email failed for ${validated.parentEmail}: ${mailErr.message}`);
+            }
+        });
 
         return success(res, { applicationId: application.id }, 'Application submitted successfully', 201);
     } catch (err) {
@@ -209,8 +216,15 @@ export const updateApplicationStatus = async (req, res, next) => {
         const studentName = `${application.studentFirstName} ${application.studentLastName}`;
 
         if (validated.status === 'Rejected') {
-            await sendAdmissionRejectionEmail(application.parentEmail, studentName, validated.rejectionReason);
             await t.commit();
+            setImmediate(async () => {
+                try {
+                    await sendAdmissionRejectionEmail(application.parentEmail, studentName, validated.rejectionReason);
+                    logger.info(`[Admission] Rejection email dispatched to ${application.parentEmail}`);
+                } catch (mailErr) {
+                    logger.warn(`[Admission] Rejection email failed for ${application.parentEmail}: ${mailErr.message}`);
+                }
+            });
             return success(res, { application }, 'Application rejected');
         }
 
@@ -275,8 +289,15 @@ export const updateApplicationStatus = async (req, res, next) => {
 
         await t.commit();
 
-        // Send Email
-        await sendAdmissionApprovalEmail(application.parentEmail, studentName, user.userId, tempPassword);
+        // Send Email asynchronously (non-blocking)
+        setImmediate(async () => {
+            try {
+                await sendAdmissionApprovalEmail(application.parentEmail, studentName, user.userId, tempPassword);
+                logger.info(`[Admission] Approval email dispatched to ${application.parentEmail}`);
+            } catch (mailErr) {
+                logger.warn(`[Admission] Approval email failed for ${application.parentEmail}: ${mailErr.message}`);
+            }
+        });
 
         return success(res, { application, studentId: student.id }, 'Application admitted and student account created');
     } catch (err) {

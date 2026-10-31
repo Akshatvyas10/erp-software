@@ -90,6 +90,23 @@ export const sendEmail = async (to, subject, html) => {
     }
 };
 
+import { enqueueEmailJob, initEmailQueue } from '../queues/email.queue.js';
+
+// Initialize BullMQ processor mapping
+const emailProcessors = {
+    WELCOME_EMAIL: async (p) => sendWelcomeEmailDirect(p.email, p.name, p.userId, p.tempPassword),
+    STUDENT_ENROLLMENT: async (p) => sendStudentEnrollmentWelcomeDirect(p),
+    PARENT_ENROLLMENT: async (p) => sendParentEnrollmentWelcomeDirect(p),
+    TEACHER_ENROLLMENT: async (p) => sendTeacherEnrollmentWelcomeDirect(p),
+    ADMISSION_SUBMITTED: async (p) => sendAdmissionSubmissionDirect(p.parentEmail, p.studentName, p.applicationNumber),
+    ADMISSION_APPROVED: async (p) => sendAdmissionApprovalDirect(p.parentEmail, p.studentName, p.studentId, p.temporaryPassword),
+    ADMISSION_REJECTED: async (p) => sendAdmissionRejectionDirect(p.parentEmail, p.studentName, p.reason),
+    SYSTEM_NOTIFICATION: async (p) => sendSystemNotificationDirect(p.email, p.userName, p.title, p.bodyText, p.actionUrl),
+};
+
+// Start queue worker listening for background tasks
+initEmailQueue(emailProcessors);
+
 // =============================================================================
 // Reusable Layout Helpers (Cross-client Table Structure)
 // =============================================================================
@@ -181,7 +198,7 @@ const getButtonHtml = (url, label, bgColor = '#4F46E5') => `
 /**
  * 1. Welcome Email (New User)
  */
-export const sendWelcomeEmail = async (userEmail, userName, userId, temporaryPassword) => {
+export const sendWelcomeEmailDirect = async (userEmail, userName, userId, temporaryPassword) => {
     const ctx = await getSchoolContext();
     const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
     const subject = `Welcome to ${ctx.schoolName}!`;
@@ -216,10 +233,13 @@ export const sendWelcomeEmail = async (userEmail, userName, userId, temporaryPas
     return sendEmail(userEmail, subject, html);
 };
 
-/**
- * 1b. Student Enrollment Welcome Email
- */
-export const sendStudentEnrollmentWelcomeEmail = async ({
+export const sendWelcomeEmail = async (userEmail, userName, userId, temporaryPassword) => {
+    return enqueueEmailJob('WELCOME_EMAIL', { email: userEmail, name: userName, userId, tempPassword: temporaryPassword }, (p) =>
+        sendWelcomeEmailDirect(p.email, p.name, p.userId, p.tempPassword)
+    );
+};
+
+export const sendStudentEnrollmentWelcomeDirect = async ({
     studentEmail,
     studentName,
     admissionNumber,
@@ -261,10 +281,14 @@ export const sendStudentEnrollmentWelcomeEmail = async ({
     return sendEmail(studentEmail, subject, html);
 };
 
+export const sendStudentEnrollmentWelcomeEmail = async (params) => {
+    return enqueueEmailJob('STUDENT_ENROLLMENT', params, sendStudentEnrollmentWelcomeDirect);
+};
+
 /**
  * 1c. Parent / Guardian Enrollment Welcome Email
  */
-export const sendParentEnrollmentWelcomeEmail = async ({
+export const sendParentEnrollmentWelcomeDirect = async ({
     guardianEmail,
     guardianName,
     studentName,
@@ -306,10 +330,14 @@ export const sendParentEnrollmentWelcomeEmail = async ({
     return sendEmail(guardianEmail, subject, html);
 };
 
+export const sendParentEnrollmentWelcomeEmail = async (params) => {
+    return enqueueEmailJob('PARENT_ENROLLMENT', params, sendParentEnrollmentWelcomeDirect);
+};
+
 /**
  * 1d. Teacher / Faculty Enrollment Welcome Email
  */
-export const sendTeacherEnrollmentWelcomeEmail = async ({
+export const sendTeacherEnrollmentWelcomeDirect = async ({
     teacherEmail,
     teacherName,
     teacherId,
@@ -355,6 +383,10 @@ export const sendTeacherEnrollmentWelcomeEmail = async ({
 
     const html = getEmailWrapper(ctx.schoolName, 'linear-gradient(135deg, #1E1B4B 0%, #4338CA 100%)', contentHtml, ctx);
     return sendEmail(teacherEmail, subject, html);
+};
+
+export const sendTeacherEnrollmentWelcomeEmail = async (params) => {
+    return enqueueEmailJob('TEACHER_ENROLLMENT', params, sendTeacherEnrollmentWelcomeDirect);
 };
 
 /**

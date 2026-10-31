@@ -162,5 +162,27 @@ router.put(
     teacherLeaveController.updateLeaveRule
 );
 
+router.get(
+    '/rules/preview-quota',
+    requirePermission('leave_rules', 'read'),
+    teacherLeaveController.previewLeaveQuota
+);
+
+router.patch(
+    '/rules/:id/activate',
+    requirePermission('leave_rules', 'update'),
+    [param('id').isUUID()],
+    validate,
+    teacherLeaveController.activateLeaveRule
+);
+
+router.patch(
+    '/rules/:id/deactivate',
+    requirePermission('leave_rules', 'update'),
+    [param('id').isUUID()],
+    validate,
+    teacherLeaveController.deactivateLeaveRule
+);
+
 export default router;
 

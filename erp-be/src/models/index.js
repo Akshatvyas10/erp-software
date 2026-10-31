@@ -40,6 +40,9 @@ import LeaveType from './LeaveType.js';
 import TeacherLeaveBalance from './TeacherLeaveBalance.js';
 import TeacherLeaveRequest from './TeacherLeaveRequest.js';
 import LeaveRule from './LeaveRule.js';
+import TeacherLeaveAccrual from './TeacherLeaveAccrual.js';
+import StudentLeaveRequest from './StudentLeaveRequest.js';
+import ClassroomRemark from './ClassroomRemark.js';
 
 const PermissionAuditLog = PermissionAuditLogInit(sequelize);
 
@@ -155,8 +158,25 @@ export default {
     AdmissionForm, AdmissionApplication, SchoolConfig,
     BuildingBlock, ClassroomRoom, TestExamConfig, AcademicClass, TimetableSubstitute,
     PromotionRule, PromotionLog, StudentAcademicHistory, AcademicYear,
-    LeaveType, TeacherLeaveBalance, TeacherLeaveRequest, LeaveRule
+    LeaveType, TeacherLeaveBalance, TeacherLeaveRequest, LeaveRule, TeacherLeaveAccrual,
+    StudentLeaveRequest, ClassroomRemark
 };
+
+// ─── StudentLeaveRequest Associations ───────────────────────────────────────
+Student.hasMany(StudentLeaveRequest, { foreignKey: 'student_id', as: 'leaveRequests', onDelete: 'CASCADE' });
+StudentLeaveRequest.belongsTo(Student, { foreignKey: 'student_id', as: 'student' });
+
+Classroom.hasMany(StudentLeaveRequest, { foreignKey: 'classroom_id', as: 'studentLeaveRequests', onDelete: 'CASCADE' });
+StudentLeaveRequest.belongsTo(Classroom, { foreignKey: 'classroom_id', as: 'classroom' });
+
+Department.hasMany(StudentLeaveRequest, { foreignKey: 'department_id', as: 'studentLeaveRequests', onDelete: 'SET NULL' });
+StudentLeaveRequest.belongsTo(Department, { foreignKey: 'department_id', as: 'department' });
+
+AcademicYear.hasMany(StudentLeaveRequest, { foreignKey: 'academic_year_id', as: 'studentLeaveRequests', onDelete: 'RESTRICT' });
+StudentLeaveRequest.belongsTo(AcademicYear, { foreignKey: 'academic_year_id', as: 'academicYear' });
+
+StudentLeaveRequest.belongsTo(User, { foreignKey: 'decided_by_user_id', as: 'decider' });
+User.hasMany(StudentLeaveRequest, { foreignKey: 'decided_by_user_id', as: 'decidedStudentLeaves' });
 
 // ─── StudentAcademicHistory associations ──────────────────────────────────────
 StudentAcademicHistory.belongsTo(Student, { foreignKey: 'student_id', as: 'student' });
@@ -291,6 +311,32 @@ LeaveRule.belongsTo(AcademicYear, { foreignKey: 'academic_year_id', as: 'academi
 
 LeaveRule.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 LeaveRule.belongsTo(User, { foreignKey: 'updated_by', as: 'updater' });
+
+// ─── TeacherLeaveAccrual Associations ───────────────────────────────────────
+Teacher.hasMany(TeacherLeaveAccrual, { foreignKey: 'teacher_id', as: 'leaveAccruals', onDelete: 'CASCADE' });
+TeacherLeaveAccrual.belongsTo(Teacher, { foreignKey: 'teacher_id', as: 'teacher' });
+
+LeaveType.hasMany(TeacherLeaveAccrual, { foreignKey: 'leave_type_id', as: 'monthlyAccruals', onDelete: 'CASCADE' });
+TeacherLeaveAccrual.belongsTo(LeaveType, { foreignKey: 'leave_type_id', as: 'leaveType' });
+
+AcademicYear.hasMany(TeacherLeaveAccrual, { foreignKey: 'academic_year_id', as: 'teacherLeaveAccruals', onDelete: 'CASCADE' });
+TeacherLeaveAccrual.belongsTo(AcademicYear, { foreignKey: 'academic_year_id', as: 'academicYear' });
+
+// ─── ClassroomRemark Associations ──────────────────────────────────────────
+Classroom.hasMany(ClassroomRemark, { foreignKey: 'classroom_id', as: 'remarks', onDelete: 'CASCADE' });
+ClassroomRemark.belongsTo(Classroom, { foreignKey: 'classroom_id', as: 'classroom' });
+
+Student.hasMany(ClassroomRemark, { foreignKey: 'student_id', as: 'classroomRemarks', onDelete: 'CASCADE' });
+ClassroomRemark.belongsTo(Student, { foreignKey: 'student_id', as: 'student' });
+
+Teacher.hasMany(ClassroomRemark, { foreignKey: 'teacher_id', as: 'givenRemarks', onDelete: 'SET NULL' });
+ClassroomRemark.belongsTo(Teacher, { foreignKey: 'teacher_id', as: 'teacher' });
+
+User.hasMany(ClassroomRemark, { foreignKey: 'created_by_id', as: 'createdClassroomRemarks', onDelete: 'CASCADE' });
+ClassroomRemark.belongsTo(User, { foreignKey: 'created_by_id', as: 'author' });
+
+Homework.hasMany(ClassroomRemark, { foreignKey: 'homework_id', as: 'remarks', onDelete: 'SET NULL' });
+ClassroomRemark.belongsTo(Homework, { foreignKey: 'homework_id', as: 'homework' });
 
 
 

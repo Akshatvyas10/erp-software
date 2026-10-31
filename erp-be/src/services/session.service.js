@@ -12,6 +12,13 @@ let lastFallbackAlertTime = 0;
 const FALLBACK_ALERT_THROTTLE_MS = 60 * 1000;
 
 const notifyRedisFallback = (operation) => {
+    if (process.env.NODE_ENV === 'production') {
+        logger.error(
+            `[FATAL] Redis is down in PRODUCTION during ${operation}! Refusing to fall back to in-memory mode in cluster/multi-instance deployment.`
+        );
+        throw new Error(`Redis connection is required in production. Operation '${operation}' aborted.`);
+    }
+
     const now = Date.now();
     if (now - lastFallbackAlertTime > FALLBACK_ALERT_THROTTLE_MS) {
         lastFallbackAlertTime = now;

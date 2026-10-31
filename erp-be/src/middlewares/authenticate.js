@@ -33,11 +33,14 @@ const authenticate = async (req, res, next) => {
             return error(res, 'Token has been revoked. Please log in again.', 401);
         }
 
-        // Lightweight user fetch — just status check, no joins needed
+        // Lightweight user fetch — includes teacher and student profiles
         const user = await User.findOne({
             where: { id: decoded.sub, isActive: true },
             attributes: ['id', 'userId', 'email', 'firstName', 'lastName', 'isActive', 'lockedUntil'],
-            include: [{ model: db.Teacher, as: 'teacherProfile', attributes: ['id'] }]
+            include: [
+                { model: db.Teacher, as: 'teacherProfile', attributes: ['id'] },
+                { model: db.Student, as: 'studentProfile', attributes: ['id'] },
+            ]
         });
 
         if (!user) return error(res, 'User not found or deactivated', 401);
@@ -48,6 +51,9 @@ const authenticate = async (req, res, next) => {
         req.tokenExp = decoded.exp;
         if (user.teacherProfile) {
             req.user.teacherId = user.teacherProfile.id;
+        }
+        if (user.studentProfile) {
+            req.user.studentId = user.studentProfile.id;
         }
 
         // Pull permissions from cache (set by permissionEmitter on login)

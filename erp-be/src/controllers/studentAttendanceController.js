@@ -57,10 +57,18 @@ export const getClassroomAttendance = async (req, res) => {
             return res.status(400).json({ success: false, message: "date query param is required" });
         }
 
+        const rolesLower = (req.userRoles || []).map(r => String(r).toLowerCase());
+        const isPrivileged = rolesLower.some(r => ['admin', 'super_admin', 'principal'].includes(r));
+        const isStudent = !isPrivileged && rolesLower.includes('student');
+
         const whereClause = {
             classroomId,
             attendanceDate: date
         };
+
+        if (isStudent) {
+            whereClause.studentId = req.user.studentId;
+        }
 
         const attendance = await StudentAttendance.findAll({
             where: whereClause

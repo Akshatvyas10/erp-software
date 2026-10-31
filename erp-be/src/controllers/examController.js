@@ -258,8 +258,21 @@ export const getResults = async (req, res, next) => {
         const exam = await Exam.findByPk(req.params.id);
         if (!exam) return error(res, 'Exam not found', 404);
 
+        const rolesLower = (req.userRoles || []).map(r => String(r).toLowerCase());
+        const isPrivileged = rolesLower.some(r => ['admin', 'super_admin', 'principal'].includes(r));
+        const isStudent = !isPrivileged && rolesLower.includes('student');
+
+        const whereClause = { examId: exam.id };
+        if (isStudent) {
+            // Students can only see their own results, and only when results are published
+            if (exam.status !== 'PUBLISHED') {
+                return success(res, { results: [] });
+            }
+            whereClause.studentId = req.user.studentId;
+        }
+
         const results = await ExamResult.findAll({
-            where: { examId: exam.id },
+            where: whereClause,
             include: [{
                 model: Student, as: 'student',
                 attributes: ['id', 'studentId', 'grade', 'section'],
@@ -423,4 +436,57 @@ export const publishResults = async (req, res, next) => {
         await t.rollback();
         next(err);
     }
+};
+
+// ── GET /api/exams/schedules/:id/results-matrix ────────────────────────────────
+export const getScheduleMatrix = async (req, res, next) => {
+    try {
+        const schedule = await ExamSchedule.findByPk(req.params.id, {
+            include: [{
+                model: Exam,
+                as: 'exams',
+                attributes: ['id', 'subjectId', 'date', 'maxMarks', 'status'],
+            }]
+        });
+
+        if (!schedule) return error(res, 'Exam schedule not found', 404);
+
+        const rolesLower = (req.userRoles || []).map(r => String(r).toLowerCase());
+        const isPrivileged = rolesLower.some(r => ['admin', 'super_admin', 'principal'].includes(r));
+        const isStudent = !isPrivileged && rolesLower.includes('student');
+
+        let exams = schedule.exams || [];
+        if (isStudent) {
+            exams = exams.filter(e => e.status === 'PUBLISHED');
+        }
+
+        const examIds = exams.map(e => e.id);
+        if (examIds.length === 0) {
+            return success(res, { matrix: {}, results: [] });
+        }
+
+        const whereClause = { examId: { [Op.in]: examIds } };
+        if (isStudent) {
+            whereClause.studentId = req.user.studentId;
+        }
+
+        const results = await ExamResult.findAll({
+            where: whereClause,
+            include: [{
+                model: Student,
+                as: 'student',
+                attributes: ['id', 'studentId', 'grade', 'section'],
+                include: [studentAccount]
+            }]
+        });
+
+        // Construct studentId -> examId -> Result dictionary
+        const matrix = {};
+        results.forEach(r => {
+            if (!matrix[r.studentId]) matrix[r.studentId] = {};
+            matrix[r.studentId][r.examId] = r;
+        });
+
+        return success(res, { matrix, results });
+    } catch (err) { next(err); }
 };

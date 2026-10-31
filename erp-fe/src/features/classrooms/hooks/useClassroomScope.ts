@@ -26,6 +26,8 @@ export interface ClassroomScopeResult {
     canAccessHomework: boolean;
     canAccessGradebook: boolean;
     canAccessAttendance: boolean;
+    canAccessRemarks: boolean;
+    canCreateRemark: boolean;
 }
 
 /**
@@ -93,13 +95,19 @@ export function useClassroomScope(classroom?: Classroom | null): ClassroomScopeR
         // Overall read-only mode for current viewer
         const isReadOnly = !canEditClassroom;
 
+        const isStudentOnly = !isSuperAdmin && !teacherId && hasRole("student");
+
         // ── Tab Level Access Grants ───────────────────────────────────────────
         const canAccessOverview = can("classrooms", "read");
-        const canAccessRoster = can("classrooms", "read");
+        // Staff/Admin only: Students must never access the staff roster management tab
+        const canAccessRoster = !isStudentOnly && can("classrooms", "read");
         const canAccessTimetable = can("classrooms", "read");
         const canAccessHomework = can("homework", "read") || isClassTeacher || isSubjectTeacher || isStudentEnrolled || hasClassroomAdminAccess;
-        const canAccessGradebook = can("exams", "read") || isClassTeacher || hasClassroomAdminAccess;
-        const canAccessAttendance = can("attendance", "read") || isClassTeacher || hasClassroomAdminAccess;
+        // Staff/Faculty only: Students must never view the whole class gradebook or class attendance marker
+        const canAccessGradebook = !isStudentOnly && (can("exams", "read") || isClassTeacher || hasClassroomAdminAccess);
+        const canAccessAttendance = !isStudentOnly && (can("attendance", "read") || isClassTeacher || hasClassroomAdminAccess);
+        const canAccessRemarks = !isStudentOnly && (can("classrooms", "read") || isClassTeacher || isSubjectTeacher || hasClassroomAdminAccess);
+        const canCreateRemark = !isStudentOnly && (can("classrooms", "update") || isClassTeacher || isSubjectTeacher || hasClassroomAdminAccess);
 
         return {
             isSuperAdmin,
@@ -122,6 +130,8 @@ export function useClassroomScope(classroom?: Classroom | null): ClassroomScopeR
             canAccessHomework,
             canAccessGradebook,
             canAccessAttendance,
+            canAccessRemarks,
+            canCreateRemark,
         };
     }, [user, classroom, can, hasRole]);
 }

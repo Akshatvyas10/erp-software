@@ -140,7 +140,11 @@ export default function ClassroomList() {
     const isTeacher = roles.some(r => String(r).toLowerCase() === "teacher");
     const isStudentOnly = !isSuperAdminOrAdmin && !isTeacher && roles.some(r => String(r).toLowerCase() === "student");
 
-    const { data: studentClassrooms = [] } = useQuery({
+    const {
+        data: studentClassrooms = [],
+        isLoading: isStudentLoading,
+        isFetching: isStudentFetching,
+    } = useQuery({
         queryKey: ["myStudentClassroom"],
         queryFn: async () => {
             const { data } = await api.get("/classrooms");
@@ -219,8 +223,56 @@ export default function ClassroomList() {
     if (!can("classrooms", "read")) return <AccessDenied />;
 
     // ── If Student: Render streamlined Student/Parent Classroom Workspace ────────
-    if (isStudentOnly && studentClassrooms.length > 0) {
-        return <StudentClassroomPortalView classroomId={studentClassrooms[0].id} />;
+    if (isStudentOnly) {
+        if (isStudentLoading || (isStudentFetching && studentClassrooms.length === 0)) {
+            return (
+                <div className="space-y-6 text-foreground pb-10">
+                    {/* Header Skeleton */}
+                    <div className="relative rounded-2xl sm:rounded-3xl border border-primary/20 bg-card p-5 sm:p-7 shadow-xs overflow-hidden">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                                <Skeleton className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl" />
+                                <div className="space-y-2">
+                                    <Skeleton className="h-6 sm:h-7 w-48 rounded-lg" />
+                                    <div className="flex gap-2">
+                                        <Skeleton className="h-4 w-20 rounded-md" />
+                                        <Skeleton className="h-4 w-24 rounded-md" />
+                                    </div>
+                                </div>
+                            </div>
+                            <Skeleton className="h-9 w-32 rounded-xl self-end md:self-center" />
+                        </div>
+                    </div>
+
+                    {/* KPI Widgets Skeleton */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                            <Skeleton key={i} className="h-28 rounded-2xl" />
+                        ))}
+                    </div>
+
+                    {/* Tabs / Content Area Skeleton */}
+                    <Skeleton className="h-80 w-full rounded-2xl" />
+                </div>
+            );
+        }
+
+        if (studentClassrooms.length > 0) {
+            return <StudentClassroomPortalView classroomId={studentClassrooms[0].id} />;
+        }
+        return (
+            <div className="py-20 text-center max-w-md mx-auto space-y-4">
+                <div className="w-16 h-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mx-auto border border-primary/20 shadow-xs">
+                    <School className="w-8 h-8" />
+                </div>
+                <div className="space-y-1.5">
+                    <h3 className="text-xl font-black text-foreground tracking-tight">No Section Enrolled</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                        You are not currently enrolled in any active classroom section. Please contact your school administrator or academic coordinator to assign your section.
+                    </p>
+                </div>
+            </div>
+        );
     }
 
     const handleOpenAddSection = (cls?: AcademicClass) => {

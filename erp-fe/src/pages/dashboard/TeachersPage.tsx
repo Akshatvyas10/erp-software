@@ -39,10 +39,13 @@ import {
     BookOpen,
     RefreshCw,
     Loader2,
+    Activity,
+    Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import AccessDenied from "@/components/auth/AccessDenied";
 import { motion } from "framer-motion";
+import { TeacherWorkloadMatrix } from "@/features/teachers/components/TeacherWorkloadMatrix";
 
 import {
     Select,
@@ -66,6 +69,7 @@ export default function TeachersPage() {
     const navigate = useNavigate();
     const qc = useQueryClient();
 
+    const [activeTab, setActiveTab] = useState<"directory" | "workload">("directory");
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
@@ -320,7 +324,26 @@ export default function TeachersPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
         >
-            <PageHeader title="Teachers Management" description="Manage teaching staff and institutional profiles.">
+            <PageHeader title="Teachers Management" description="Manage teaching staff, workload analytics, and institutional profiles.">
+                <div className="flex items-center gap-1.5 bg-muted/60 dark:bg-muted/30 p-1 rounded-xl border border-border/80">
+                    <Button
+                        variant={activeTab === "directory" ? "default" : "ghost"}
+                        size="sm"
+                        className="h-8 px-3 rounded-lg text-xs font-bold gap-1.5"
+                        onClick={() => setActiveTab("directory")}
+                    >
+                        <Users className="w-3.5 h-3.5" /> Directory
+                    </Button>
+                    <Button
+                        variant={activeTab === "workload" ? "default" : "ghost"}
+                        size="sm"
+                        className="h-8 px-3 rounded-lg text-xs font-bold gap-1.5"
+                        onClick={() => setActiveTab("workload")}
+                    >
+                        <Activity className="w-3.5 h-3.5" /> Workload Matrix
+                    </Button>
+                </div>
+
                 <Button
                     variant="outline"
                     size="icon"
@@ -355,93 +378,99 @@ export default function TeachersPage() {
                 </PermissionGate>
             </PageHeader>
 
-            {/* Filter Bar */}
-            <Card className="p-4 border-border/60 bg-card rounded-2xl shadow-xs">
-                <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-                    <div className="flex flex-col sm:flex-row gap-3 items-center flex-1">
-                        <div className="relative w-full sm:w-72">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Search by name, ID or email..."
-                                className="pl-9 h-10 bg-muted/40 border-border/60 rounded-xl text-sm"
-                                value={search}
-                                onChange={(e) => {
-                                    setSearch(e.target.value);
-                                    setPage(1);
-                                }}
-                            />
+            {activeTab === "workload" ? (
+                <TeacherWorkloadMatrix />
+            ) : (
+                <>
+                    {/* Filter Bar */}
+                    <Card className="p-4 border-border/60 bg-card rounded-2xl shadow-xs">
+                        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+                            <div className="flex flex-col sm:flex-row gap-3 items-center flex-1">
+                                <div className="relative w-full sm:w-72">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search by name, ID or email..."
+                                        className="pl-9 h-10 bg-muted/40 border-border/60 rounded-xl text-sm"
+                                        value={search}
+                                        onChange={(e) => {
+                                            setSearch(e.target.value);
+                                            setPage(1);
+                                        }}
+                                    />
+                                </div>
+
+                                {/* Status Filter */}
+                                <div className="w-full sm:w-44">
+                                    <Select
+                                        value={statusFilter}
+                                        onValueChange={(val) => {
+                                            setStatusFilter(val);
+                                            setPage(1);
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-10 bg-muted/40 border-border/60 rounded-xl text-sm">
+                                            <SelectValue placeholder="Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Statuses</SelectItem>
+                                            <SelectItem value="active">Active Only</SelectItem>
+                                            <SelectItem value="inactive">Inactive Only</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Employment Type Filter */}
+                                <div className="w-full sm:w-48">
+                                    <Select
+                                        value={employmentTypeFilter}
+                                        onValueChange={(val) => {
+                                            setEmploymentTypeFilter(val);
+                                            setPage(1);
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-10 bg-muted/40 border-border/60 rounded-xl text-sm">
+                                            <SelectValue placeholder="Employment Type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Types</SelectItem>
+                                            <SelectItem value="full_time">Full Time</SelectItem>
+                                            <SelectItem value="part_time">Part Time</SelectItem>
+                                            <SelectItem value="double_shift">Double Shift</SelectItem>
+                                            <SelectItem value="casual">Casual</SelectItem>
+                                            <SelectItem value="hourly">Hourly</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 self-end md:self-auto text-xs text-muted-foreground">
+                                <span className="font-semibold text-foreground">{pagination.total}</span> total teachers found
+                            </div>
                         </div>
+                    </Card>
 
-                        {/* Status Filter */}
-                        <div className="w-full sm:w-44">
-                            <Select
-                                value={statusFilter}
-                                onValueChange={(val) => {
-                                    setStatusFilter(val);
-                                    setPage(1);
-                                }}
-                            >
-                                <SelectTrigger className="h-10 bg-muted/40 border-border/60 rounded-xl text-sm">
-                                    <SelectValue placeholder="Status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Statuses</SelectItem>
-                                    <SelectItem value="active">Active Only</SelectItem>
-                                    <SelectItem value="inactive">Inactive Only</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {/* Employment Type Filter */}
-                        <div className="w-full sm:w-48">
-                            <Select
-                                value={employmentTypeFilter}
-                                onValueChange={(val) => {
-                                    setEmploymentTypeFilter(val);
-                                    setPage(1);
-                                }}
-                            >
-                                <SelectTrigger className="h-10 bg-muted/40 border-border/60 rounded-xl text-sm">
-                                    <SelectValue placeholder="Employment Type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Types</SelectItem>
-                                    <SelectItem value="full_time">Full Time</SelectItem>
-                                    <SelectItem value="part_time">Part Time</SelectItem>
-                                    <SelectItem value="double_shift">Double Shift</SelectItem>
-                                    <SelectItem value="casual">Casual</SelectItem>
-                                    <SelectItem value="hourly">Hourly</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 self-end md:self-auto text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">{pagination.total}</span> total teachers found
-                    </div>
-                </div>
-            </Card>
-
-            {/* Generic DataTable */}
-            <DataTable
-                columns={columns}
-                data={teachersList}
-                keyExtractor={(t) => t.id}
-                isLoading={isLoading}
-                pagination={{
-                    page: pagination.page,
-                    totalPages: pagination.pages,
-                    total: pagination.total,
-                    limit: pagination.limit,
-                    onPageChange: (newPage) => setPage(newPage),
-                }}
-                emptyTitle="No teachers found"
-                emptyDescription="No teacher profiles match your search filter."
-                emptyIcon={BookOpen}
-                emptyActionLabel={can("teachers", "create") ? "Add New Teacher" : undefined}
-                onEmptyAction={() => setIsCreateOpen(true)}
-                renderMobileCard={renderMobileCard}
-            />
+                    {/* Generic DataTable */}
+                    <DataTable
+                        columns={columns}
+                        data={teachersList}
+                        keyExtractor={(t) => t.id}
+                        isLoading={isLoading}
+                        pagination={{
+                            page: pagination.page,
+                            totalPages: pagination.pages,
+                            total: pagination.total,
+                            limit: pagination.limit,
+                            onPageChange: (newPage) => setPage(newPage),
+                        }}
+                        emptyTitle="No teachers found"
+                        emptyDescription="No teacher profiles match your search filter."
+                        emptyIcon={BookOpen}
+                        emptyActionLabel={can("teachers", "create") ? "Add New Teacher" : undefined}
+                        onEmptyAction={() => setIsCreateOpen(true)}
+                        renderMobileCard={renderMobileCard}
+                    />
+                </>
+            )}
 
             {/* Edit Teacher Wizard Modal */}
             <ResponsiveModal

@@ -20,8 +20,8 @@ import { CalendarIcon, Loader2, Save, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const homeworkSchema = z.object({
-    title: z.string().min(3, "Title must be at least 3 characters").max(150),
-    description: z.string().min(10, "Description must be at least 10 characters"),
+    title: z.string().min(1, "Title is required").max(150, "Title must not exceed 150 characters"),
+    description: z.string().optional(),
     dueDate: z.string().refine(v => !isNaN(Date.parse(v)), { message: "Invalid date format" }),
     subjectId: z.string().uuid("Please select a valid subject"),
     classId: z.string().uuid("Please select a valid classroom"),
@@ -34,9 +34,11 @@ interface HomeworkFormDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     homeworkId?: string | null;
+    defaultClassId?: string;
+    defaultSubjectId?: string;
 }
 
-export default function HomeworkFormDialog({ open, onOpenChange, homeworkId }: HomeworkFormDialogProps) {
+export default function HomeworkFormDialog({ open, onOpenChange, homeworkId, defaultClassId, defaultSubjectId }: HomeworkFormDialogProps) {
     const isEdit = !!homeworkId;
     const qc = useQueryClient();
     const [isDueDateOpen, setIsDueDateOpen] = React.useState(false);
@@ -47,8 +49,8 @@ export default function HomeworkFormDialog({ open, onOpenChange, homeworkId }: H
             title: "",
             description: "",
             dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
-            subjectId: "",
-            classId: "",
+            subjectId: defaultSubjectId || "",
+            classId: defaultClassId || "",
             status: "DRAFT"
         }
     });
@@ -103,13 +105,13 @@ export default function HomeworkFormDialog({ open, onOpenChange, homeworkId }: H
                     title: "",
                     description: "",
                     dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-                    subjectId: "",
-                    classId: "",
+                    subjectId: defaultSubjectId || "",
+                    classId: defaultClassId || "",
                     status: "DRAFT"
                 });
             }
         }
-    }, [homework, isEdit, form, open]);
+    }, [homework, isEdit, form, open, defaultClassId, defaultSubjectId]);
 
     const mutation = useMutation({
         mutationFn: async (values: HomeworkFormValues) => {
@@ -128,8 +130,9 @@ export default function HomeworkFormDialog({ open, onOpenChange, homeworkId }: H
             onOpenChange(false);
         },
         onError: (err: unknown) => {
-            const e = err as { response?: { data?: { message?: string } } };
-            toast.error(e.response?.data?.message || "Failed to save homework");
+            const e = err as { response?: { data?: { message?: string; errors?: Array<{ message?: string }> } } };
+            const detailMsg = e.response?.data?.errors?.[0]?.message || e.response?.data?.message || "Failed to save homework";
+            toast.error(detailMsg);
         }
     });
 

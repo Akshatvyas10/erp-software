@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, FileText, CalendarDays, Plus, Edit, Trash2, MoreVertical } from "lucide-react";
+import {
+    Loader2, FileText, CalendarDays, Plus, Edit, Trash2, MoreVertical,
+    CheckCircle2, XCircle, Users, AlertCircle
+} from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +40,22 @@ interface Homework {
     createdAt: string;
 }
 
+interface SubmissionItem {
+    id: string;
+    homeworkId: string;
+    studentId: string;
+    status: "PENDING" | "SUBMITTED" | "COMPLETED" | "NOT_COMPLETED";
+    submittedAt?: string | null;
+    grade?: string | null;
+    feedback?: string | null;
+    student?: {
+        id: string;
+        admissionNumber: string;
+        firstName?: string;
+        lastName?: string;
+    };
+}
+
 export default function HomeworkTab({ classroomId, classTeacherId, subjects }: { classroomId: string, classTeacherId?: string, subjects?: ClassroomSubject[] }) {
     const qc = useQueryClient();
     const { user } = useAuth();
@@ -45,6 +64,11 @@ export default function HomeworkTab({ classroomId, classTeacherId, subjects }: {
     const [createOpen, setCreateOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
+
+    // Submissions Tracking Modal State
+    const [activeHomeworkSubmissions, setActiveHomeworkSubmissions] = useState<Homework | null>(null);
+    const [remarkPromptSubmission, setRemarkPromptSubmission] = useState<SubmissionItem | null>(null);
+    const [notCompletedRemark, setNotCompletedRemark] = useState("");
     
     const [formData, setFormData] = useState<{ title: string, description: string, dueDate: Date | undefined, subjectId: string }>({
         title: "", description: "", dueDate: undefined, subjectId: ""
@@ -85,7 +109,10 @@ export default function HomeworkTab({ classroomId, classTeacherId, subjects }: {
             setCreateOpen(false);
             setFormData({ title: "", description: "", dueDate: undefined, subjectId: "" });
         },
-        onError: (err: any) => toast.error(err.response?.data?.message || "Failed to create homework")
+        onError: (err: any) => {
+            const detailMsg = err.response?.data?.errors?.[0]?.message || err.response?.data?.message || "Failed to create homework";
+            toast.error(detailMsg);
+        }
     });
 
     const updateMutation = useMutation({
@@ -102,7 +129,10 @@ export default function HomeworkTab({ classroomId, classTeacherId, subjects }: {
             qc.invalidateQueries({ queryKey: ["homework", classroomId] });
             setEditOpen(false);
         },
-        onError: (err: any) => toast.error(err.response?.data?.message || "Failed to update homework")
+        onError: (err: any) => {
+            const detailMsg = err.response?.data?.errors?.[0]?.message || err.response?.data?.message || "Failed to update homework";
+            toast.error(detailMsg);
+        }
     });
 
     const deleteMutation = useMutation({
@@ -113,6 +143,37 @@ export default function HomeworkTab({ classroomId, classTeacherId, subjects }: {
             setDeleteId(null);
         },
         onError: (err: any) => toast.error(err.response?.data?.message || "Failed to delete homework")
+    });
+
+    // Submissions Query for currently opened homework modal
+    const { data: submissions = [], isLoading: isLoadingSubmissions } = useQuery<SubmissionItem[]>({
+        queryKey: ["homework-submissions", activeHomeworkSubmissions?.id],
+        queryFn: async () => {
+            if (!activeHomeworkSubmissions) return [];
+            const res = await api.get(`/homeworks/${activeHomeworkSubmissions.id}/submissions`);
+            return (Array.isArray(res.data) ? res.data : (res.data?.data || [])) as SubmissionItem[];
+        },
+        enabled: !!activeHomeworkSubmissions,
+    });
+
+    // Mutation to mark status (COMPLETED or NOT_COMPLETED with remark)
+    const updateSubmissionStatusMutation = useMutation({
+        mutationFn: async ({ submissionId, status, remark }: { submissionId: string, status: "COMPLETED" | "NOT_COMPLETED", remark?: string }) => {
+            return api.put(`/homeworks/submissions/${submissionId}`, {
+                status,
+                remark: remark || undefined,
+            });
+        },
+        onSuccess: () => {
+            toast.success("Student submission updated");
+            qc.invalidateQueries({ queryKey: ["homework-submissions", activeHomeworkSubmissions?.id] });
+            qc.invalidateQueries({ queryKey: ["classroom-remarks", classroomId] });
+            setRemarkPromptSubmission(null);
+            setNotCompletedRemark("");
+        },
+        onError: (err: any) => {
+            toast.error(err.response?.data?.message || err.response?.data?.errors?.[0]?.message || "Failed to update submission");
+        }
     });
 
     const handleEditClick = (hw: Homework) => {
@@ -253,6 +314,19 @@ export default function HomeworkTab({ classroomId, classTeacherId, subjects }: {
                                         </div>
                                     )}
                                 </div>
+
+                                {canManageHomework && (
+                                    <div className="mt-3 pt-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setActiveHomeworkSubmissions(hw)}
+                                            className="w-full text-xs font-semibold rounded-xl h-8 bg-muted/40 hover:bg-muted text-foreground flex items-center justify-center gap-1.5"
+                                        >
+                                            <Users className="w-3.5 h-3.5 text-primary" /> Track Student Submissions
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
@@ -323,6 +397,191 @@ export default function HomeworkTab({ classroomId, classTeacherId, subjects }: {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* ── Submissions Tracking Dialog ───────────────────────────────────── */}
+            <Dialog open={!!activeHomeworkSubmissions} onOpenChange={(v) => !v && setActiveHomeworkSubmissions(null)}>
+                <DialogContent className="rounded-3xl p-6 border-border shadow-2xl bg-background max-w-2xl max-h-[85vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold flex items-center justify-between">
+                            <span className="flex items-center gap-2">
+                                <Users className="w-5 h-5 text-primary" />
+                                Student Submissions: {activeHomeworkSubmissions?.title}
+                            </span>
+                            <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-none">
+                                {activeHomeworkSubmissions?.subject?.name}
+                            </Badge>
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Review and mark student completion status. Incomplete work requires a teacher remark that will be logged in the student's remarks ledger.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto pr-1 py-3 space-y-3">
+                        {isLoadingSubmissions ? (
+                            <div className="flex justify-center items-center py-12">
+                                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                            </div>
+                        ) : submissions.length === 0 ? (
+                            <div className="text-center py-10 border border-dashed rounded-2xl bg-card">
+                                <p className="text-xs font-semibold text-muted-foreground">No students enrolled or submissions registered yet.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2.5">
+                                {submissions.map((sub) => {
+                                    const sName = sub.student
+                                        ? `${sub.student.firstName || ""} ${sub.student.lastName || ""}`.trim() || `Student #${sub.student.admissionNumber}`
+                                        : "Student";
+                                    return (
+                                        <div
+                                            key={sub.id}
+                                            className="p-3.5 rounded-2xl border border-border/80 bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs hover:border-border transition-all"
+                                        >
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-xs text-foreground truncate">{sName}</span>
+                                                    {sub.student?.admissionNumber && (
+                                                        <span className="text-[10px] text-muted-foreground font-mono">
+                                                            ({sub.student.admissionNumber})
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                                    {sub.status === "COMPLETED" && (
+                                                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px] font-bold gap-1">
+                                                            <CheckCircle2 className="w-3 h-3" /> Completed
+                                                        </Badge>
+                                                    )}
+                                                    {sub.status === "NOT_COMPLETED" && (
+                                                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-[10px] font-bold gap-1">
+                                                            <XCircle className="w-3 h-3" /> Not Completed
+                                                        </Badge>
+                                                    )}
+                                                    {sub.status === "SUBMITTED" && (
+                                                        <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 text-[10px] font-bold">
+                                                            Submitted by Student
+                                                        </Badge>
+                                                    )}
+                                                    {sub.status === "PENDING" && (
+                                                        <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-[10px] font-bold">
+                                                            Pending Submission
+                                                        </Badge>
+                                                    )}
+
+                                                    {sub.submittedAt && (
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            Submitted: {format(parseISO(sub.submittedAt), "MMM d, p")}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {sub.feedback && (
+                                                    <p className="text-[11px] text-muted-foreground mt-2 bg-muted/30 p-2 rounded-xl border border-border/50">
+                                                        <strong className="text-foreground">Teacher Remark:</strong> "{sub.feedback}"
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={updateSubmissionStatusMutation.isPending}
+                                                    onClick={() => updateSubmissionStatusMutation.mutate({
+                                                        submissionId: sub.id,
+                                                        status: "COMPLETED",
+                                                    })}
+                                                    className={cn(
+                                                        "h-8 text-xs font-semibold rounded-xl gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10",
+                                                        sub.status === "COMPLETED" && "bg-emerald-500/15 border-emerald-500/50"
+                                                    )}
+                                                >
+                                                    <CheckCircle2 className="w-3.5 h-3.5" /> Mark Completed
+                                                </Button>
+
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={updateSubmissionStatusMutation.isPending}
+                                                    onClick={() => {
+                                                        setRemarkPromptSubmission(sub);
+                                                        setNotCompletedRemark(sub.feedback || "");
+                                                    }}
+                                                    className={cn(
+                                                        "h-8 text-xs font-semibold rounded-xl gap-1 border-destructive/30 text-destructive hover:bg-destructive/10",
+                                                        sub.status === "NOT_COMPLETED" && "bg-destructive/15 border-destructive/50"
+                                                    )}
+                                                >
+                                                    <XCircle className="w-3.5 h-3.5" /> Incomplete / Remark
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="pt-3 border-t border-border/70 flex justify-end">
+                        <Button variant="outline" size="sm" onClick={() => setActiveHomeworkSubmissions(null)} className="rounded-xl text-xs">
+                            Done
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Dialog for Remark on Incomplete Homework ────────────────────────── */}
+            <Dialog open={!!remarkPromptSubmission} onOpenChange={(v) => !v && setRemarkPromptSubmission(null)}>
+                <DialogContent className="rounded-3xl p-6 border-border shadow-2xl bg-background max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-base font-bold flex items-center gap-2 text-destructive">
+                            <AlertCircle className="w-4 h-4" /> Mark Homework Incomplete
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Provide an instructional remark for{" "}
+                            <strong>
+                                {remarkPromptSubmission?.student
+                                    ? `${remarkPromptSubmission.student.firstName || ""} ${remarkPromptSubmission.student.lastName || ""}`.trim()
+                                    : "the student"}
+                            </strong>. This remark is mandatory and will be logged in their classroom remarks ledger.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3 pt-2">
+                        <div>
+                            <Label className="text-xs font-semibold">Teacher Remark / Reason <span className="text-destructive">*</span></Label>
+                            <Textarea
+                                value={notCompletedRemark}
+                                onChange={(e) => setNotCompletedRemark(e.target.value)}
+                                placeholder="e.g. Incomplete questions 4 & 5, please resubmit by tomorrow..."
+                                rows={4}
+                                className="mt-1 rounded-xl text-xs resize-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-border/70 flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setRemarkPromptSubmission(null)} className="rounded-xl text-xs">
+                            Cancel
+                        </Button>
+                        <Button
+                            size="sm"
+                            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-xl text-xs font-bold"
+                            disabled={!notCompletedRemark.trim() || updateSubmissionStatusMutation.isPending}
+                            onClick={() => {
+                                if (!remarkPromptSubmission) return;
+                                updateSubmissionStatusMutation.mutate({
+                                    submissionId: remarkPromptSubmission.id,
+                                    status: "NOT_COMPLETED",
+                                    remark: notCompletedRemark.trim(),
+                                });
+                            }}
+                        >
+                            {updateSubmissionStatusMutation.isPending ? "Saving..." : "Confirm Incomplete & Save Remark"}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

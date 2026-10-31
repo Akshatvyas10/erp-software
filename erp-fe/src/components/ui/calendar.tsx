@@ -147,7 +147,7 @@ function Calendar({
             />
           )
         },
-        Dropdown: ({ value, onChange, children, ...props }: any) => {
+        Dropdown: ({ value, onChange, ...props }: any) => {
           const options = props.options
           if (!options) return <></>
           const selectedOption = options.find((O: any) => O.value.toString() === value?.toString())
@@ -156,17 +156,18 @@ function Calendar({
             <Select
               value={value?.toString()}
               onValueChange={(val) => {
-                setTimeout(() => {
-                  onChange?.({
+                if (onChange) {
+                  const syntheticEvent = {
                     target: { value: val },
-                  } as React.ChangeEvent<HTMLSelectElement>)
-                }, 10)
+                  } as React.ChangeEvent<HTMLSelectElement>
+                  onChange(syntheticEvent)
+                }
               }}
             >
-              <SelectTrigger className="h-7 w-fit border-0 shadow-none focus:ring-0 py-0 pl-2 pr-1 font-medium bg-transparent">
+              <SelectTrigger className="h-7 w-fit border-0 shadow-none focus:ring-0 py-0 pl-2 pr-1 font-medium bg-transparent text-xs hover:bg-muted/50 rounded-md">
                 <SelectValue>{selectedOption?.label}</SelectValue>
               </SelectTrigger>
-              <SelectContent position="popper">
+              <SelectContent position="popper" className="max-h-60 overflow-y-auto z-[9999]">
                 {options.map((option: any) => (
                   <SelectItem key={option.value} value={option.value?.toString()} disabled={option.disabled}>
                     {option.label}

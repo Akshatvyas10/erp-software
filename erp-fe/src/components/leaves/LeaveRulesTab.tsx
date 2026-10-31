@@ -1,32 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import api from "@/lib/api";
 import type { LeaveRule } from "@/types/erp";
 import { usePermissions } from "@/store/hooks";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
-import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-} from "@/components/ui/form";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from "@/components/ui/dialog";
 import {
     ShieldCheck,
     UserCheck,
@@ -36,22 +16,14 @@ import {
     CheckCircle2,
     Clock,
     AlertCircle,
-    Info,
-    Loader2,
+    CalendarClock,
+    Flame,
+    Sparkles,
+    Ban,
+    Power,
 } from "lucide-react";
 import { toast } from "sonner";
-
-const ruleFormSchema = z.object({
-    ruleName: z.string().min(3, "Rule name must be at least 3 characters"),
-    casualLeaveCount: z.number().min(0, "Must be >= 0"),
-    sickLeaveCount: z.number().min(0, "Must be >= 0"),
-    earnedLeaveCount: z.number().min(0, "Must be >= 0"),
-    maternityLeaveCount: z.number().min(0, "Must be >= 0"),
-    leaveWithoutPayCount: z.number().min(0, "Must be >= 0"),
-    isActive: z.boolean(),
-});
-
-type RuleFormValues = z.infer<typeof ruleFormSchema>;
+import { LeaveRulePolicyDialog } from "./LeaveRulePolicyDialog";
 
 export function LeaveRulesTab() {
     const { can } = usePermissions();
@@ -87,71 +59,54 @@ export function LeaveRulesTab() {
         },
     });
 
-    // Form definition
-    const form = useForm<RuleFormValues>({
-        resolver: zodResolver(ruleFormSchema),
-        defaultValues: {
-            ruleName: "Teacher Annual Leave Policy",
-            casualLeaveCount: 12,
-            sickLeaveCount: 10,
-            earnedLeaveCount: 15,
-            maternityLeaveCount: 90,
-            leaveWithoutPayCount: 30,
-            isActive: true,
+    // 3. Fetch academic years list for rule assignment
+    const { data: academicYears = [] } = useQuery({
+        queryKey: ["academic-years-all"],
+        queryFn: async () => {
+            try {
+                const { data } = await api.get("/academic-years");
+                const items = data.data?.academicYears || data.data || [];
+                return (items as { id: string; name: string }[]).map((y) => ({
+                    id: y.id,
+                    name: y.name,
+                }));
+            } catch {
+                return [];
+            }
         },
     });
 
-    // Create Mutation
-    const createMutation = useMutation({
-        mutationFn: (values: RuleFormValues) =>
-            api.post("/teacher-leaves/rules", {
-                ...values,
-                academicYearId: activeRuleData?.academicYear?.id,
-            }),
-        onSuccess: () => {
-            toast.success("Leave policy rule created and deployed successfully");
-            setIsCreateOpen(false);
-            form.reset();
+    // Activate / Deactivate mutations
+    const toggleActivateMutation = useMutation({
+        mutationFn: ({ id, activate }: { id: string; activate: boolean }) =>
+            api.patch(`/teacher-leaves/rules/${id}/${activate ? "activate" : "deactivate"}`),
+        onSuccess: (_, vars) => {
+            toast.success(vars.activate ? "Policy rule activated successfully" : "Policy rule deactivated");
             qc.invalidateQueries({ queryKey: ["active-leave-rule"] });
             qc.invalidateQueries({ queryKey: ["leave-rules-list"] });
             qc.invalidateQueries({ queryKey: ["my-leave-balances"] });
         },
-        onError: (err: any) => {
-            toast.error(err.response?.data?.message || "Failed to create leave rule");
-        },
-    });
-
-    // Update Mutation
-    const updateMutation = useMutation({
-        mutationFn: ({ id, values }: { id: string; values: Partial<RuleFormValues> }) =>
-            api.put(`/teacher-leaves/rules/${id}`, values),
-        onSuccess: () => {
-            toast.success("Leave policy rule updated successfully");
-            setEditingRule(null);
-            qc.invalidateQueries({ queryKey: ["active-leave-rule"] });
-            qc.invalidateQueries({ queryKey: ["leave-rules-list"] });
-            qc.invalidateQueries({ queryKey: ["my-leave-balances"] });
-        },
-        onError: (err: any) => {
-            toast.error(err.response?.data?.message || "Failed to update leave rule");
+        onError: (err: unknown) => {
+            const apiErr = err as { response?: { data?: { message?: string } } };
+            toast.error(apiErr.response?.data?.message || "Action failed");
         },
     });
 
     const activeRule = activeRuleData?.rule;
     const academicYear = activeRuleData?.academicYear;
 
+    const openCreateModal = () => {
+        setEditingRule(null);
+        setIsCreateOpen(true);
+    };
+
     const openEditModal = (rule: LeaveRule) => {
         setEditingRule(rule);
-        form.reset({
-            ruleName: rule.ruleName,
-            casualLeaveCount: Number(rule.casualLeaveCount),
-            sickLeaveCount: Number(rule.sickLeaveCount),
-            earnedLeaveCount: Number(rule.earnedLeaveCount),
-            maternityLeaveCount: Number(rule.maternityLeaveCount),
-            leaveWithoutPayCount: Number(rule.leaveWithoutPayCount),
-            isActive: rule.isActive,
-        });
+        setIsCreateOpen(true);
     };
+
+    const activeSandwich = activeRule?.sandwichRule;
+    const activeConfigs = activeRule?.leaveTypeConfigs;
 
     return (
         <div className="space-y-6">
@@ -162,36 +117,25 @@ export function LeaveRulesTab() {
                         <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                             <ShieldCheck className="h-4 w-4" />
                         </div>
-                        <h2 className="text-lg font-bold text-foreground">Teacher Leave Policy & Allocations</h2>
+                        <h2 className="text-lg font-bold text-foreground">Dynamic Leave Rules Engine</h2>
                         {academicYear && (
                             <Badge variant="outline" className="border-primary/30 text-primary bg-primary/5 font-semibold text-xs ml-2">
-                                Year: {academicYear.name}
+                                Session: {academicYear.name}
                             </Badge>
                         )}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                        Define annual statutory and discretionary leave day allocations. Active policy initializes teacher leave balances.
+                        Configure monthly leave accruals (e.g. 1 CL/mo), sandwich enforcement, future advances, and carry-forward quotas without hardcoding.
                     </p>
                 </div>
 
                 {canCreate && (
                     <Button
                         className="rounded-xl font-semibold gap-2 shadow-sm"
-                        onClick={() => {
-                            form.reset({
-                                ruleName: `Academic Policy (${academicYear?.name || "Current"})`,
-                                casualLeaveCount: 12,
-                                sickLeaveCount: 10,
-                                earnedLeaveCount: 15,
-                                maternityLeaveCount: 90,
-                                leaveWithoutPayCount: 30,
-                                isActive: true,
-                            });
-                            setIsCreateOpen(true);
-                        }}
+                        onClick={openCreateModal}
                     >
                         <Plus className="h-4 w-4" />
-                        New Leave Rule
+                        New Policy Rule
                     </Button>
                 )}
             </div>
@@ -214,17 +158,20 @@ export function LeaveRulesTab() {
                                     {activeRule.ruleName}
                                 </span>
                                 <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-600 text-white">
-                                    ACTIVE POLICY
+                                    ACTIVE ENGINE v{activeRule.version || 1}
                                 </span>
+                                <Badge variant="outline" className="ml-2 text-[10px] border-emerald-600/40 text-emerald-700 dark:text-emerald-300">
+                                    Scope: {activeRule.appliesTo || "ALL"}
+                                </Badge>
                             </div>
                         </div>
 
-                        {/* Audit Details */}
+                        {/* Audit Details & Actions */}
                         <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
                             <div className="flex items-center gap-1.5">
                                 <UserCheck className="h-3.5 w-3.5 text-primary" />
                                 <span>
-                                    Created by <strong className="text-foreground">{activeRule.createdByName || activeRule.creator?.firstName || "System Admin"}</strong> on {new Date(activeRule.createdAt).toLocaleDateString()}
+                                    By <strong className="text-foreground">{activeRule.createdByName || activeRule.creator?.firstName || "Admin"}</strong> on {new Date(activeRule.createdAt).toLocaleDateString()}
                                 </span>
                             </div>
 
@@ -244,10 +191,53 @@ export function LeaveRulesTab() {
                                     className="h-7 text-xs rounded-lg gap-1 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                                     onClick={() => openEditModal(activeRule)}
                                 >
-                                    <Edit3 className="h-3 w-3" /> Edit Quotas
+                                    <Edit3 className="h-3 w-3" /> Edit Engine
                                 </Button>
                             )}
                         </div>
+                    </div>
+
+                    {/* Policy Highlights Pill Row: Monthly Allocations & Sandwich Mode */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <Card className="p-3.5 rounded-xl border-border/60 bg-card/60 flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600">
+                                <CalendarClock className="h-4 w-4" />
+                            </div>
+                            <div className="text-xs">
+                                <div className="font-bold text-foreground">Monthly Accrual Mode</div>
+                                <div className="text-muted-foreground text-[11px]">
+                                    CL credits {activeConfigs?.CL?.monthlyCreditCount ?? 1} day/month (max {activeConfigs?.CL?.yearlyTotalQuota ?? 12}/yr)
+                                </div>
+                            </div>
+                        </Card>
+
+                        <Card className="p-3.5 rounded-xl border-border/60 bg-card/60 flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600">
+                                <Flame className="h-4 w-4" />
+                            </div>
+                            <div className="text-xs">
+                                <div className="font-bold text-foreground">Sandwich Rule Mode: {activeSandwich?.mode || "WEEKENDS"}</div>
+                                <div className="text-muted-foreground text-[11px]">
+                                    {activeSandwich?.mode === "NONE"
+                                        ? "No weekends/holidays counted as leaves"
+                                        : "Enclosed Saturdays/Sundays added to total leaves"}
+                                </div>
+                            </div>
+                        </Card>
+
+                        <Card className="p-3.5 rounded-xl border-border/60 bg-card/60 flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
+                                <Sparkles className="h-4 w-4" />
+                            </div>
+                            <div className="text-xs">
+                                <div className="font-bold text-foreground">Advance Leave Allowance</div>
+                                <div className="text-muted-foreground text-[11px]">
+                                    {activeConfigs?.CL?.allowAdvanceFromFutureMonths
+                                        ? `Allowed up to ${activeConfigs?.CL?.advanceLimit ?? 1} day from next month`
+                                        : "Disabled"}
+                                </div>
+                            </div>
+                        </Card>
                     </div>
 
                     {/* Quota Counts Cards with Paid / Unpaid Type Badges */}
@@ -262,9 +252,9 @@ export function LeaveRulesTab() {
                                 <span className="text-xs font-semibold text-muted-foreground">days/yr</span>
                             </div>
                             <div className="mt-2.5 pt-2 border-t border-border/40 flex items-center justify-between">
-                                <span className="text-[11px] text-muted-foreground/80">Personal</span>
+                                <span className="text-[11px] text-muted-foreground/80">{activeConfigs?.CL?.allocationMode || "MONTHLY"}</span>
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                                    Paid Leave
+                                    Paid
                                 </span>
                             </div>
                         </Card>
@@ -279,9 +269,9 @@ export function LeaveRulesTab() {
                                 <span className="text-xs font-semibold text-muted-foreground">days/yr</span>
                             </div>
                             <div className="mt-2.5 pt-2 border-t border-border/40 flex items-center justify-between">
-                                <span className="text-[11px] text-muted-foreground/80">Medical</span>
+                                <span className="text-[11px] text-muted-foreground/80">{activeConfigs?.SL?.allocationMode || "YEARLY"}</span>
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                                    Paid Leave
+                                    Paid
                                 </span>
                             </div>
                         </Card>
@@ -296,9 +286,9 @@ export function LeaveRulesTab() {
                                 <span className="text-xs font-semibold text-muted-foreground">days/yr</span>
                             </div>
                             <div className="mt-2.5 pt-2 border-t border-border/40 flex items-center justify-between">
-                                <span className="text-[11px] text-muted-foreground/80">Privilege</span>
+                                <span className="text-[11px] text-muted-foreground/80">Carry Fwd: {activeConfigs?.EL?.carryForwardMaxLimit ?? 30}d</span>
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                                    Paid Leave
+                                    Paid
                                 </span>
                             </div>
                         </Card>
@@ -315,7 +305,7 @@ export function LeaveRulesTab() {
                             <div className="mt-2.5 pt-2 border-t border-border/40 flex items-center justify-between">
                                 <span className="text-[11px] text-muted-foreground/80">Statutory</span>
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                                    Paid Leave
+                                    Paid
                                 </span>
                             </div>
                         </Card>
@@ -332,7 +322,7 @@ export function LeaveRulesTab() {
                             <div className="mt-2.5 pt-2 border-t border-border/40 flex items-center justify-between">
                                 <span className="text-[11px] text-muted-foreground/80">Deduction</span>
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-                                    Unpaid Leave
+                                    Unpaid
                                 </span>
                             </div>
                         </Card>
@@ -352,7 +342,7 @@ export function LeaveRulesTab() {
             <div className="space-y-3 pt-2">
                 <div className="flex items-center gap-2">
                     <History className="h-4 w-4 text-primary" />
-                    <h3 className="text-sm font-bold text-foreground">Rule History & Revisions</h3>
+                    <h3 className="text-sm font-bold text-foreground">Rule History & Version Revisions</h3>
                 </div>
 
                 <Card className="border-border/60 rounded-2xl overflow-hidden shadow-xs">
@@ -372,9 +362,10 @@ export function LeaveRulesTab() {
                                     <tr>
                                         <th className="py-3 px-4">Policy Name</th>
                                         <th className="py-3 px-4">Status</th>
+                                        <th className="py-3 px-4">Scope</th>
                                         <th className="py-3 px-4">Quotas (CL / SL / EL / ML / LWP)</th>
+                                        <th className="py-3 px-4">Sandwich</th>
                                         <th className="py-3 px-4">Created By</th>
-                                        <th className="py-3 px-4">Last Modified</th>
                                         <th className="py-3 px-4 text-right">Actions</th>
                                     </tr>
                                 </thead>
@@ -382,13 +373,20 @@ export function LeaveRulesTab() {
                                     {(rulesHistory || []).map((r) => (
                                         <tr key={r.id} className="hover:bg-muted/20 transition-colors">
                                             <td className="py-3.5 px-4 font-semibold">
-                                                {r.ruleName}
+                                                <div className="flex items-center gap-2">
+                                                    <span>{r.ruleName}</span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">v{r.version || 1}</span>
+                                                </div>
                                             </td>
                                             <td className="py-3.5 px-4">
-                                                {r.isActive ? (
+                                                {r.status === "ACTIVE" || r.isActive ? (
                                                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
                                                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
                                                         Active
+                                                    </span>
+                                                ) : r.status === "DRAFT" ? (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                                        Draft
                                                     </span>
                                                 ) : (
                                                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-muted text-muted-foreground">
@@ -396,19 +394,21 @@ export function LeaveRulesTab() {
                                                     </span>
                                                 )}
                                             </td>
+                                            <td className="py-3.5 px-4">
+                                                <Badge variant="outline" className="text-[10px]">
+                                                    {r.appliesTo || "ALL"}
+                                                </Badge>
+                                            </td>
                                             <td className="py-3.5 px-4 font-mono font-medium text-xs">
                                                 {Number(r.casualLeaveCount)} / {Number(r.sickLeaveCount)} / {Number(r.earnedLeaveCount)} / {Number(r.maternityLeaveCount)} / {Number(r.leaveWithoutPayCount)}
+                                            </td>
+                                            <td className="py-3.5 px-4 text-[11px] font-medium text-muted-foreground">
+                                                {r.sandwichRule?.mode || "WEEKENDS"}
                                             </td>
                                             <td className="py-3.5 px-4 text-muted-foreground">
                                                 <div className="flex flex-col">
                                                     <span className="font-semibold text-foreground">{r.createdByName || r.creator?.firstName || "Admin"}</span>
                                                     <span className="text-[10px]">{new Date(r.createdAt).toLocaleDateString()}</span>
-                                                </div>
-                                            </td>
-                                            <td className="py-3.5 px-4 text-muted-foreground">
-                                                <div className="flex flex-col">
-                                                    <span className="font-medium text-foreground">{r.updatedByName || "—"}</span>
-                                                    <span className="text-[10px]">{new Date(r.updatedAt).toLocaleDateString()}</span>
                                                 </div>
                                             </td>
                                             <td className="py-3.5 px-4 text-right">
@@ -417,11 +417,24 @@ export function LeaveRulesTab() {
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
-                                                            className="h-7 text-[11px] rounded-lg border-primary/30 text-primary hover:bg-primary/10"
-                                                            onClick={() => updateMutation.mutate({ id: r.id, values: { isActive: true } })}
-                                                            disabled={updateMutation.isPending}
+                                                            className="h-7 text-[11px] rounded-lg border-primary/30 text-primary hover:bg-primary/10 gap-1"
+                                                            onClick={() => toggleActivateMutation.mutate({ id: r.id, activate: true })}
+                                                            disabled={toggleActivateMutation.isPending}
                                                         >
-                                                            Set Active
+                                                            <Power className="h-3 w-3" />
+                                                            Activate
+                                                        </Button>
+                                                    )}
+                                                    {r.isActive && canUpdate && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-7 text-[11px] rounded-lg text-rose-600 hover:bg-rose-500/10 gap-1"
+                                                            onClick={() => toggleActivateMutation.mutate({ id: r.id, activate: false })}
+                                                            disabled={toggleActivateMutation.isPending}
+                                                        >
+                                                            <Ban className="h-3 w-3" />
+                                                            Deactivate
                                                         </Button>
                                                     )}
                                                     {canUpdate && (
@@ -445,222 +458,23 @@ export function LeaveRulesTab() {
                 </Card>
             </div>
 
-            {/* Create / Edit Rule Dialog */}
-            {(isCreateOpen || editingRule) && (
-                <Dialog
-                    open
-                    onOpenChange={(open) => {
-                        if (!open) {
-                            setIsCreateOpen(false);
-                            setEditingRule(null);
-                        }
-                    }}
-                >
-                    <DialogContent className="max-w-lg rounded-2xl border-border/80 p-0 overflow-hidden shadow-2xl">
-                        <DialogHeader className="p-5 border-b border-border/60 bg-muted/20">
-                            <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
-                                <ShieldCheck className="h-5 w-5 text-primary" />
-                                {editingRule ? "Edit Leave Policy Rule" : "Create New Leave Policy"}
-                            </DialogTitle>
-                        </DialogHeader>
-
-                        <Form {...form}>
-                            <form
-                                onSubmit={form.handleSubmit((vals) => {
-                                    if (editingRule) {
-                                        updateMutation.mutate({ id: editingRule.id, values: vals });
-                                    } else {
-                                        createMutation.mutate(vals);
-                                    }
-                                })}
-                                className="space-y-4 p-5"
-                            >
-                                <FormField
-                                    control={form.control}
-                                    name="ruleName"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs font-bold">Policy Title</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    {...field}
-                                                    placeholder="e.g. Standard Teacher Leave Policy 2026-27"
-                                                    className="h-10 rounded-xl bg-muted/40 text-sm"
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                    <FormField
-                                        control={form.control}
-                                        name="casualLeaveCount"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs font-semibold flex items-center justify-between">
-                                                    <span>Casual (CL)</span>
-                                                    <span className="text-[10px] text-emerald-600 font-bold">Paid</span>
-                                                </FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="number"
-                                                        step="0.5"
-                                                        value={field.value}
-                                                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                                                        className="h-10 rounded-xl bg-muted/40 text-sm"
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="sickLeaveCount"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs font-semibold flex items-center justify-between">
-                                                    <span>Sick (SL)</span>
-                                                    <span className="text-[10px] text-emerald-600 font-bold">Paid</span>
-                                                </FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="number"
-                                                        step="0.5"
-                                                        value={field.value}
-                                                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                                                        className="h-10 rounded-xl bg-muted/40 text-sm"
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="earnedLeaveCount"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs font-semibold flex items-center justify-between">
-                                                    <span>Earned (EL)</span>
-                                                    <span className="text-[10px] text-emerald-600 font-bold">Paid</span>
-                                                </FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="number"
-                                                        step="0.5"
-                                                        value={field.value}
-                                                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                                                        className="h-10 rounded-xl bg-muted/40 text-sm"
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="maternityLeaveCount"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs font-semibold flex items-center justify-between">
-                                                    <span>Maternity (ML)</span>
-                                                    <span className="text-[10px] text-emerald-600 font-bold">Paid</span>
-                                                </FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="number"
-                                                        step="1"
-                                                        value={field.value}
-                                                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                                                        className="h-10 rounded-xl bg-muted/40 text-sm"
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="leaveWithoutPayCount"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs font-semibold flex items-center justify-between">
-                                                    <span>LWP Max</span>
-                                                    <span className="text-[10px] text-amber-600 font-bold">Unpaid</span>
-                                                </FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="number"
-                                                        step="1"
-                                                        value={field.value}
-                                                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                                                        className="h-10 rounded-xl bg-muted/40 text-sm"
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="isActive"
-                                        render={({ field }) => (
-                                            <FormItem className="flex flex-col justify-end">
-                                                <div className="flex items-center gap-2 h-10 px-3 bg-muted/30 border border-border/60 rounded-xl">
-                                                    <Switch
-                                                        checked={field.value}
-                                                        onCheckedChange={field.onChange}
-                                                    />
-                                                    <span className="text-xs font-semibold">Set as Active</span>
-                                                </div>
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-
-                                <div className="p-3 rounded-xl bg-muted/30 border border-border/50 text-[11px] text-muted-foreground flex items-start gap-2">
-                                    <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                                    <span>
-                                        Audit stamp will record your username and timestamp on submission. Setting this rule to active will supersede previous rules for the academic session.
-                                    </span>
-                                </div>
-
-                                <DialogFooter className="pt-2">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        className="rounded-xl h-10 px-4"
-                                        onClick={() => {
-                                            setIsCreateOpen(false);
-                                            setEditingRule(null);
-                                        }}
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button
-                                        type="submit"
-                                        className="rounded-xl h-10 px-5 font-semibold"
-                                        disabled={createMutation.isPending || updateMutation.isPending}
-                                    >
-                                        {(createMutation.isPending || updateMutation.isPending) && (
-                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        )}
-                                        {editingRule ? "Save Rule Changes" : "Deploy Rule"}
-                                    </Button>
-                                </DialogFooter>
-                            </form>
-                        </Form>
-                    </DialogContent>
-                </Dialog>
-            )}
+            {/* Enterprise Dynamic Leave Rule Policy Dialog */}
+            <LeaveRulePolicyDialog
+                open={isCreateOpen || Boolean(editingRule)}
+                onOpenChange={(open) => {
+                    setIsCreateOpen(open);
+                    if (!open) {
+                        setEditingRule(null);
+                    }
+                }}
+                policyToEdit={editingRule}
+                academicYears={academicYears}
+                defaultAcademicYearId={academicYear?.id}
+                onSuccess={() => {
+                    setIsCreateOpen(false);
+                    setEditingRule(null);
+                }}
+            />
         </div>
     );
 }

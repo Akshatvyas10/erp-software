@@ -7,6 +7,7 @@ import { success, error } from '../utils/apiResponse.js';
 import logger from '../utils/logger.js';
 import { sendTeacherEnrollmentWelcomeEmail } from '../services/email.service.js';
 import { buildTeacherPhotoUrl } from '../middlewares/uploadMiddleware.js';
+import { TeacherWorkloadService } from '../services/teacherWorkload.service.js';
 
 // All teacher-owned fields allowed on create / update
 const TEACHER_FIELDS = [
@@ -461,5 +462,32 @@ const deleteTeacher = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
-export { listTeachers, getMyTeacherProfile, getTeacher, createTeacher, updateTeacher, deleteTeacher };
+/** GET /api/teachers/workload (matrix for all teachers) */
+const getWorkloadMatrix = async (req, res, next) => {
+    try {
+        const { department, search, weekStart } = req.query;
+        const result = await TeacherWorkloadService.getWorkloadMatrix({ department, search, weekStart });
+        return success(res, result);
+    } catch (err) { next(err); }
+};
+
+/** GET /api/teachers/:id/workload (workload breakdown for a specific teacher) */
+const getTeacherWorkload = async (req, res, next) => {
+    try {
+        const { weekStart } = req.query;
+        const result = await TeacherWorkloadService.getTeacherWorkload(req.params.id, { weekStart });
+        return success(res, { workload: result });
+    } catch (err) { next(err); }
+};
+
+export {
+    listTeachers,
+    getMyTeacherProfile,
+    getTeacher,
+    createTeacher,
+    updateTeacher,
+    deleteTeacher,
+    getWorkloadMatrix,
+    getTeacherWorkload,
+};
 

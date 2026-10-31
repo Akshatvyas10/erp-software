@@ -1,4 +1,9 @@
 import 'dotenv/config';
+import { validateEnv } from './config/envValidator.js';
+
+// Validate environment variables before initializing any service
+validateEnv();
+
 import app from './app.js';
 import db from './models/index.js';
 const { sequelize } = db;

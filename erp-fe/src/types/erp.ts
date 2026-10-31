@@ -130,6 +130,70 @@ export interface Teacher {
     canViewSensitive?: boolean;
 }
 
+export type WorkloadStatus = 'UNDERLOADED' | 'BALANCED' | 'OVERLOADED';
+
+export interface WorkloadPeriodSlot {
+    slotId: string;
+    periodName: string;
+    dayOfWeek: DayOfWeek;
+    startTime: string;
+    endTime: string;
+    subjectId?: string;
+    subjectName: string;
+    subjectCode?: string;
+    classroomId?: string;
+    classroomName: string;
+    section?: string;
+    roomNumber?: string | null;
+    buildingBlock?: string | null;
+    type: 'REGULAR' | 'SUBSTITUTE';
+    proxyDate?: string;
+    reason?: string | null;
+}
+
+export interface TeacherWorkload {
+    id: string;
+    teacherId: string;
+    employeeNumber?: string;
+    name: string;
+    email: string | null;
+    department: string;
+    designation: string;
+    employmentType: string;
+    totalPeriods: number;
+    maxPeriodsPerWeek: number;
+    freePeriods: number;
+    percentage: number;
+    loadStatus: WorkloadStatus;
+    dailyCounts: {
+        Monday: number;
+        Tuesday: number;
+        Wednesday: number;
+        Thursday: number;
+        Friday: number;
+        Saturday: number;
+    };
+    dailyDistribution: {
+        Monday: WorkloadPeriodSlot[];
+        Tuesday: WorkloadPeriodSlot[];
+        Wednesday: WorkloadPeriodSlot[];
+        Thursday: WorkloadPeriodSlot[];
+        Friday: WorkloadPeriodSlot[];
+        Saturday: WorkloadPeriodSlot[];
+    };
+    subjectsTaught: Array<{ id: string; name: string; code: string }>;
+    classroomsTaught: Array<{ id: string; name: string; section: string }>;
+}
+
+export interface TeacherWorkloadSummary {
+    totalTeachers: number;
+    overloadedCount: number;
+    balancedCount: number;
+    underloadedCount: number;
+    maxPeriodsPerWeek: number;
+    averagePeriodsPerTeacher: number;
+}
+
 
 export interface Pagination {
     total: number;
@@ -819,16 +883,84 @@ export interface TeacherLeaveRequest {
     };
 }
 
+export interface LeaveTypePolicyConfig {
+    enabled: boolean;
+    allocationMode: 'MONTHLY' | 'YEARLY';
+    monthlyCreditCount: number;
+    yearlyTotalQuota: number;
+    maxPerRequest: number;
+    maxPerMonth: number;
+    maxPerYear: number;
+    requiresAttachment: boolean;
+    isPaid: boolean;
+    allowNegativeBalance: boolean;
+    allowAdvanceFromFutureMonths: boolean;
+    advanceLimit: number;
+    carryForwardEnabled: boolean;
+    carryForwardMaxLimit: number;
+    expiryMonths: number | null;
+}
+
+export interface SandwichRuleConfig {
+    mode: 'NONE' | 'WEEKENDS' | 'HOLIDAYS' | 'BOTH';
+    includeSundays: boolean;
+    includeSaturdays: boolean;
+    includeCalendarHolidays: boolean;
+    applyOnFridayMondayLeaves: boolean;
+    applyOnPrePostHolidayLeaves: boolean;
+}
+
+export interface LeaveRestrictionsConfig {
+    excludeSundays: boolean;
+    excludeHolidays: boolean;
+    allowHalfDay: boolean;
+    minNoticeDays: number;
+    maxConsecutiveDays: number;
+    blockIfNoActiveRule: boolean;
+    autoDeductOnApprovalOnly: boolean;
+    pendingLeaveReservesBalance: boolean;
+}
+
+export interface DynamicQuotaBreakdown {
+    leaveTypeCode: string;
+    yearlyTotalQuota: number;
+    allocationMode: 'MONTHLY' | 'YEARLY';
+    monthlyCreditCount: number;
+    elapsedAcademicMonths: number;
+    accruedToDate: number;
+    carriedOverEligible: number;
+    currentMonthCredit: number;
+    totalEligibleToDate: number;
+    consumedDays: number;
+    standardAvailable: number;
+    advanceAllowed: boolean;
+    advanceLimit: number;
+    advanceBorrowed: number;
+    advanceAvailable: number;
+    effectiveAvailable: number;
+    pendingRequestsReserve: number;
+}
+
 export interface LeaveRule {
     id: string;
     academicYearId: string;
     ruleName: string;
+    status: 'DRAFT' | 'ACTIVE' | 'INACTIVE';
+    version: number;
+    appliesTo: 'ALL' | 'DEPARTMENT' | 'EMPLOYMENT_TYPE';
+    targetDepartments?: string[];
+    targetEmploymentTypes?: string[];
+    effectiveFrom?: string | null;
+    effectiveTo?: string | null;
     casualLeaveCount: number | string;
     sickLeaveCount: number | string;
     earnedLeaveCount: number | string;
     maternityLeaveCount: number | string;
     leaveWithoutPayCount: number | string;
     isActive: boolean;
+    leaveTypeConfigs?: Record<string, LeaveTypePolicyConfig>;
+    sandwichRule?: SandwichRuleConfig;
+    restrictions?: LeaveRestrictionsConfig;
     createdBy?: string | null;
     createdByName?: string | null;
     updatedBy?: string | null;
@@ -854,6 +986,7 @@ export interface LeaveRule {
         email?: string;
     };
 }
+
 
 
 

@@ -124,9 +124,59 @@ import logger from '../utils/logger.js';
             logger.info('✓ promotion_logs');
         }
 
-        if (db.AcademicYear) {
-            await db.AcademicYear.sync({ force: false, alter: true });
-            logger.info('✓ academic_years');
+        if (db.BuildingBlock) {
+            await db.BuildingBlock.sync({ force: false, alter: true });
+            logger.info('✓ building_blocks');
+        }
+
+        if (db.ClassroomRoom) {
+            await db.ClassroomRoom.sync({ force: false, alter: true });
+            logger.info('✓ classroom_rooms');
+        }
+
+        if (db.SchoolConfig) {
+            await db.SchoolConfig.sync({ force: false, alter: true });
+            logger.info('✓ school_configs');
+        }
+
+        if (db.TestExamConfig) {
+            await db.TestExamConfig.sync({ force: false, alter: true });
+            logger.info('✓ test_exam_configs');
+        }
+
+        if (db.TimetableSubstitute) {
+            await db.TimetableSubstitute.sync({ force: false, alter: true });
+            logger.info('✓ timetable_substitutes');
+        }
+
+        if (db.LeaveType) {
+            await db.LeaveType.sync({ force: false, alter: true });
+            logger.info('✓ leave_types');
+        }
+
+        if (db.LeaveRule) {
+            await db.LeaveRule.sync({ force: false, alter: true });
+            logger.info('✓ leave_rules');
+        }
+
+        if (db.TeacherLeaveBalance) {
+            await db.TeacherLeaveBalance.sync({ force: false, alter: true });
+            logger.info('✓ teacher_leave_balances');
+        }
+
+        if (db.TeacherLeaveRequest) {
+            await db.TeacherLeaveRequest.sync({ force: false, alter: true });
+            logger.info('✓ teacher_leave_requests');
+        }
+
+        if (db.TeacherLeaveAccrual) {
+            await db.TeacherLeaveAccrual.sync({ force: false, alter: true });
+            logger.info('✓ teacher_leave_accruals');
+        }
+
+        if (db.StudentLeaveRequest) {
+            await db.StudentLeaveRequest.sync({ force: false, alter: true });
+            logger.info('✓ student_leave_requests');
         }
 
         logger.info('All tables synchronized with Neon DB.');

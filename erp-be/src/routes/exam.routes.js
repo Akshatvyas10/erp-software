@@ -9,6 +9,7 @@ router.use(authenticate);
 
 router.get('/', examController.listExams);
 router.get('/schedules', examController.listSchedules);
+router.get('/schedules/:id/results-matrix', examController.getScheduleMatrix);
 router.get('/:id/results', examController.getResults);
 
 // Only admins and teachers can manage exams and results

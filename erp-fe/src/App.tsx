@@ -15,9 +15,11 @@ import RequestAccess from "./pages/RequestAccess";
 // Guards
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import PublicRoute from "./components/auth/PublicRoute";
+import PermissionRoute from "./components/auth/PermissionRoute";
 
-// Layout
+// Layouts
 import DashboardLayout from "./layouts/DashboardLayout";
+import StudentPortalLayout from "./layouts/StudentPortalLayout";
 
 // Admissions Public Form (eagerly loaded)
 import { PublicAdmissionFormPage } from "./features/admissions/pages/PublicAdmissionFormPage";
@@ -40,6 +42,16 @@ const HomeworkPage = lazy(() => import("./pages/dashboard/HomeworkPage"));
 const HomeworkDetailsPage = lazy(() => import("./pages/dashboard/HomeworkDetailsPage"));
 const CalendarPage = lazy(() => import("./pages/dashboard/CalendarPage"));
 const TeacherLeavesHubPage = lazy(() => import("./pages/dashboard/leaves/TeacherLeavesHubPage"));
+const StudentLeavesApprovalPage = lazy(() => import("./pages/dashboard/StudentLeavesApprovalPage"));
+const SalaryHubPage = lazy(() => import("./pages/dashboard/SalaryHubPage"));
+
+// Student / Parent Portal Pages
+const StudentDashboard = lazy(() => import("./pages/portal/StudentDashboard"));
+const StudentTimetablePage = lazy(() => import("./pages/portal/StudentTimetablePage"));
+const StudentAttendancePage = lazy(() => import("./pages/portal/StudentAttendancePage"));
+const StudentLeavesPage = lazy(() => import("./pages/portal/StudentLeavesPage"));
+const StudentHomeworkPage = lazy(() => import("./pages/portal/StudentHomeworkPage"));
+const StudentReportCardPage = lazy(() => import("./pages/portal/StudentReportCardPage"));
 
 // Admissions & Config Lazy Pages
 const ApplicationsListPage = lazy(() =>
@@ -291,40 +303,126 @@ function App() {
                         <Route
                             path="/dashboard/leaves"
                             element={
-                                <Suspense fallback={<PageLoader />}>
-                                    <TeacherLeavesHubPage />
-                                </Suspense>
+                                <PermissionRoute resource="teacher_leaves" action="read">
+                                    <Suspense fallback={<PageLoader />}>
+                                        <TeacherLeavesHubPage />
+                                    </Suspense>
+                                </PermissionRoute>
                             }
                         />
                         <Route
                             path="/dashboard/teachers/leaves"
                             element={
-                                <Suspense fallback={<PageLoader />}>
-                                    <TeacherLeavesHubPage />
-                                </Suspense>
+                                <PermissionRoute resource="teacher_leaves" action="read">
+                                    <Suspense fallback={<PageLoader />}>
+                                        <TeacherLeavesHubPage />
+                                    </Suspense>
+                                </PermissionRoute>
                             }
                         />
                         <Route
                             path="/dashboard/hr/leave-rules"
                             element={
-                                <Suspense fallback={<PageLoader />}>
-                                    <TeacherLeavesHubPage />
-                                </Suspense>
+                                <PermissionRoute resource="teacher_leaves" action="read">
+                                    <Suspense fallback={<PageLoader />}>
+                                        <TeacherLeavesHubPage />
+                                    </Suspense>
+                                </PermissionRoute>
                             }
                         />
                         <Route
                             path="/dashboard/leaves/my"
                             element={
-                                <Suspense fallback={<PageLoader />}>
-                                    <TeacherLeavesHubPage />
-                                </Suspense>
+                                <PermissionRoute resource="teacher_leaves" action="read">
+                                    <Suspense fallback={<PageLoader />}>
+                                        <TeacherLeavesHubPage />
+                                    </Suspense>
+                                </PermissionRoute>
                             }
                         />
                         <Route
                             path="/dashboard/leaves/approvals"
                             element={
+                                <PermissionRoute resource="teacher_leaves" action="update">
+                                    <Suspense fallback={<PageLoader />}>
+                                        <TeacherLeavesHubPage />
+                                    </Suspense>
+                                </PermissionRoute>
+                            }
+                        />
+
+                        {/* Student Leaves Faculty Review */}
+                        <Route
+                            path="/dashboard/student-leaves"
+                            element={
+                                <PermissionRoute resource="student_leaves" action="update">
+                                    <Suspense fallback={<PageLoader />}>
+                                        <StudentLeavesApprovalPage />
+                                    </Suspense>
+                                </PermissionRoute>
+                            }
+                        />
+
+                        {/* Payroll / Salary Management */}
+                        <Route
+                            path="/dashboard/salary"
+                            element={
+                                <PermissionRoute resource="teachers" action="manage">
+                                    <Suspense fallback={<PageLoader />}>
+                                        <SalaryHubPage />
+                                    </Suspense>
+                                </PermissionRoute>
+                            }
+                        />
+                    </Route>
+
+                    {/* Student & Parent Portal Layout Group */}
+                    <Route element={<StudentPortalLayout />}>
+                        <Route
+                            path="/portal"
+                            element={
                                 <Suspense fallback={<PageLoader />}>
-                                    <TeacherLeavesHubPage />
+                                    <StudentDashboard />
+                                </Suspense>
+                            }
+                        />
+                        <Route
+                            path="/portal/timetable"
+                            element={
+                                <Suspense fallback={<PageLoader />}>
+                                    <StudentTimetablePage />
+                                </Suspense>
+                            }
+                        />
+                        <Route
+                            path="/portal/attendance"
+                            element={
+                                <Suspense fallback={<PageLoader />}>
+                                    <StudentAttendancePage />
+                                </Suspense>
+                            }
+                        />
+                        <Route
+                            path="/portal/leaves"
+                            element={
+                                <Suspense fallback={<PageLoader />}>
+                                    <StudentLeavesPage />
+                                </Suspense>
+                            }
+                        />
+                        <Route
+                            path="/portal/homework"
+                            element={
+                                <Suspense fallback={<PageLoader />}>
+                                    <StudentHomeworkPage />
+                                </Suspense>
+                            }
+                        />
+                        <Route
+                            path="/portal/report-cards"
+                            element={
+                                <Suspense fallback={<PageLoader />}>
+                                    <StudentReportCardPage />
                                 </Suspense>
                             }
                         />

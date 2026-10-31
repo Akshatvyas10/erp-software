@@ -93,8 +93,9 @@ export default function MyLeavesPage() {
             qc.invalidateQueries({ queryKey: ["my-leave-requests"] });
             qc.invalidateQueries({ queryKey: ["my-leave-balances"] });
         },
-        onError: (err: any) => {
-            toast.error(err.response?.data?.message || "Failed to submit leave application");
+        onError: (err: unknown) => {
+            const apiErr = err as { response?: { data?: { message?: string } } };
+            toast.error(apiErr.response?.data?.message || "Failed to submit leave application");
         },
     });
 
@@ -107,8 +108,9 @@ export default function MyLeavesPage() {
             qc.invalidateQueries({ queryKey: ["my-leave-requests"] });
             qc.invalidateQueries({ queryKey: ["my-leave-balances"] });
         },
-        onError: (err: any) => {
-            toast.error(err.response?.data?.message || "Failed to cancel leave application");
+        onError: (err: unknown) => {
+            const apiErr = err as { response?: { data?: { message?: string } } };
+            toast.error(apiErr.response?.data?.message || "Failed to cancel leave application");
         },
     });
 

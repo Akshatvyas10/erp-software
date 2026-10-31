@@ -25,7 +25,7 @@ export default function TeacherLeavesHubPage() {
     const canViewRules = can("leave_rules", "read") || can("leave_rules", "manage");
 
     // Collect only the tabs the user is permitted to see
-    const allowedTabs: { id: string; label: string; icon: any }[] = [];
+    const allowedTabs: { id: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [];
     if (canViewMyLeaves) {
         allowedTabs.push({ id: "my-leaves", label: "My Leaves & Apply", icon: CalendarCheck });
     }

@@ -6,6 +6,8 @@ const { Role, Permission, User, PermissionAuditLog } = db;
 import { success, error } from '../utils/apiResponse.js';
 import permissionEmitter from '../events/permissionEmitter.js';
 
+import { isProtectedRole } from '../constants/roles.js';
+
 // ─── shared include helpers ───────────────────────────────────────────────────
 
 /** Include permissions on a role */
@@ -167,6 +169,17 @@ const updateRole = async (req, res, next) => {
         if (!role) return error(res, 'Role not found', 404);
 
         const { name, description, isActive, permissionIds } = req.body;
+
+        // Prevent renaming or disabling protected system roles
+        if (isProtectedRole(role.name)) {
+            if (name && name.toLowerCase().trim() !== role.name.toLowerCase().trim()) {
+                return error(res, `System role '${role.name}' cannot be renamed.`, 403);
+            }
+            if (isActive === false) {
+                return error(res, `System role '${role.name}' cannot be disabled.`, 403);
+            }
+        }
+
         await role.update({ name, description, isActive });
 
         if (permissionIds !== undefined) {
@@ -205,6 +218,11 @@ const deleteRole = async (req, res, next) => {
     try {
         const role = await Role.findByPk(req.params.id);
         if (!role) return error(res, 'Role not found', 404);
+
+        // Security Check: Block deletion of critical protected system roles
+        if (isProtectedRole(role.name)) {
+            return error(res, `Protected system role '${role.name}' cannot be deleted.`, 403);
+        }
 
         const affected = await User.findAll({
             include: [{ model: Role, as: 'Roles', where: { id: role.id }, through: { attributes: [] }, required: true }],

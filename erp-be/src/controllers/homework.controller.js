@@ -3,21 +3,26 @@ import { z } from 'zod';
 import db from '../models/index.js';
 import logger from '../utils/logger.js';
 
-const { Homework, HomeworkSubmission, ClassroomStudent, ClassroomSubject, Student, Teacher, Subject, Classroom, User, sequelize } = db;
+const { Homework, HomeworkSubmission, ClassroomStudent, ClassroomSubject, Student, Teacher, Subject, Classroom, User, ClassroomRemark, sequelize } = db;
 
 const homeworkSchema = z.object({
-    title: z.string().min(3).max(150),
-    description: z.string().min(10),
+    title: z.string().min(1, 'Title is required').max(150, 'Title cannot exceed 150 characters'),
+    description: z.string().optional().nullable().transform(v => v || ''),
     dueDate: z.string().refine(val => !isNaN(Date.parse(val)), 'Invalid date format'),
-    subjectId: z.string().uuid(),
-    classId: z.string().uuid(),
-    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED'])
+    subjectId: z.string().uuid('Please select a valid subject'),
+    classId: z.string().uuid('Please select a valid classroom').optional(),
+    classroomId: z.string().uuid('Please select a valid classroom').optional(),
+    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('PUBLISHED')
+}).refine(data => !!(data.classId || data.classroomId), {
+    message: 'Classroom ID is required',
+    path: ['classId']
 });
 
 const submissionUpdateSchema = z.object({
     grade: z.string().max(50).optional(),
     feedback: z.string().optional(),
-    status: z.enum(['PENDING', 'SUBMITTED', 'REVIEWED', 'OVERDUE'])
+    remark: z.string().optional(),
+    status: z.enum(['PENDING', 'SUBMITTED', 'REVIEWED', 'OVERDUE', 'COMPLETED', 'NOT_COMPLETED'])
 });
 
 export const getHomeworks = async (req, res) => {
@@ -162,11 +167,13 @@ export const createHomework = async (req, res) => {
     const t = await sequelize.transaction();
     try {
         const payload = homeworkSchema.parse(req.body);
+        const targetClassId = payload.classId || payload.classroomId;
 
         const isTeacher = req.userRoles?.some(r => r.toUpperCase() === 'TEACHER');
-        const isAdmin = req.userRoles?.some(r => r.toUpperCase() === 'ADMIN' || r.toUpperCase() === 'SUPER_ADMIN');
+        const isAdmin = req.userRoles?.some(r => r.toUpperCase() === 'ADMIN' || r.toUpperCase() === 'SUPER_ADMIN' || r.toUpperCase() === 'PRINCIPAL');
         if (!isTeacher && !isAdmin) {
-            return res.status(403).json({ message: 'Only teachers or admins can create homework' });
+            await t.rollback();
+            return res.status(403).json({ message: 'Only teachers or administrators can create homework' });
         }
 
         let teacherId = null;
@@ -176,25 +183,29 @@ export const createHomework = async (req, res) => {
         }
 
         if (!teacherId && isAdmin) {
-            const subject = await ClassroomSubject.findOne({ where: { classroomId: payload.classId, subjectId: payload.subjectId }, transaction: t });
+            // First check if a subject teacher is assigned for this classroom
+            const subject = await ClassroomSubject.findOne({ where: { classroomId: targetClassId, subjectId: payload.subjectId }, transaction: t });
             if (subject && subject.teacherId) {
                 teacherId = subject.teacherId;
             } else {
-                const classroom = await Classroom.findByPk(payload.classId, { transaction: t });
+                const classroom = await Classroom.findByPk(targetClassId, { transaction: t });
                 if (classroom && classroom.classTeacherId) {
                     teacherId = classroom.classTeacherId;
+                } else {
+                    // Fallback to any teacher record if available, or first teacher
+                    const anyTeacher = await Teacher.findOne({ transaction: t });
+                    if (anyTeacher) teacherId = anyTeacher.id;
                 }
             }
         }
 
-        if (!teacherId) {
-            await t.rollback();
-            return res.status(400).json({ message: 'Cannot assign homework: No teacher assigned to this subject or classroom' });
-        }
-
         if (isTeacher && !isAdmin) {
-            const classroom = await Classroom.findByPk(payload.classId, { transaction: t });
-            const subject = await ClassroomSubject.findOne({ where: { classroomId: payload.classId, subjectId: payload.subjectId }, transaction: t });
+            if (!teacherId) {
+                await t.rollback();
+                return res.status(403).json({ message: 'Teacher profile not found for current user' });
+            }
+            const classroom = await Classroom.findByPk(targetClassId, { transaction: t });
+            const subject = await ClassroomSubject.findOne({ where: { classroomId: targetClassId, subjectId: payload.subjectId }, transaction: t });
             
             if (classroom?.classTeacherId !== teacherId && (!subject || subject.teacherId !== teacherId)) {
                 await t.rollback();
@@ -204,10 +215,10 @@ export const createHomework = async (req, res) => {
 
         const homework = await Homework.create({
             title: payload.title,
-            description: payload.description,
+            description: payload.description || '',
             dueDate: payload.dueDate,
             subjectId: payload.subjectId,
-            classroomId: payload.classId,
+            classroomId: targetClassId,
             status: payload.status,
             teacherId: teacherId,
             createdById: req.user.id
@@ -216,7 +227,7 @@ export const createHomework = async (req, res) => {
         // If published immediately, explicitly create submissions for all enrolled students
         if (payload.status === 'PUBLISHED') {
             const enrollments = await ClassroomStudent.findAll({
-                where: { classroomId: payload.classId },
+                where: { classroomId: targetClassId },
                 transaction: t
             });
 
@@ -235,7 +246,8 @@ export const createHomework = async (req, res) => {
     } catch (err) {
         await t.rollback();
         if (err instanceof z.ZodError) {
-            return res.status(400).json({ message: 'Validation failed', errors: err.errors });
+            const firstError = err.errors[0]?.message || 'Validation failed';
+            return res.status(400).json({ message: firstError, errors: err.errors });
         }
         logger.error('Error creating homework:', err);
         res.status(500).json({ message: 'Internal server error' });
@@ -247,6 +259,7 @@ export const updateHomework = async (req, res) => {
     try {
         const { id } = req.params;
         const payload = homeworkSchema.parse(req.body);
+        const targetClassId = payload.classId || payload.classroomId;
 
         const homework = await Homework.findByPk(id, { transaction: t });
         if (!homework) {
@@ -254,10 +267,13 @@ export const updateHomework = async (req, res) => {
             return res.status(404).json({ message: 'Homework not found' });
         }
 
-        const isAdmin = req.userRoles?.some(r => r.toUpperCase() === 'ADMIN' || r.toUpperCase() === 'SUPER_ADMIN');
+        const isAdmin = req.userRoles?.some(r => r.toUpperCase() === 'ADMIN' || r.toUpperCase() === 'SUPER_ADMIN' || r.toUpperCase() === 'PRINCIPAL');
+        const isTeacher = req.userRoles?.some(r => r.toUpperCase() === 'TEACHER');
         let teacherId = null;
-        const teacher = await Teacher.findOne({ where: { userId: req.user.id } });
-        if (teacher) teacherId = teacher.id;
+        if (isTeacher) {
+            const teacher = await Teacher.findOne({ where: { userId: req.user.id } });
+            if (teacher) teacherId = teacher.id;
+        }
 
         if (!isAdmin && isTeacher) {
             const classroom = await Classroom.findByPk(homework.classroomId, { transaction: t });
@@ -274,20 +290,20 @@ export const updateHomework = async (req, res) => {
 
         await homework.update({
             title: payload.title,
-            description: payload.description,
+            description: payload.description || '',
             dueDate: payload.dueDate,
             subjectId: payload.subjectId,
-            classroomId: payload.classId,
+            classroomId: targetClassId,
             status: payload.status
         }, { transaction: t });
 
         // If transitioned to PUBLISHED, or if class changed while PUBLISHED
         if ((previousStatus !== 'PUBLISHED' && payload.status === 'PUBLISHED') ||
-            (payload.status === 'PUBLISHED' && previousClassId !== payload.classId)) {
+            (payload.status === 'PUBLISHED' && previousClassId !== targetClassId)) {
 
             // Re-sync submissions for the new class (simple approach: create missing ones)
             const enrollments = await ClassroomStudent.findAll({
-                where: { classroomId: payload.classId },
+                where: { classroomId: targetClassId },
                 transaction: t
             });
 
@@ -305,7 +321,8 @@ export const updateHomework = async (req, res) => {
     } catch (err) {
         await t.rollback();
         if (err instanceof z.ZodError) {
-            return res.status(400).json({ message: 'Validation failed', errors: err.errors });
+            const firstError = err.errors[0]?.message || 'Validation failed';
+            return res.status(400).json({ message: firstError, errors: err.errors });
         }
         logger.error('Error updating homework:', err);
         res.status(500).json({ message: 'Internal server error' });
@@ -398,32 +415,44 @@ export const getHomeworkSubmissions = async (req, res) => {
 };
 
 export const updateSubmission = async (req, res) => {
+    const t = await sequelize.transaction();
     try {
         const { id } = req.params;
         const payload = submissionUpdateSchema.parse(req.body);
 
         const submission = await HomeworkSubmission.findByPk(id, {
-            include: [{ model: Homework, as: 'homework' }]
+            include: [{ model: Homework, as: 'homework' }],
+            transaction: t
         });
 
         if (!submission) {
+            await t.rollback();
             return res.status(404).json({ message: 'Submission not found' });
         }
 
         const isStudent = req.userRoles?.some(r => r.toUpperCase() === 'STUDENT');
         let studentId = null;
         if (isStudent) {
-            const student = await Student.findOne({ where: { userId: req.user.id } });
+            const student = await Student.findOne({ where: { userId: req.user.id }, transaction: t });
             if (student) studentId = student.id;
         }
 
-        const isAdmin = req.userRoles?.some(r => r.toUpperCase() === 'ADMIN' || r.toUpperCase() === 'SUPER_ADMIN');
+        const isAdmin = req.userRoles?.some(r => r.toUpperCase() === 'ADMIN' || r.toUpperCase() === 'SUPER_ADMIN' || r.toUpperCase() === 'PRINCIPAL');
         let teacherId = null;
-        const teacher = await Teacher.findOne({ where: { userId: req.user.id } });
-        if (teacher) teacherId = teacher.id;
+        let teacherRecord = null;
+        const isTeacher = req.userRoles?.some(r => r.toUpperCase() === 'TEACHER');
+        if (isTeacher) {
+            teacherRecord = await Teacher.findOne({
+                where: { userId: req.user.id },
+                include: [{ model: User, as: 'account', attributes: ['firstName', 'lastName'] }],
+                transaction: t
+            });
+            if (teacherRecord) teacherId = teacherRecord.id;
+        }
 
         if (isStudent) {
             if (submission.studentId !== studentId) {
+                await t.rollback();
                 return res.status(403).json({ message: 'Access denied' });
             }
             // Student can only change status to SUBMITTED
@@ -431,34 +460,65 @@ export const updateSubmission = async (req, res) => {
                 submission.status = 'SUBMITTED';
                 submission.submittedAt = new Date();
             } else {
+                await t.rollback();
                 return res.status(400).json({ message: 'Students can only submit homework' });
             }
         } else if (isAdmin) {
-            // Admin can review
+            // Admin can review or mark COMPLETED / NOT_COMPLETED
             submission.status = payload.status;
             if (payload.grade !== undefined) submission.grade = payload.grade;
             if (payload.feedback !== undefined) submission.feedback = payload.feedback;
         } else if (teacherId) {
-            const classroom = await Classroom.findByPk(submission.homework.classroomId);
-            const subject = await ClassroomSubject.findOne({ where: { classroomId: submission.homework.classroomId, subjectId: submission.homework.subjectId } });
+            const classroom = await Classroom.findByPk(submission.homework.classroomId, { transaction: t });
+            const subject = await ClassroomSubject.findOne({ where: { classroomId: submission.homework.classroomId, subjectId: submission.homework.subjectId }, transaction: t });
             
             if (classroom?.classTeacherId !== teacherId && (!subject || subject.teacherId !== teacherId)) {
+                await t.rollback();
                 return res.status(403).json({ message: 'Access denied' });
             }
             
-            // Teacher can review
             submission.status = payload.status;
             if (payload.grade !== undefined) submission.grade = payload.grade;
             if (payload.feedback !== undefined) submission.feedback = payload.feedback;
         } else {
+            await t.rollback();
             return res.status(403).json({ message: 'Access denied' });
         }
 
-        await submission.save();
+        // When marking NOT_COMPLETED, a remark is required and logged into ClassroomRemark
+        if (payload.status === 'NOT_COMPLETED') {
+            const remarkText = payload.remark || payload.feedback;
+            if (!remarkText || !remarkText.trim()) {
+                await t.rollback();
+                return res.status(400).json({ message: 'A remark is required when marking homework as not completed' });
+            }
+
+            const teacherName = teacherRecord?.account
+                ? `${teacherRecord.account.firstName} ${teacherRecord.account.lastName}`.trim()
+                : `${req.user.firstName || 'Teacher'} ${req.user.lastName || ''}`.trim();
+
+            await ClassroomRemark.create({
+                classroomId: submission.homework.classroomId,
+                studentId: submission.studentId,
+                teacherId: teacherId || null,
+                createdById: req.user.id,
+                teacherName,
+                type: 'Homework',
+                remark: remarkText.trim(),
+                homeworkId: submission.homeworkId
+            }, { transaction: t });
+
+            // Store in submission feedback as well so it's always accessible
+            submission.feedback = remarkText.trim();
+        }
+
+        await submission.save({ transaction: t });
+        await t.commit();
         res.json(submission);
     } catch (err) {
+        await t.rollback();
         if (err instanceof z.ZodError) {
-            return res.status(400).json({ message: 'Validation failed', errors: err.errors });
+            return res.status(400).json({ message: err.errors[0]?.message || 'Validation failed', errors: err.errors });
         }
         logger.error('Error updating submission:', err);
         res.status(500).json({ message: 'Internal server error' });

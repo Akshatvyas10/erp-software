@@ -34,6 +34,7 @@ import schoolConfigRoutes from './routes/schoolConfig.routes.js';
 import classroomConfigRoutes from './routes/classroomConfig.routes.js';
 import academicYearRoutes from './routes/academicYear.routes.js';
 import leaveRoutes from './routes/leave.routes.js';
+import portalRoutes from './routes/portal.routes.js';
 
 const app = express();
 
@@ -82,17 +83,36 @@ app.use('/api', apiLimiter);
 // ─── Static assets — serve uploaded student photos ───────────────────────────
 app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')));
 
+import { getQueueHealth } from './queues/email.queue.js';
+import db from './models/index.js';
+
 // ─── Health check ─────────────────────────────────────────────────────────────
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+    let dbStatus = 'healthy';
+    try {
+        await db.sequelize.authenticate();
+    } catch (err) {
+        dbStatus = `unhealthy: ${err.message}`;
+    }
+
     const sessionHealth = getSessionStorageMode();
-    res.json({
-        status: 'ok',
+    const queueHealth = await getQueueHealth();
+
+    const isHealthy = dbStatus === 'healthy' && (process.env.NODE_ENV !== 'production' || sessionHealth.isDistributed);
+
+    res.status(isHealthy ? 200 : 503).json({
+        status: isHealthy ? 'ok' : 'degraded',
+        environment: process.env.NODE_ENV || 'development',
         timestamp: new Date().toISOString(),
+        database: {
+            status: dbStatus,
+        },
         redis: {
             connected: sessionHealth.isDistributed,
             mode: sessionHealth.mode,
             inMemoryFallbackActive: !sessionHealth.isDistributed,
         },
+        queue: queueHealth,
     });
 });
 
@@ -116,8 +136,12 @@ app.use('/api/exams', examRoutes);
 app.use('/api/admissions', admissionRoutes);
 app.use('/api/school-config/classroom', classroomConfigRoutes);
 app.use('/api/school-config', schoolConfigRoutes);
+import studentLeaveRoutes from './routes/studentLeave.routes.js';
+
 app.use('/api/academic-years', academicYearRoutes);
 app.use('/api/teacher-leaves', leaveRoutes);
+app.use('/api/student-leaves', studentLeaveRoutes);
+app.use('/api/portal', portalRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {

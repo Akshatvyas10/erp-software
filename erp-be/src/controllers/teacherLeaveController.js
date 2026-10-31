@@ -54,8 +54,18 @@ export const getTeacherBalances = async (req, res, next) => {
  */
 export const previewLeaveDays = async (req, res, next) => {
     try {
-        const { fromDate, toDate } = req.body;
-        const result = await calculateEffectiveLeaveDays(fromDate, toDate);
+        const { fromDate, toDate, teacherId, leaveTypeId, options } = req.body;
+        let resolvedTeacherId = teacherId;
+        if (!resolvedTeacherId) {
+            const selfTeacher = await getTeacherForUser(req.user.id);
+            if (selfTeacher) resolvedTeacherId = selfTeacher.id;
+        }
+
+        const result = await calculateEffectiveLeaveDays(fromDate, toDate, {
+            teacherId: resolvedTeacherId,
+            leaveTypeId,
+            ...(options || {}),
+        });
         return success(res, result);
     } catch (err) { next(err); }
 };
@@ -310,43 +320,64 @@ export const listLeaveRules = async (req, res, next) => {
 
 /**
  * POST /api/teacher-leaves/rules
- * Create a new leave rule and optionally activate it (deactivating previous rules for year)
+ * Create a new leave rule with comprehensive dynamic configuration
  */
 export const createLeaveRule = async (req, res, next) => {
     try {
         const {
             academicYearId,
             ruleName,
+            status = 'ACTIVE',
+            appliesTo = 'ALL',
+            targetDepartments = [],
+            targetEmploymentTypes = [],
+            effectiveFrom = null,
+            effectiveTo = null,
             casualLeaveCount = 12.0,
             sickLeaveCount = 10.0,
             earnedLeaveCount = 15.0,
             maternityLeaveCount = 90.0,
             leaveWithoutPayCount = 30.0,
             isActive = true,
+            leaveTypeConfigs,
+            sandwichRule,
+            restrictions,
         } = req.body;
 
         const year = await leaveService.getOrResolveAcademicYear(academicYearId);
         const currentUser = await db.User.findByPk(req.user.id);
         const creatorName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}`.trim() : 'System Admin';
 
+        const isRuleActive = status === 'ACTIVE' || isActive === true;
+        const normalizedStatus = isRuleActive ? 'ACTIVE' : (status || 'DRAFT');
+
         const result = await db.sequelize.transaction(async (t) => {
-            if (isActive) {
-                // If setting as active, deactivate previous rules for this academic year
+            if (isRuleActive && appliesTo === 'ALL') {
+                // Deactivate other 'ALL' rules for this academic year to keep exactly one active default
                 await db.LeaveRule.update(
-                    { isActive: false },
-                    { where: { academicYearId: year.id }, transaction: t }
+                    { status: 'INACTIVE', isActive: false },
+                    { where: { academicYearId: year.id, appliesTo: 'ALL' }, transaction: t }
                 );
             }
 
             const newRule = await db.LeaveRule.create({
                 academicYearId: year.id,
                 ruleName: ruleName || `Teacher Leave Policy (${year.name})`,
+                status: normalizedStatus,
+                appliesTo,
+                targetDepartments,
+                targetEmploymentTypes,
+                effectiveFrom,
+                effectiveTo,
                 casualLeaveCount,
                 sickLeaveCount,
                 earnedLeaveCount,
                 maternityLeaveCount,
                 leaveWithoutPayCount,
-                isActive,
+                isActive: isRuleActive,
+                ...(leaveTypeConfigs ? { leaveTypeConfigs } : {}),
+                ...(sandwichRule ? { sandwichRule } : {}),
+                ...(restrictions ? { restrictions } : {}),
                 createdBy: req.user.id,
                 createdByName: creatorName,
                 updatedBy: req.user.id,
@@ -362,7 +393,7 @@ export const createLeaveRule = async (req, res, next) => {
 
 /**
  * PUT /api/teacher-leaves/rules/:id
- * Update an existing leave rule with audit tracking
+ * Update an existing leave rule with audit tracking and dynamic JSON support
  */
 export const updateLeaveRule = async (req, res, next) => {
     try {
@@ -374,31 +405,61 @@ export const updateLeaveRule = async (req, res, next) => {
 
         const {
             ruleName,
+            status,
+            appliesTo,
+            targetDepartments,
+            targetEmploymentTypes,
+            effectiveFrom,
+            effectiveTo,
             casualLeaveCount,
             sickLeaveCount,
             earnedLeaveCount,
             maternityLeaveCount,
             leaveWithoutPayCount,
             isActive,
+            leaveTypeConfigs,
+            sandwichRule,
+            restrictions,
         } = req.body;
 
         await db.sequelize.transaction(async (t) => {
-            if (isActive === true && !rule.isActive) {
-                // Ensure only one active rule per academic year
-                await db.LeaveRule.update(
-                    { isActive: false },
-                    { where: { academicYearId: rule.academicYearId }, transaction: t }
-                );
+            const willBeActive = (status === 'ACTIVE') || (isActive === true && status !== 'INACTIVE' && status !== 'DRAFT');
+
+            if (willBeActive && (!rule.isActive || rule.status !== 'ACTIVE')) {
+                const scope = appliesTo || rule.appliesTo;
+                if (scope === 'ALL') {
+                    await db.LeaveRule.update(
+                        { status: 'INACTIVE', isActive: false },
+                        { where: { academicYearId: rule.academicYearId, appliesTo: 'ALL', id: { [Op.ne]: rule.id } }, transaction: t }
+                    );
+                }
             }
 
             if (ruleName !== undefined) rule.ruleName = ruleName;
+            if (status !== undefined) {
+                rule.status = status;
+                rule.isActive = status === 'ACTIVE';
+            } else if (isActive !== undefined) {
+                rule.isActive = isActive;
+                rule.status = isActive ? 'ACTIVE' : 'INACTIVE';
+            }
+            if (appliesTo !== undefined) rule.appliesTo = appliesTo;
+            if (targetDepartments !== undefined) rule.targetDepartments = targetDepartments;
+            if (targetEmploymentTypes !== undefined) rule.targetEmploymentTypes = targetEmploymentTypes;
+            if (effectiveFrom !== undefined) rule.effectiveFrom = effectiveFrom;
+            if (effectiveTo !== undefined) rule.effectiveTo = effectiveTo;
+
             if (casualLeaveCount !== undefined) rule.casualLeaveCount = casualLeaveCount;
             if (sickLeaveCount !== undefined) rule.sickLeaveCount = sickLeaveCount;
             if (earnedLeaveCount !== undefined) rule.earnedLeaveCount = earnedLeaveCount;
             if (maternityLeaveCount !== undefined) rule.maternityLeaveCount = maternityLeaveCount;
             if (leaveWithoutPayCount !== undefined) rule.leaveWithoutPayCount = leaveWithoutPayCount;
-            if (isActive !== undefined) rule.isActive = isActive;
 
+            if (leaveTypeConfigs !== undefined) rule.leaveTypeConfigs = leaveTypeConfigs;
+            if (sandwichRule !== undefined) rule.sandwichRule = sandwichRule;
+            if (restrictions !== undefined) rule.restrictions = restrictions;
+
+            rule.version = (rule.version || 1) + 1;
             rule.updatedBy = req.user.id;
             rule.updatedByName = updaterName;
 
@@ -414,6 +475,84 @@ export const updateLeaveRule = async (req, res, next) => {
         });
 
         return success(res, { rule: refreshed }, 'Leave rule policy updated successfully');
+    } catch (err) { next(err); }
+};
+
+/**
+ * PATCH /api/teacher-leaves/rules/:id/activate
+ * Set a specific leave rule as ACTIVE, deactivating conflicting rules in same scope
+ */
+export const activateLeaveRule = async (req, res, next) => {
+    try {
+        const rule = await db.LeaveRule.findByPk(req.params.id);
+        if (!rule) return error(res, 'Leave rule not found', 404);
+
+        const currentUser = await db.User.findByPk(req.user.id);
+        const updaterName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}`.trim() : 'Authorized Admin';
+
+        await db.sequelize.transaction(async (t) => {
+            if (rule.appliesTo === 'ALL') {
+                await db.LeaveRule.update(
+                    { status: 'INACTIVE', isActive: false },
+                    { where: { academicYearId: rule.academicYearId, appliesTo: 'ALL', id: { [Op.ne]: rule.id } }, transaction: t }
+                );
+            }
+
+            rule.status = 'ACTIVE';
+            rule.isActive = true;
+            rule.updatedBy = req.user.id;
+            rule.updatedByName = updaterName;
+            await rule.save({ transaction: t });
+        });
+
+        return success(res, { rule }, 'Leave rule activated successfully');
+    } catch (err) { next(err); }
+};
+
+/**
+ * PATCH /api/teacher-leaves/rules/:id/deactivate
+ * Mark a leave rule as INACTIVE
+ */
+export const deactivateLeaveRule = async (req, res, next) => {
+    try {
+        const rule = await db.LeaveRule.findByPk(req.params.id);
+        if (!rule) return error(res, 'Leave rule not found', 404);
+
+        const currentUser = await db.User.findByPk(req.user.id);
+        const updaterName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}`.trim() : 'Authorized Admin';
+
+        rule.status = 'INACTIVE';
+        rule.isActive = false;
+        rule.updatedBy = req.user.id;
+        rule.updatedByName = updaterName;
+        await rule.save();
+
+        return success(res, { rule }, 'Leave rule deactivated successfully');
+    } catch (err) { next(err); }
+};
+
+/**
+ * GET /api/teacher-leaves/rules/preview-quota
+ * Preview how dynamic policy calculates quotas for a teacher / leave type
+ */
+export const previewLeaveQuota = async (req, res, next) => {
+    try {
+        const { teacherId, leaveTypeCode, asOfDate, academicYearId } = req.query;
+
+        let resolvedTeacherId = teacherId;
+        if (!resolvedTeacherId) {
+            const selfTeacher = await getTeacherForUser(req.user.id);
+            if (selfTeacher) resolvedTeacherId = selfTeacher.id;
+        }
+
+        const quota = await leaveService.calculateDynamicLeaveQuota({
+            teacherId: resolvedTeacherId,
+            leaveTypeCode: leaveTypeCode || 'CL',
+            asOfDate: asOfDate || new Date(),
+            academicYearId,
+        });
+
+        return success(res, { quota });
     } catch (err) { next(err); }
 };
 

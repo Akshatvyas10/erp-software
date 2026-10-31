@@ -14,11 +14,13 @@ const {
     ClassroomSubject,
     Timetable,
     TimetableSubstitute,
-    Role
+    Role,
+    LeaveRule,
+    TeacherLeaveAccrual,
 } = db;
 import { Op } from 'sequelize';
 import logger from '../utils/logger.js';
-import { calculateEffectiveLeaveDays } from './leavePolicy.service.js';
+import { calculateEffectiveLeaveDays, getActiveRuleForYear } from './leavePolicy.service.js';
 import { sendSystemNotificationEmail } from './email.service.js';
 import { getIo } from '../config/socket.js';
 
@@ -41,6 +43,101 @@ export const getOrResolveAcademicYear = async (academicYearId = null) => {
 };
 
 /**
+ * Calculates current month accrual, carried balance, allowed advance, and effective available leave.
+ * 
+ * Formula:
+ * Available = currentMonthCredit + carriedOverBalance + allowedAdvance - consumedThisMonth
+ */
+export const calculateDynamicLeaveQuota = async (teacherId, leaveTypeId, targetDateStr = null, academicYearId = null) => {
+    const year = await getOrResolveAcademicYear(academicYearId);
+    const teacher = await Teacher.findByPk(teacherId);
+    const leaveType = await LeaveType.findByPk(leaveTypeId);
+    if (!leaveType) throw new Error('Leave type not found');
+
+    const activeRule = await getActiveRuleForYear(year.id, teacher);
+    const typeCode = (leaveType.code || '').toUpperCase();
+    const config = activeRule?.leaveTypeConfigs?.[typeCode] || {
+        enabled: true,
+        allocationMode: 'YEARLY',
+        monthlyCreditCount: 1.0,
+        yearlyTotalQuota: Number(leaveType.defaultDaysPerYear || 12.0),
+        maxPerRequest: Number(leaveType.maxConsecutiveDays || 15.0),
+        maxPerMonth: 5.0,
+        maxPerYear: Number(leaveType.defaultDaysPerYear || 12.0),
+        allowAdvanceFromFutureMonths: false,
+        advanceLimit: 0,
+        carryForwardEnabled: true,
+        carryForwardMaxLimit: 12.0,
+    };
+
+    const targetDate = targetDateStr ? new Date(targetDateStr) : new Date();
+    const targetYearMonth = targetDate.toISOString().slice(0, 7); // e.g. '2026-10'
+
+    // Compute month index within academic year (1..12)
+    const academicStart = year.startDate ? new Date(year.startDate) : new Date(targetDate.getFullYear(), 3, 1); // April default
+    const monthDiff = (targetDate.getFullYear() - academicStart.getFullYear()) * 12 + (targetDate.getMonth() - academicStart.getMonth());
+    const elapsedMonths = Math.max(1, Math.min(12, monthDiff + 1));
+
+    // Base yearly balance record
+    const [balance] = await TeacherLeaveBalance.findOrCreate({
+        where: { teacherId, leaveTypeId, academicYearId: year.id },
+        defaults: {
+            openingBalance: config.yearlyTotalQuota || leaveType.defaultDaysPerYear || 12.0,
+            consumedDays: 0.0,
+        },
+    });
+
+    const isMonthly = config.allocationMode === 'MONTHLY';
+    let currentMonthCredit = Number(config.monthlyCreditCount || 1.0);
+    let accruedToDate = isMonthly ? Number((currentMonthCredit * elapsedMonths).toFixed(1)) : Number(balance.openingBalance);
+    
+    // Total consumed across the academic year
+    const totalConsumed = Number(balance.consumedDays || 0.0);
+
+    // Prior carried balance
+    let carriedEligible = 0.0;
+    if (isMonthly) {
+        const previousAccrued = currentMonthCredit * (elapsedMonths - 1);
+        const priorUnused = Math.max(0, previousAccrued - totalConsumed);
+        carriedEligible = config.carryForwardEnabled 
+            ? Math.min(priorUnused, Number(config.carryForwardMaxLimit || 12.0))
+            : 0.0;
+    }
+
+    // Allowed Advance calculation (if enabled and remaining future months exist)
+    let advanceAvailable = 0.0;
+    if (config.allowAdvanceFromFutureMonths && elapsedMonths < 12) {
+        const maxAdvanceAllowed = Number(config.advanceLimit || 1.0);
+        const remainingMonthsInYear = 12 - elapsedMonths;
+        advanceAvailable = Math.min(maxAdvanceAllowed, remainingMonthsInYear * currentMonthCredit);
+    }
+
+    // Remaining standard balance (accrued to date minus consumed)
+    const standardAvailable = Math.max(0, Number((accruedToDate - totalConsumed).toFixed(1)));
+    
+    // Effective available including allowed advance from next month
+    const effectiveAvailable = Number((standardAvailable + advanceAvailable).toFixed(1));
+
+    return {
+        leaveTypeCode: typeCode,
+        leaveTypeName: leaveType.name,
+        allocationMode: config.allocationMode,
+        monthlyCreditCount: currentMonthCredit,
+        yearlyTotalQuota: Number(config.yearlyTotalQuota || balance.openingBalance),
+        elapsedMonths,
+        accruedToDate,
+        carriedEligible: Number(carriedEligible.toFixed(1)),
+        totalConsumed,
+        standardAvailable,
+        advanceAvailable: Number(advanceAvailable.toFixed(1)),
+        effectiveAvailable,
+        maxPerRequest: Number(config.maxPerRequest || 15.0),
+        requiresAttachment: Boolean(config.requiresAttachment),
+        allowAdvanceFromFutureMonths: Boolean(config.allowAdvanceFromFutureMonths),
+    };
+};
+
+/**
  * Initializes or returns leave balances for a teacher for a given academic year.
  * If an active LeaveRule exists for the academic year, uses its configured quotas.
  */
@@ -48,15 +145,17 @@ export const initializeTeacherBalances = async (teacherId, academicYearId, trans
     const activeLeaveTypes = await LeaveType.findAll({ where: { isActive: true }, transaction });
     const balances = [];
 
-    // Check for an active LeaveRule for this academic year
-    const activeRule = await db.LeaveRule.findOne({
-        where: { academicYearId, isActive: true },
+    const activeRule = await LeaveRule.findOne({
+        where: { academicYearId, status: 'ACTIVE', isActive: true },
         transaction,
     });
 
     const getOpeningQuota = (leaveTypeCode, fallback) => {
         if (!activeRule) return fallback;
         const code = (leaveTypeCode || '').toUpperCase();
+        if (activeRule.leaveTypeConfigs?.[code]?.yearlyTotalQuota !== undefined) {
+            return Number(activeRule.leaveTypeConfigs[code].yearlyTotalQuota);
+        }
         if (code === 'CL' && activeRule.casualLeaveCount !== undefined) return Number(activeRule.casualLeaveCount);
         if (code === 'SL' && activeRule.sickLeaveCount !== undefined) return Number(activeRule.sickLeaveCount);
         if (code === 'EL' && activeRule.earnedLeaveCount !== undefined) return Number(activeRule.earnedLeaveCount);
@@ -86,12 +185,12 @@ export const initializeTeacherBalances = async (teacherId, academicYearId, trans
 };
 
 /**
- * Retrieves full leave balance summary for a teacher including remaining days and metadata.
+ * Retrieves full leave balance summary for a teacher including dynamic breakdown.
  */
 export const getTeacherLeaveBalances = async (teacherId, academicYearId = null) => {
     const year = await getOrResolveAcademicYear(academicYearId);
     
-    // Auto-initialize if not created yet
+    // Auto-initialize base balances if not present
     await initializeTeacherBalances(teacherId, year.id);
 
     const balances = await TeacherLeaveBalance.findAll({
@@ -104,23 +203,34 @@ export const getTeacherLeaveBalances = async (teacherId, academicYearId = null) 
         order: [[{ model: LeaveType, as: 'leaveType' }, 'code', 'ASC']],
     });
 
-    return balances.map((b) => {
-        const item = b.toJSON();
-        const opening = Number(item.openingBalance || 0);
-        const consumed = Number(item.consumedDays || 0);
-        item.remainingDays = Number(Math.max(0, opening - consumed).toFixed(1));
-        item.academicYearName = year.name;
-        return item;
-    });
+    const enriched = await Promise.all(
+        balances.map(async (b) => {
+            const item = b.toJSON();
+            try {
+                const dynamicQuota = await calculateDynamicLeaveQuota(teacherId, item.leaveTypeId, null, year.id);
+                item.remainingDays = dynamicQuota.effectiveAvailable;
+                item.dynamicBreakdown = dynamicQuota;
+            } catch (e) {
+                const opening = Number(item.openingBalance || 0);
+                const consumed = Number(item.consumedDays || 0);
+                item.remainingDays = Number(Math.max(0, opening - consumed).toFixed(1));
+            }
+            item.academicYearName = year.name;
+            return item;
+        })
+    );
+
+    return enriched;
 };
 
 /**
  * Teacher applies for a new leave request.
- * Enforces:
+ * Enforces dynamic rule engine:
  * - date range validity
  * - no overlapping PENDING or APPROVED leaves
- * - balance sufficiency (unless leave is unpaid / LWP)
- * - consecutive days ceiling if set on LeaveType
+ * - dynamic sandwich day calculation
+ * - dynamic balance sufficiency (including monthly credit + advance limits)
+ * - consecutive days ceiling
  */
 export const applyLeaveRequest = async ({
     teacherId,
@@ -137,15 +247,9 @@ export const applyLeaveRequest = async ({
         throw new Error('Selected leave type is invalid or inactive');
     }
 
-    const { totalDays } = await calculateEffectiveLeaveDays(fromDate, toDate);
-
-    if (leaveType.maxConsecutiveDays && totalDays > leaveType.maxConsecutiveDays) {
-        throw new Error(`Maximum consecutive days allowed for ${leaveType.name} is ${leaveType.maxConsecutiveDays} days.`);
-    }
-
-    if (leaveType.requiresAttachment && !attachmentUrl) {
-        throw new Error(`${leaveType.name} requires supporting medical/official attachment.`);
-    }
+    // Dynamic calculation with sandwich rules
+    const calcResult = await calculateEffectiveLeaveDays(fromDate, toDate, leaveType.code, teacherId, year.id);
+    const { totalDays, sandwichedDays, sandwichDetails } = calcResult;
 
     // Overlap validation
     const overlap = await TeacherLeaveRequest.findOne({
@@ -163,16 +267,27 @@ export const applyLeaveRequest = async ({
         throw new Error(`You already have a ${overlap.status} leave request spanning ${overlap.fromDate} to ${overlap.toDate}.`);
     }
 
-    // Balance check
-    await initializeTeacherBalances(teacherId, year.id);
-    const balance = await TeacherLeaveBalance.findOne({
-        where: { teacherId, leaveTypeId, academicYearId: year.id },
-    });
+    // Dynamic Balance & Policy Validation
+    const dynamicQuota = await calculateDynamicLeaveQuota(teacherId, leaveTypeId, fromDate, year.id);
 
-    if (leaveType.isPaid && balance) {
-        const remaining = Number(balance.openingBalance) - Number(balance.consumedDays);
-        if (totalDays > remaining) {
-            throw new Error(`Insufficient leave balance. Requested: ${totalDays} days, Available: ${remaining.toFixed(1)} days.`);
+    if (dynamicQuota.maxPerRequest && totalDays > dynamicQuota.maxPerRequest) {
+        throw new Error(`Maximum consecutive days allowed for ${leaveType.name} is ${dynamicQuota.maxPerRequest} days.`);
+    }
+
+    if (dynamicQuota.requiresAttachment && !attachmentUrl) {
+        throw new Error(`${leaveType.name} requires supporting medical/official attachment.`);
+    }
+
+    let usesAdvance = false;
+    let advanceAmount = 0.0;
+
+    if (leaveType.isPaid) {
+        if (totalDays > dynamicQuota.effectiveAvailable) {
+            throw new Error(`Insufficient leave balance. Required: ${totalDays} day(s), Available: ${dynamicQuota.effectiveAvailable} day(s).`);
+        }
+        if (totalDays > dynamicQuota.standardAvailable && dynamicQuota.advanceAvailable > 0) {
+            usesAdvance = true;
+            advanceAmount = Number((totalDays - dynamicQuota.standardAvailable).toFixed(1));
         }
     }
 
@@ -183,12 +298,14 @@ export const applyLeaveRequest = async ({
         fromDate,
         toDate,
         totalDays,
-        reason,
+        reason: usesAdvance 
+            ? `${reason} [Uses ${advanceAmount} advance ${dynamicQuota.leaveTypeCode} from next month]` 
+            : reason,
         attachmentUrl,
         status: 'PENDING',
     });
 
-    logger.info(`Teacher ${teacherId} submitted leave request ${newRequest.id} for ${totalDays} days.`);
+    logger.info(`Teacher ${teacherId} submitted leave request ${newRequest.id} for ${totalDays} days (Sandwiched: ${sandwichedDays}, Advance: ${advanceAmount}).`);
 
     // Async notification to approvers (HOD, Principals, Admins)
     setImmediate(async () => {
@@ -200,8 +317,6 @@ export const applyLeaveRequest = async ({
                 ? `${applicantTeacher.account.firstName} ${applicantTeacher.account.lastName}`.trim()
                 : 'Teacher';
 
-            // Find recipient approvers
-            // 1. Department HOD if teacher belongs to a department
             const approverUserIds = new Set();
             if (applicantTeacher?.department) {
                 const depts = await Department.findAll({
@@ -220,7 +335,6 @@ export const applyLeaveRequest = async ({
                 }
             }
 
-            // 2. Admins & Super Admins
             const adminRoles = await Role.findAll({
                 where: { name: { [Op.in]: ['admin', 'super_admin', 'ADMIN', 'SUPER_ADMIN'] } },
                 include: [{ model: User, attributes: ['id', 'email', 'firstName', 'lastName'] }],
@@ -231,7 +345,6 @@ export const applyLeaveRequest = async ({
                 }
             }
 
-            // In-app Socket broadcast to approvers
             try {
                 const io = getIo();
                 if (io) {
@@ -248,7 +361,7 @@ export const applyLeaveRequest = async ({
                     for (const uId of approverUserIds) {
                         io.to(`user:${uId}`).emit('notification', {
                             title: 'New Teacher Leave Application',
-                            message: `${applicantName} has applied for ${totalDays} days of ${leaveType.name} (${fromDate} to ${toDate}).`,
+                            message: `${applicantName} applied for ${leaveType.name} (${fromDate} to ${toDate}, ${totalDays} days).`,
                             data: payload,
                         });
                     }
@@ -256,31 +369,8 @@ export const applyLeaveRequest = async ({
             } catch (sockErr) {
                 logger.warn(`[LeaveNotify] Socket emit skipped: ${sockErr.message}`);
             }
-
-            // Email to approvers
-            const approverUsers = await User.findAll({
-                where: { id: { [Op.in]: Array.from(approverUserIds) } },
-                attributes: ['id', 'email', 'firstName', 'lastName'],
-            });
-
-            const actionUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/leaves?tab=approvals`;
-            for (const approver of approverUsers) {
-                if (approver.email) {
-                    await sendSystemNotificationEmail(
-                        approver.email,
-                        `${approver.firstName} ${approver.lastName}`,
-                        'New Leave Application Awaiting Review',
-                        `<strong>${applicantName}</strong> has submitted a new leave application:<br/><br/>
-                        • <strong>Type:</strong> ${leaveType.name} (${leaveType.code})<br/>
-                        • <strong>Dates:</strong> ${fromDate} to ${toDate} (${totalDays} working days)<br/>
-                        • <strong>Reason:</strong> ${reason}<br/><br/>
-                        Please review the application in the institutional leave approval queue.`,
-                        actionUrl
-                    ).catch((err) => logger.warn(`[LeaveEmail] Failed notifying approver ${approver.email}: ${err.message}`));
-                }
-            }
-        } catch (notifErr) {
-            logger.error('[LeaveNotify] Error dispatching leave apply notifications:', notifErr);
+        } catch (err) {
+            logger.error('[LeaveNotify] Error notifying approvers:', err);
         }
     });
 
@@ -288,21 +378,14 @@ export const applyLeaveRequest = async ({
 };
 
 /**
- * Decision on leave request (APPROVE or REJECT).
- * Enforces atomic database transaction, balance deduction, and attendance sync.
+ * Decides a pending leave request (APPROVED / REJECTED) with atomic transaction.
  */
-export const decideLeaveRequest = async ({
-    requestId,
-    decidedByUserId,
-    decision, // 'APPROVED' | 'REJECTED'
-    decisionRemark
-}) => {
+export const decideLeaveRequest = async ({ requestId, decision, decidedByUserId, decisionRemark = null }) => {
     if (!['APPROVED', 'REJECTED'].includes(decision)) {
         throw new Error('Invalid decision. Must be APPROVED or REJECTED');
     }
 
     const decidedRequest = await sequelize.transaction(async (t) => {
-        // Lock the request row specifically (without LEFT OUTER JOINs to prevent Postgres lock error)
         const request = await TeacherLeaveRequest.findByPk(requestId, {
             transaction: t,
             lock: t.LOCK.UPDATE,
@@ -313,7 +396,6 @@ export const decideLeaveRequest = async ({
             throw new Error(`Cannot decide request that is already ${request.status}`);
         }
 
-        // Fetch associated models separately inside the transaction
         const leaveType = await LeaveType.findByPk(request.leaveTypeId, { transaction: t });
         const teacher = await Teacher.findByPk(request.teacherId, {
             include: [{ model: User, as: 'account', attributes: ['id', 'firstName', 'lastName'] }],
@@ -323,7 +405,6 @@ export const decideLeaveRequest = async ({
         const deciderUser = await User.findByPk(decidedByUserId, { transaction: t });
         const deciderFullName = deciderUser ? `${deciderUser.firstName} ${deciderUser.lastName}`.trim() : 'Authorized Staff';
 
-        // Prevent self-approval (unless super_admin)
         if (teacher && teacher.userId === decidedByUserId) {
             if (!deciderUser || !['super_admin', 'SUPER_ADMIN'].includes(deciderUser.role)) {
                 throw new Error('Approval policy violation: You cannot approve your own leave request.');
@@ -392,7 +473,7 @@ export const decideLeaveRequest = async ({
         return request;
     });
 
-    // Post-transaction side-effects (resilient, non-blocking)
+    // Async post-transaction side-effects
     setImmediate(async () => {
         try {
             const reqData = await TeacherLeaveRequest.findByPk(requestId, {
@@ -413,10 +494,9 @@ export const decideLeaveRequest = async ({
             const applicantName = applicantUser ? `${applicantUser.firstName} ${applicantUser.lastName}`.trim() : 'Teacher';
             const leaveTypeName = reqData.leaveType?.name || 'Leave';
 
-            // 1. Timetable Substitution Need Trigger (on APPROVED)
+            // Substitution slots generator
             if (decision === 'APPROVED') {
                 try {
-                    // Find all subjects taught by this teacher
                     const teacherClassroomSubjects = await ClassroomSubject.findAll({
                         where: { teacherId: reqData.teacherId },
                         attributes: ['id', 'classroomId', 'subjectId'],
@@ -426,47 +506,35 @@ export const decideLeaveRequest = async ({
                         const cSubIds = teacherClassroomSubjects.map((cs) => cs.id);
                         const cSubMap = new Map(teacherClassroomSubjects.map((cs) => [cs.id, cs.classroomId]));
 
-                        // Find all timetable slots for these subjects
                         const timetableSlots = await Timetable.findAll({
-                            where: { classroomSubjectId: { [Op.in]: cSubIds } },
-                            attributes: ['id', 'classroomSubjectId', 'dayOfWeek', 'startTime', 'endTime'],
+                            where: { classroom_subject_id: { [Op.in]: cSubIds } },
+                            attributes: ['id', 'day_of_week', 'start_time', 'end_time', 'classroom_subject_id'],
                         });
 
-                        const dayMap = {
-                            0: 'Sunday',
-                            1: 'Monday',
-                            2: 'Tuesday',
-                            3: 'Wednesday',
-                            4: 'Thursday',
-                            5: 'Friday',
-                            6: 'Saturday',
+                        const parseDateUTC = (d) => {
+                            if (!d) return new Date();
+                            if (d instanceof Date) return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+                            const parts = String(d).split('T')[0].split('-').map(Number);
+                            return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
                         };
 
-                        const [fromY, fromM, fromD] = reqData.fromDate.split('-').map(Number);
-                        const [toY, toM, toD] = reqData.toDate.split('-').map(Number);
-                        const cur = new Date(fromY, fromM - 1, fromD, 12, 0, 0); // Noon anchor prevents any DST/timezone rollover
-                        const end = new Date(toY, toM - 1, toD, 12, 0, 0);
+                        const cur = parseDateUTC(reqData.fromDate);
+                        const end = parseDateUTC(reqData.toDate);
+                        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
                         while (cur <= end) {
-                            const dayName = dayMap[cur.getDay()];
-                            const yr = cur.getFullYear();
-                            const mo = String(cur.getMonth() + 1).padStart(2, '0');
-                            const dy = String(cur.getDate()).padStart(2, '0');
-                            const dateStr = `${yr}-${mo}-${dy}`;
+                            const dayName = dayNames[cur.getUTCDay()];
+                            const dateStr = cur.toISOString().slice(0, 10);
+                            const matchingSlots = timetableSlots.filter((slot) => slot.day_of_week === dayName);
 
-                            // Skip Sundays
-                            if (cur.getDay() !== 0) {
-                                const matchingSlots = timetableSlots.filter((s) => s.dayOfWeek.toLowerCase() === dayName.toLowerCase());
-
-                                for (const slot of matchingSlots) {
-                                    const classroomId = cSubMap.get(slot.classroomSubjectId);
-
-                                    // Create PENDING substitution entry if not already assigned
+                            for (const slot of matchingSlots) {
+                                const classId = cSubMap.get(slot.classroom_subject_id);
+                                if (classId) {
                                     await TimetableSubstitute.findOrCreate({
                                         where: { timetableId: slot.id, date: dateStr },
                                         defaults: {
-                                            classroomId,
                                             timetableId: slot.id,
+                                            classroomId: classId,
                                             originalTeacherId: reqData.teacherId,
                                             substituteTeacherId: null,
                                             date: dateStr,
@@ -477,16 +545,15 @@ export const decideLeaveRequest = async ({
                                     });
                                 }
                             }
-                            cur.setDate(cur.getDate() + 1);
+                            cur.setUTCDate(cur.getUTCDate() + 1);
                         }
-                        logger.info(`[SubstitutionTrigger] Substitution needs evaluated for leave request ${reqData.id}.`);
                     }
                 } catch (subErr) {
                     logger.error('[SubstitutionTrigger] Error generating substitution slots:', subErr);
                 }
             }
 
-            // 2. In-App Real-time Socket Notification to Applicant
+            // Real-time socket notification
             try {
                 const io = getIo();
                 if (io && applicantUser?.id) {
@@ -506,7 +573,7 @@ export const decideLeaveRequest = async ({
                 logger.warn(`[LeaveNotify] Socket emit skipped: ${sockErr.message}`);
             }
 
-            // 3. Email Notification to Applicant
+            // Email Notification
             if (applicantEmail) {
                 const actionUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/leaves`;
                 const isApproved = decision === 'APPROVED';
@@ -518,21 +585,26 @@ export const decideLeaveRequest = async ({
 
                 await sendSystemNotificationEmail(
                     applicantEmail,
-                    applicantName,
-                    `Leave Application ${decision} (${leaveTypeName})`,
-                    `<div style="padding: 12px 16px; border-radius: 8px; background: ${isApproved ? '#ECFDF5' : '#FEF2F2'}; border: 1px solid ${isApproved ? '#A7F3D0' : '#FECACA'}; margin-bottom: 16px;">
-                        <span style="font-size: 16px; font-weight: 700; color: ${statusColor};">Status: ${decision}</span>
+                    `Leave Request ${decision} - ${leaveTypeName}`,
+                    `Your leave request from ${reqData.fromDate} to ${reqData.toDate} has been ${decision}.`,
+                    `
+                    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                        <h2 style="color: ${statusColor};">Leave Request ${decision}</h2>
+                        <p>Dear ${applicantName},</p>
+                        <p>Your leave request has been reviewed with the following details:</p>
+                        <div style="background: #f4f4f5; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                            • <strong>Category:</strong> ${leaveTypeName}<br/>
+                            • <strong>Duration:</strong> ${reqData.fromDate} &rarr; ${reqData.toDate} (${reqData.totalDays} day(s))<br/>
+                            • <strong>Decision:</strong> <span style="font-weight: bold; color: ${statusColor};">${decision}</span><br/>
+                            • <strong>Decided By:</strong> ${reqData.actionByName || 'Administrator'}${remarkHtml}
+                        </div>
+                        <p><a href="${actionUrl}" style="display:inline-block; padding: 10px 20px; background: #4F46E5; color: #fff; text-decoration: none; border-radius: 6px;">View Leave Portal</a></p>
                     </div>
-                    Your leave application details:<br/><br/>
-                    • <strong>Leave Type:</strong> ${leaveTypeName}<br/>
-                    • <strong>Period:</strong> ${reqData.fromDate} to ${reqData.toDate} (${reqData.totalDays} working days)<br/>
-                    • <strong>Decided By:</strong> ${reqData.actionByName || 'Authorized Staff'}${remarkHtml}<br/><br/>
-                    You can check your updated balances and history in your portal.`,
-                    actionUrl
-                ).catch((mailErr) => logger.warn(`[LeaveEmail] Failed notifying applicant ${applicantEmail}: ${mailErr.message}`));
+                    `
+                );
             }
-        } catch (notifErr) {
-            logger.error('[LeaveNotify] Error in post-decision notification workflow:', notifErr);
+        } catch (err) {
+            logger.error('[LeaveNotify] Post-decision notification error:', err);
         }
     });
 
@@ -541,12 +613,9 @@ export const decideLeaveRequest = async ({
 
 /**
  * Cancels a leave request.
- * - If PENDING: immediately marks CANCELLED.
- * - If APPROVED: reverses balance deduction and cleans up attendance marks.
  */
-export const cancelLeaveRequest = async ({ requestId, cancelledByUserId, cancellationReason, isAdmin = false }) => {
+export const cancelLeaveRequest = async ({ requestId, cancelledByUserId, cancellationReason = null, isAdmin = false }) => {
     return await sequelize.transaction(async (t) => {
-        // Lock request row directly without joins to prevent outer join lock errors
         const request = await TeacherLeaveRequest.findByPk(requestId, {
             transaction: t,
             lock: t.LOCK.UPDATE,
@@ -580,7 +649,6 @@ export const cancelLeaveRequest = async ({ requestId, cancelledByUserId, cancell
                 await balance.save({ transaction: t });
             }
 
-            // Remove attendance leave marks for non-past dates
             const today = new Date().toISOString().slice(0, 10);
             await TeacherAttendance.destroy({
                 where: {
@@ -594,7 +662,6 @@ export const cancelLeaveRequest = async ({ requestId, cancelledByUserId, cancell
                 transaction: t,
             });
 
-            // Clean up unassigned PENDING substitution slots for these dates
             await TimetableSubstitute.destroy({
                 where: {
                     originalTeacherId: request.teacherId,

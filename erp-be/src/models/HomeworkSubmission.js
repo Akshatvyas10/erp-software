@@ -18,7 +18,7 @@ const HomeworkSubmission = sequelize.define('HomeworkSubmission', {
         onDelete: 'CASCADE'
     },
     status: {
-        type: DataTypes.ENUM('PENDING', 'SUBMITTED', 'REVIEWED', 'OVERDUE'),
+        type: DataTypes.ENUM('PENDING', 'SUBMITTED', 'REVIEWED', 'OVERDUE', 'COMPLETED', 'NOT_COMPLETED'),
         allowNull: false,
         defaultValue: 'PENDING'
     },

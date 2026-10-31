@@ -72,6 +72,26 @@ const listClassrooms = async (req, res, next) => {
             } else {
                 Object.assign(where, teacherCondition);
             }
+        } else if (rolesLower.includes('student')) {
+            const studentId = req.user.studentId;
+            if (!studentId) return success(res, { classrooms: [] });
+
+            const enrolledClassroomIds = await ClassroomStudent.findAll({
+                where: { studentId },
+                attributes: ['classroomId'],
+                raw: true,
+            }).then(rows => rows.map(r => r.classroomId));
+
+            if (enrolledClassroomIds.length === 0) {
+                return success(res, { classrooms: [] });
+            }
+
+            const studentCondition = { id: { [Op.in]: enrolledClassroomIds } };
+            if (searchCondition) {
+                where[Op.and] = [searchCondition, studentCondition];
+            } else {
+                Object.assign(where, studentCondition);
+            }
         } else if (searchCondition) {
             Object.assign(where, searchCondition);
         }
@@ -221,12 +241,28 @@ const getClassroom = async (req, res, next) => {
             }
         }
 
+        const isStudent = !isPrivileged && rolesLower.includes('student');
+
         const plain = classroom.toJSON();
         if (plain.academicClass?.department?.head) {
             plain.academicClass.department.incharge = plain.academicClass.department.head;
         }
         if (plain.departmentRef?.head) {
             plain.departmentRef.incharge = plain.departmentRef.head;
+        }
+
+        // Student-safe sanitization: Never leak full classmate rosters or administrative configurations to students
+        if (isStudent) {
+            const studentId = req.user.studentId;
+            delete plain.enrollments; // Exclude full roster
+            delete plain.maleMonitor;
+            delete plain.femaleMonitor;
+            delete plain.monitorMaleId;
+            delete plain.monitorFemaleId;
+
+            // Retain safe student count and enrolled confirmation
+            plain.studentCount = classroom.enrollments?.length || 0;
+            plain.isEnrolled = classroom.enrollments?.some(e => e.studentId === studentId);
         }
 
         return success(res, { classroom: plain });
@@ -497,6 +533,57 @@ const deleteClassroom = async (req, res, next) => {
 // ── GET /api/classrooms/:id/students ────────────────────────────────────────
 const getRoster = async (req, res, next) => {
     try {
+        const rolesLower = (req.userRoles || []).map(r => String(r).toLowerCase());
+        const isPrivileged = rolesLower.some(r => ['admin', 'super_admin', 'principal'].includes(r));
+        const isStudent = !isPrivileged && rolesLower.includes('student');
+
+        // Fetch classroom to identify monitors
+        const classroom = await Classroom.findByPk(req.params.id, {
+            attributes: ['id', 'monitorMaleId', 'monitorFemaleId']
+        });
+        if (!classroom) return error(res, 'Classroom not found', 404);
+
+        if (isStudent) {
+            // Student-safe classmate view: safe DTO only (no emails, phones, medical notes, or guardian info)
+            const enrollments = await ClassroomStudent.findAll({
+                where: { classroomId: req.params.id },
+                include: [{
+                    model: Student, as: 'student',
+                    attributes: ['id', 'gender'],
+                    include: [{
+                        model: User, as: 'account',
+                        attributes: ['id', 'firstName', 'lastName']
+                    }],
+                }],
+                order: [
+                    ['rollNumber', 'ASC'],
+                    [{ model: Student, as: 'student' }, { model: User, as: 'account' }, 'firstName', 'ASC']
+                ],
+            });
+
+            const classmates = enrollments.map(e => {
+                const isMonitor = Boolean(
+                    (classroom.monitorMaleId && classroom.monitorMaleId === e.studentId) ||
+                    (classroom.monitorFemaleId && classroom.monitorFemaleId === e.studentId)
+                );
+                const firstName = e.student?.account?.firstName || '';
+                const lastName = e.student?.account?.lastName || '';
+                const fullName = `${firstName} ${lastName}`.trim() || 'Classmate';
+
+                return {
+                    id: e.id,
+                    studentId: e.studentId,
+                    fullName,
+                    rollNumber: e.rollNumber || '-',
+                    gender: e.student?.gender || null,
+                    isMonitor,
+                };
+            });
+
+            return success(res, { classmates, enrollments: [] });
+        }
+
+        // Staff/Admin view: full administrative enrollment records
         const enrollments = await ClassroomStudent.findAll({
             where: { classroomId: req.params.id },
             include: [{

@@ -25,6 +25,7 @@ import { TeacherForm, type TeacherFormValues } from "@/components/teachers/Teach
 import { SectionCard, DetailRow } from "@/components/shared/DetailCards";
 import { ProfilePageSkeleton } from "@/components/common/skeletons/ProfilePageSkeleton";
 import { TeacherProfileLeaveWidget } from "@/components/leaves/TeacherProfileLeaveWidget";
+import { TeacherWorkloadWidget } from "@/features/teachers/components/TeacherWorkloadWidget";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const fetchTeacher = async (id: string): Promise<Teacher> => {
@@ -333,6 +334,9 @@ export default function TeacherDetailPage() {
                             </div>
                         </div>
                     </SectionCard>
+
+                    {/* Teacher Workload Analytics Widget */}
+                    <TeacherWorkloadWidget teacherId={teacher.id} />
 
                     {/* Teacher Leave Allocations Widget */}
                     <TeacherProfileLeaveWidget teacherId={teacher.id} />

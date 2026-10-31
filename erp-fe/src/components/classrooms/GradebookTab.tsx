@@ -119,20 +119,13 @@ export default function GradebookTab({ classroomId, enrollments, subjects, canEd
     const exams = activeSchedule?.exams ?? [];
 
     const { data: resultsMatrix = {}, isLoading: resultsLoading } = useQuery({
-        queryKey: ["exam-results", classroomId, exams.map(e => e.id)],
+        queryKey: ["exam-results", classroomId, activeScheduleId],
         queryFn: async () => {
-            const matrix: Record<string, Record<string, ExamResult>> = {}; // studentId -> examId -> Result
-            await Promise.all(exams.map(async (exam) => {
-                const res = await api.get(`/exams/${exam.id}/results`);
-                const results = res.data.data.results as ExamResult[];
-                results.forEach(r => {
-                    if (!matrix[r.studentId]) matrix[r.studentId] = {};
-                    matrix[r.studentId][exam.id] = r;
-                });
-            }));
-            return matrix;
+            if (!activeScheduleId) return {};
+            const res = await api.get(`/exams/schedules/${activeScheduleId}/results-matrix`);
+            return (res.data.data.matrix || {}) as Record<string, Record<string, ExamResult>>;
         },
-        enabled: exams.length > 0,
+        enabled: !!activeScheduleId && exams.length > 0,
     });
 
     const filteredEnrollments = useMemo(() => {
