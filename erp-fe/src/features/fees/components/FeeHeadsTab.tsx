@@ -18,7 +18,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import feeApi, { type FeeHead } from '../api/feeApi';
 import queryKeys from '@/lib/queryKeys';
 import { toast } from 'sonner';
-import { Plus, Tag, Sparkles } from 'lucide-react';
+import { Plus, Tag } from 'lucide-react';
 
 interface FeeHeadsTabProps {
   feeHeads: FeeHead[];
@@ -30,41 +30,15 @@ export const FeeHeadsTab: React.FC<FeeHeadsTabProps> = ({ feeHeads }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const [name, setName] = useState('');
-  const [code, setCode] = useState('');
-  const [isCodeManuallyEdited, setIsCodeManuallyEdited] = useState(false);
   const [category, setCategory] = useState<FeeHead['category']>('TUITION');
   const [description, setDescription] = useState('');
   const [isOptional] = useState(false);
 
-  // Helper to generate a clean, readable unique uppercase code
-  const generateFeeCode = (text: string) => {
-    return text
-      .toUpperCase()
-      .replace(/[^A-Z0-9\s]/g, '')
-      .trim()
-      .replace(/\s+/g, '_')
-      .slice(0, 25);
-  };
-
-  // Auto-generate code from name unless user explicitly typed a custom code
-  const handleNameChange = (val: string) => {
-    setName(val);
-    if (!isCodeManuallyEdited) {
-      setCode(generateFeeCode(val));
-    }
-  };
-
-  const regenerateCode = () => {
-    setCode(generateFeeCode(name));
-    setIsCodeManuallyEdited(false);
-  };
-
   const createMutation = useMutation({
     mutationFn: () => {
-      if (!name || !code) throw new Error('Name and code are required');
+      if (!name) throw new Error('Fee Head name is required');
       return feeApi.createFeeHead({
         name,
-        code: code.toUpperCase().trim(),
         category,
         description,
         isOptional,
@@ -77,8 +51,6 @@ export const FeeHeadsTab: React.FC<FeeHeadsTabProps> = ({ feeHeads }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.fees.heads() });
       setIsOpen(false);
       setName('');
-      setCode('');
-      setIsCodeManuallyEdited(false);
       setDescription('');
     },
     onError: (err: any) => {
@@ -154,69 +126,28 @@ export const FeeHeadsTab: React.FC<FeeHeadsTabProps> = ({ feeHeads }) => {
                 placeholder="e.g. Science Laboratory Fee"
                 className="mt-1"
                 value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
+                onChange={(e) => setName(e.target.value)}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <Label className="text-xs font-semibold text-slate-700">Code (Auto-Generated) *</Label>
-                  {isCodeManuallyEdited && (
-                    <button
-                      type="button"
-                      onClick={regenerateCode}
-                      className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
-                    >
-                      <Sparkles className="w-2.5 h-2.5" /> Re-sync
-                    </button>
-                  )}
-                </div>
-                <div className="relative">
-                  <Input
-                    placeholder="e.g. SCIENCE_LABORATORY"
-                    className="uppercase font-mono text-xs pr-7 bg-muted/30"
-                    value={code}
-                    onChange={(e) => {
-                      setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
-                      setIsCodeManuallyEdited(true);
-                    }}
-                  />
-                  {!isCodeManuallyEdited && code && (
-                    <span
-                      title="Code auto-generated from name"
-                      className="absolute right-2 top-2.5 text-primary text-[10px] font-medium pointer-events-none"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                    </span>
-                  )}
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {!isCodeManuallyEdited
-                    ? '✨ Derived automatically as you type name'
-                    : 'Custom code entered'}
-                </p>
-              </div>
-
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">Category *</Label>
-                <Select value={category} onValueChange={(val: any) => setCategory(val)}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="TUITION">Tuition</SelectItem>
-                    <SelectItem value="ADMISSION">Admission</SelectItem>
-                    <SelectItem value="EXAM">Exam</SelectItem>
-                    <SelectItem value="LAB">Laboratory</SelectItem>
-                    <SelectItem value="TRANSPORT">Transport</SelectItem>
-                    <SelectItem value="ACTIVITY">Activity</SelectItem>
-                    <SelectItem value="LIBRARY">Library</SelectItem>
-                    <SelectItem value="HOSTEL">Hostel</SelectItem>
-                    <SelectItem value="OTHER">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">Category *</Label>
+              <Select value={category} onValueChange={(val: any) => setCategory(val)}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TUITION">Tuition</SelectItem>
+                  <SelectItem value="ADMISSION">Admission</SelectItem>
+                  <SelectItem value="EXAM">Exam</SelectItem>
+                  <SelectItem value="LAB">Laboratory</SelectItem>
+                  <SelectItem value="TRANSPORT">Transport</SelectItem>
+                  <SelectItem value="ACTIVITY">Activity</SelectItem>
+                  <SelectItem value="LIBRARY">Library</SelectItem>
+                  <SelectItem value="HOSTEL">Hostel</SelectItem>
+                  <SelectItem value="OTHER">Other</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
