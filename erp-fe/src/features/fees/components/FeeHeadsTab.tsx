@@ -82,29 +82,28 @@ export const FeeHeadsTab: React.FC<FeeHeadsTabProps> = ({ feeHeads }) => {
             <TableRow>
               <TableHead className="text-xs font-semibold">Head Code</TableHead>
               <TableHead className="text-xs font-semibold">Name</TableHead>
-              <TableHead className="text-xs font-semibold">Category</TableHead>
               <TableHead className="text-xs font-semibold">Description</TableHead>
-              <TableHead className="text-xs font-semibold">Optional?</TableHead>
+              <TableHead className="text-xs font-semibold">Refundable</TableHead>
               <TableHead className="text-xs font-semibold">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {feeHeads.map((h) => (
-              <TableRow key={h.id} className="text-xs">
-                <TableCell className="font-mono font-bold text-indigo-700">{h.code}</TableCell>
-                <TableCell className="font-medium text-slate-900">{h.name}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{h.category}</Badge>
-                </TableCell>
-                <TableCell className="text-slate-500 max-w-xs truncate">{h.description || '—'}</TableCell>
-                <TableCell>{h.isOptional ? <Badge variant="secondary">Optional</Badge> : 'Mandatory'}</TableCell>
-                <TableCell>
-                  <Badge className={h.isActive ? 'bg-emerald-600' : 'bg-slate-400'}>
-                    {h.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
+            {feeHeads.map((h) => {
+              const active = h.status ? h.status === 'ACTIVE' : h.isActive ?? true;
+              return (
+                <TableRow key={h.id} className="text-xs">
+                  <TableCell className="font-mono font-bold text-indigo-700">{h.code}</TableCell>
+                  <TableCell className="font-medium text-slate-900">{h.name}</TableCell>
+                  <TableCell className="text-slate-500 max-w-xs truncate">{h.description || '—'}</TableCell>
+                  <TableCell>{h.isRefundable ? <Badge variant="secondary">Yes</Badge> : 'No'}</TableCell>
+                  <TableCell>
+                    <Badge className={active ? 'bg-emerald-600' : 'bg-slate-400'}>
+                      {active ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

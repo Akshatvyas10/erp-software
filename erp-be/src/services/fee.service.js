@@ -25,14 +25,13 @@ class FeeService {
     // FEE HEADS
     // ══════════════════════════════════════════════════════════════════════════
 
-    async getFeeHeads({ isActive, category } = {}) {
+    async getFeeHeads({ isActive } = {}) {
         const where = {};
-        if (typeof isActive === 'boolean') where.isActive = isActive;
-        if (category) where.category = category;
+        if (typeof isActive === 'boolean') where.status = isActive ? 'ACTIVE' : 'INACTIVE';
 
         return await FeeHead.findAll({
             where,
-            order: [['category', 'ASC'], ['name', 'ASC']],
+            order: [['name', 'ASC']],
         });
     }
 
@@ -715,10 +714,10 @@ class FeeService {
         const [todayCollections] = await sequelize.query(
             `
             SELECT 
-                COALESCE(SUM(amount), 0) AS "todayTotal",
-                COALESCE(SUM(CASE WHEN payment_mode = 'CASH' THEN amount ELSE 0 END), 0) AS "todayCash",
-                COALESCE(SUM(CASE WHEN payment_mode = 'UPI' THEN amount ELSE 0 END), 0) AS "todayUpi",
-                COALESCE(SUM(CASE WHEN payment_mode = 'BANK_TRANSFER' THEN amount ELSE 0 END), 0) AS "todayBankTransfer"
+                COALESCE(SUM(amount_paid), 0) AS "todayTotal",
+                COALESCE(SUM(CASE WHEN payment_mode = 'CASH' THEN amount_paid ELSE 0 END), 0) AS "todayCash",
+                COALESCE(SUM(CASE WHEN payment_mode = 'UPI' THEN amount_paid ELSE 0 END), 0) AS "todayUpi",
+                COALESCE(SUM(CASE WHEN payment_mode = 'BANK_TRANSFER' THEN amount_paid ELSE 0 END), 0) AS "todayBankTransfer"
             FROM fee_payments
             WHERE payment_date = :todayStr AND deleted_at IS NULL
         `,

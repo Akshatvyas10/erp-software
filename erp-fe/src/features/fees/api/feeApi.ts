@@ -5,10 +5,11 @@ export interface FeeHead {
   name: string;
   code: string;
   description?: string | null;
-  category: 'TUITION' | 'ADMISSION' | 'EXAM' | 'LAB' | 'TRANSPORT' | 'ACTIVITY' | 'LIBRARY' | 'HOSTEL' | 'FINE' | 'OTHER';
-  isOptional: boolean;
-  isRefundable: boolean;
-  isActive: boolean;
+  category?: 'TUITION' | 'ADMISSION' | 'EXAM' | 'LAB' | 'TRANSPORT' | 'ACTIVITY' | 'LIBRARY' | 'HOSTEL' | 'FINE' | 'OTHER';
+  isOptional?: boolean;
+  isRefundable?: boolean;
+  status?: 'ACTIVE' | 'INACTIVE';
+  isActive?: boolean;
   createdAt: string;
   updatedAt: string;
 }
