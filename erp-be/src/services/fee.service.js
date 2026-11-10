@@ -37,11 +37,33 @@ class FeeService {
     }
 
     async createFeeHead(data) {
-        const existing = await FeeHead.findOne({ where: { code: data.code.toUpperCase() } });
-        if (existing) {
-            throw new ApiError(409, `Fee Head with code '${data.code}' already exists`);
+        let finalCode = data.code;
+        if (!finalCode) {
+            // Auto-generate code from name: "Computer Lab Fee" -> "COMPUTER_LAB_FEE"
+            finalCode = data.name
+                .toUpperCase()
+                .replace(/[^A-Z0-9\s]/g, '')
+                .trim()
+                .replace(/\s+/g, '_')
+                .slice(0, 20);
+
+            // If duplicate exists, append random suffix
+            const existingCode = await FeeHead.findOne({ where: { code: finalCode } });
+            if (existingCode) {
+                finalCode = `${finalCode.slice(0, 15)}_${Math.floor(100 + Math.random() * 900)}`;
+            }
+        } else {
+            finalCode = finalCode.toUpperCase().trim();
+            const existing = await FeeHead.findOne({ where: { code: finalCode } });
+            if (existing) {
+                throw new ApiError(409, `Fee Head with code '${finalCode}' already exists`);
+            }
         }
-        return await FeeHead.create(data);
+
+        return await FeeHead.create({
+            ...data,
+            code: finalCode,
+        });
     }
 
     async updateFeeHead(id, data) {

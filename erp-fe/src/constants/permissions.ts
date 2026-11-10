@@ -56,6 +56,14 @@ export const PERMISSIONS = {
         DELETE: "document_templates:delete",
         MANAGE: "document_templates:manage",
     },
+    FEES: {
+        READ: "fees:read",
+        CREATE: "fees:create",
+        UPDATE: "fees:update",
+        DELETE: "fees:delete",
+        COLLECT: "fees:collect",
+        MANAGE: "fees:manage",
+    },
     ALL: {
         MANAGE: "all:manage",
     },

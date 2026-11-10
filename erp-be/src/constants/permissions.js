@@ -58,6 +58,14 @@ export const PERMISSIONS = Object.freeze({
     DOCUMENT_TEMPLATES_DELETE: 'document_templates:delete',
     DOCUMENT_TEMPLATES_MANAGE: 'document_templates:manage',
 
+    // Fees & Billing
+    FEES_READ: 'fees:read',
+    FEES_CREATE: 'fees:create',
+    FEES_UPDATE: 'fees:update',
+    FEES_DELETE: 'fees:delete',
+    FEES_COLLECT: 'fees:collect',
+    FEES_MANAGE: 'fees:manage',
+
     // Universal Admin
     ALL_MANAGE: 'all:manage',
 });
