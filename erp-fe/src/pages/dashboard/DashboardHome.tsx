@@ -2,12 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import {
     Users, GraduationCap, BookOpen, ShieldCheck,
     KeyRound, CheckCircle2, XCircle, Loader2, RefreshCw,
-    TrendingUp, Calendar, Plus, Activity
+    TrendingUp, Activity
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions, useAuth } from "@/store/hooks";
 import { useMyPermissions } from "@/hooks/useMyPermissions";
 import api from "@/lib/api";
@@ -44,13 +45,23 @@ const useBulkPermissionCheck = (enabled: boolean) => {
 };
 
 
-// --- Mock Data for UI Redesign ---
-const METRICS = [
-    { label: "Total Students", value: "1,248", change: "+12%", icon: GraduationCap, color: "text-primary", bg: "bg-primary/10" },
-    { label: "Total Teachers", value: "84", change: "+2%", icon: BookOpen, color: "text-primary", bg: "bg-primary/10" },
-    { label: "Active Users", value: "342", change: "+5%", icon: Users, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10" },
-    { label: "Pending Tasks", value: "12", change: "-2", icon: Activity, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10" },
-];
+const useDashboardStats = (enabled: boolean) => {
+    return useQuery({
+        queryKey: ["dashboard", "stats"],
+        queryFn: async () => {
+            const { data } = await api.get("/dashboard/stats");
+            return data.data as {
+                totalStudents: number;
+                totalTeachers: number;
+                totalUsers: number;
+                pendingLeaves: number;
+            };
+        },
+        enabled,
+        staleTime: 5 * 60 * 1000,
+        retry: 1,
+    });
+};
 
 const RECENT_ACTIVITY = [
     { title: "New student enrolled", time: "2 hours ago", icon: GraduationCap },
@@ -65,6 +76,39 @@ export default function DashboardHome() {
 
     const bulkCheck = useBulkPermissionCheck(!!user);
     const serverPerms = useMyPermissions();
+    const statsQuery = useDashboardStats(!!user);
+
+    // Build live metrics from API, with skeletons while loading
+    const liveMetrics = [
+        {
+            label: "Total Students",
+            value: statsQuery.data?.totalStudents,
+            icon: GraduationCap,
+            color: "text-primary",
+            bg: "bg-primary/10"
+        },
+        {
+            label: "Total Teachers",
+            value: statsQuery.data?.totalTeachers,
+            icon: BookOpen,
+            color: "text-primary",
+            bg: "bg-primary/10"
+        },
+        {
+            label: "Total Users",
+            value: statsQuery.data?.totalUsers,
+            icon: Users,
+            color: "text-emerald-600 dark:text-emerald-400",
+            bg: "bg-emerald-500/10"
+        },
+        {
+            label: "Pending Leaves",
+            value: statsQuery.data?.pendingLeaves,
+            icon: Activity,
+            color: "text-amber-600 dark:text-amber-400",
+            bg: "bg-amber-500/10"
+        },
+    ];
 
     const groupedByResource = RESOURCE_CHECKS.reduce<Record<string, typeof RESOURCE_CHECKS>>((acc, item) => {
         if (!acc[item.resource]) acc[item.resource] = [];
@@ -94,13 +138,13 @@ export default function DashboardHome() {
     };
 
     return (
-        <motion.div 
+        <motion.div
             className="space-y-8 max-w-7xl mx-auto"
             variants={containerVariants}
             initial="hidden"
             animate="show"
         >
-            {/* Header & Quick Actions */}
+            {/* Header */}
             <motion.div variants={itemVariants} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-foreground tracking-tight">
@@ -109,17 +153,6 @@ export default function DashboardHome() {
                     <p className="text-muted-foreground mt-1 text-sm">
                         Here's your access overview and school metrics for today.
                     </p>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                    <Button variant="outline" className="gap-2 bg-background hover-lift focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none transition-colors duration-200 hover:bg-accent hover:text-accent-foreground">
-                        <Calendar className="h-4 w-4" />
-                        View Schedule
-                    </Button>
-                    <Button className="gap-2 hover-lift focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none transition-colors duration-200">
-                        <Plus className="h-4 w-4" />
-                        Quick Create
-                    </Button>
                 </div>
             </motion.div>
 
@@ -147,20 +180,32 @@ export default function DashboardHome() {
 
             {/* Metrics Overview */}
             <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {METRICS.map((metric, idx) => (
+                {liveMetrics.map((metric, idx) => (
                     <Card key={idx} className="hover-lift overflow-hidden border-border/60">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between mb-4">
                                 <div className={`p-3 rounded-xl ${metric.bg}`}>
                                     <metric.icon className={`h-5 w-5 ${metric.color}`} />
                                 </div>
-                                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full flex items-center gap-1 border border-emerald-500/20">
-                                    <TrendingUp className="h-3 w-3" />
-                                    {metric.change}
-                                </span>
+                                {statsQuery.isLoading ? (
+                                    <Skeleton className="h-6 w-12 rounded-full" />
+                                ) : statsQuery.isError ? (
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                ) : (
+                                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full flex items-center gap-1 border border-emerald-500/20">
+                                        <TrendingUp className="h-3 w-3" />
+                                        live
+                                    </span>
+                                )}
                             </div>
                             <div className="space-y-1">
-                                <h3 className="text-3xl font-bold tracking-tight text-foreground">{metric.value}</h3>
+                                {statsQuery.isLoading ? (
+                                    <Skeleton className="h-9 w-24 mb-1" />
+                                ) : (
+                                    <h3 className="text-3xl font-bold tracking-tight text-foreground">
+                                        {metric.value?.toLocaleString() ?? "—"}
+                                    </h3>
+                                )}
                                 <p className="text-sm text-muted-foreground font-medium">{metric.label}</p>
                             </div>
                         </CardContent>
@@ -262,8 +307,8 @@ export default function DashboardHome() {
                                                         key={action}
                                                         variant="outline"
                                                         className={`text-xs font-medium capitalize px-2.5 py-0.5 rounded-md ${action === "manage"
-                                                                ? "border-primary/40 text-primary bg-primary/5 shadow-sm"
-                                                                : "border-border text-foreground hover:bg-muted"
+                                                            ? "border-primary/40 text-primary bg-primary/5 shadow-sm"
+                                                            : "border-border text-foreground hover:bg-muted"
                                                             }`}
                                                     >
                                                         {action}

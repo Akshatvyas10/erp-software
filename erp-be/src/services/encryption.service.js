@@ -2,9 +2,20 @@ import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
-// 32-byte key generated from ENCRYPTION_SECRET
-const SECRET = process.env.ENCRYPTION_SECRET || 'erp-system-default-secret-key-32b-length!!';
-const KEY = crypto.scryptSync(SECRET, 'erp_salt', 32);
+
+// In production, ENCRYPTION_SECRET must be set explicitly (validated by envValidator on boot).
+// A hardcoded fallback is intentionally kept for development ONLY. It must NEVER reach production.
+const SECRET = process.env.ENCRYPTION_SECRET;
+if (!SECRET) {
+    if (process.env.NODE_ENV === 'production') {
+        // envValidator should have already aborted boot — this is a last-resort guard.
+        throw new Error('FATAL: ENCRYPTION_SECRET is not set. Aborting to prevent data corruption.');
+    }
+    // Development fallback: warn loudly so it is never overlooked.
+    console.warn('[SECURITY WARNING] ENCRYPTION_SECRET is not set. Using insecure development fallback. Set this variable before deploying to production.');
+}
+const EFFECTIVE_SECRET = SECRET || 'erp-system-default-secret-key-32b-length!!';
+const KEY = crypto.scryptSync(EFFECTIVE_SECRET, 'erp_salt', 32);
 
 export const encrypt = (text) => {
     if (!text) return null;

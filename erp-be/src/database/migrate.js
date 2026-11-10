@@ -20,6 +20,8 @@ import logger from '../utils/logger.js';
         await sequelize.query('CREATE SEQUENCE IF NOT EXISTS student_adm_seq START 1;');
         await sequelize.query('CREATE SEQUENCE IF NOT EXISTS erp_student_id_seq START 1;');
         await sequelize.query('CREATE SEQUENCE IF NOT EXISTS erp_user_id_seq START 2;');
+        await sequelize.query('CREATE SEQUENCE IF NOT EXISTS student_invoice_seq START 1;');
+        await sequelize.query('CREATE SEQUENCE IF NOT EXISTS fee_receipt_seq START 1;');
         logger.info('Global ID sequences ready.');
 
         // ── Sync in FK-dependency order ──────────────────────────────────────────
@@ -53,7 +55,7 @@ import logger from '../utils/logger.js';
         await Department.sync({ force: false, alter: true });
         logger.info('✓ departments');
 
-        await Classroom.sync({ force: false, alter: true });
+        await Classroom.sync({ force: false });
         logger.info('✓ classrooms');
 
         await ClassroomStudent.sync({ force: false, alter: true });
@@ -139,50 +141,101 @@ import logger from '../utils/logger.js';
             logger.info('✓ school_configs');
         }
 
+        if (db.AcademicYear) {
+            await db.AcademicYear.sync({ force: false });
+            logger.info('✓ academic_years');
+        }
+
         if (db.TestExamConfig) {
-            await db.TestExamConfig.sync({ force: false, alter: true });
+            await db.TestExamConfig.sync({ force: false });
             logger.info('✓ test_exam_configs');
         }
 
         if (db.TimetableSubstitute) {
-            await db.TimetableSubstitute.sync({ force: false, alter: true });
+            await db.TimetableSubstitute.sync({ force: false });
             logger.info('✓ timetable_substitutes');
         }
 
+        if (db.ClassroomRemark) {
+            await db.ClassroomRemark.sync({ force: false });
+            logger.info('✓ classroom_remarks');
+        }
+
+        if (db.DocumentTemplate) {
+            await db.DocumentTemplate.sync({ force: false });
+            logger.info('✓ document_templates');
+        }
+
+        if (db.IssuedDocument) {
+            await db.IssuedDocument.sync({ force: false });
+            logger.info('✓ issued_documents');
+        }
+
         if (db.LeaveType) {
-            await db.LeaveType.sync({ force: false, alter: true });
+            await db.LeaveType.sync({ force: false });
             logger.info('✓ leave_types');
         }
 
         if (db.LeaveRule) {
-            await db.LeaveRule.sync({ force: false, alter: true });
+            await db.LeaveRule.sync({ force: false });
             logger.info('✓ leave_rules');
         }
 
         if (db.TeacherLeaveBalance) {
-            await db.TeacherLeaveBalance.sync({ force: false, alter: true });
+            await db.TeacherLeaveBalance.sync({ force: false });
             logger.info('✓ teacher_leave_balances');
         }
 
         if (db.TeacherLeaveRequest) {
-            await db.TeacherLeaveRequest.sync({ force: false, alter: true });
+            await db.TeacherLeaveRequest.sync({ force: false });
             logger.info('✓ teacher_leave_requests');
         }
 
         if (db.TeacherLeaveAccrual) {
-            await db.TeacherLeaveAccrual.sync({ force: false, alter: true });
+            await db.TeacherLeaveAccrual.sync({ force: false });
             logger.info('✓ teacher_leave_accruals');
         }
 
         if (db.StudentLeaveRequest) {
-            await db.StudentLeaveRequest.sync({ force: false, alter: true });
+            await db.StudentLeaveRequest.sync({ force: false });
             logger.info('✓ student_leave_requests');
+        }
+
+        if (db.FeeHead) {
+            await db.FeeHead.sync({ force: false });
+            logger.info('✓ fee_heads');
+        }
+
+        if (db.FeeStructure) {
+            await db.FeeStructure.sync({ force: false });
+            logger.info('✓ fee_structures');
+        }
+
+        if (db.FeeStructureItem) {
+            await db.FeeStructureItem.sync({ force: false });
+            logger.info('✓ fee_structure_items');
+        }
+
+        if (db.StudentInvoice) {
+            await db.StudentInvoice.sync({ force: false });
+            logger.info('✓ student_invoices');
+        }
+
+        if (db.StudentInvoiceItem) {
+            await db.StudentInvoiceItem.sync({ force: false });
+            logger.info('✓ student_invoice_items');
+        }
+
+        if (db.FeePayment) {
+            await db.FeePayment.sync({ force: false });
+            logger.info('✓ fee_payments');
         }
 
         logger.info('All tables synchronized with Neon DB.');
         process.exit(0);
     } catch (err) {
-        logger.error('Migration failed:', err);
+        logger.error('Migration failed:', err?.message || err);
+        if (err?.parent) logger.error('Parent DB error:', err.parent);
         process.exit(1);
     }
 })();

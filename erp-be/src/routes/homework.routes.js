@@ -24,6 +24,6 @@ router.delete('/:id', requirePermission('homework', 'delete'), deleteHomework);
 
 // Submissions
 router.get('/:id/submissions', requirePermission('homework', 'read'), getHomeworkSubmissions);
-router.put('/submissions/:id', requirePermission('homework', 'read'), updateSubmission);
+router.put('/submissions/:id', requirePermission('homework', 'update'), updateSubmission);
 
 export default router;

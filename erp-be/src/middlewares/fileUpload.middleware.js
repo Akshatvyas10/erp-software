@@ -42,7 +42,9 @@ const upload = multer({
  */
 export const uploadSchoolImages = upload.fields([
     { name: 'logoUrl', maxCount: 1 },
-    { name: 'watermarkUrl', maxCount: 1 }
+    { name: 'watermarkUrl', maxCount: 1 },
+    { name: 'principalSignatureUrl', maxCount: 1 },
+    { name: 'stampUrl', maxCount: 1 }
 ]);
 
 export const compressAndSaveSchoolImages = async (req, res, next) => {
@@ -67,7 +69,9 @@ export const compressAndSaveSchoolImages = async (req, res, next) => {
 
         await Promise.all([
             processImage(req.files['logoUrl'], 'logoUrl'),
-            processImage(req.files['watermarkUrl'], 'watermarkUrl')
+            processImage(req.files['watermarkUrl'], 'watermarkUrl'),
+            processImage(req.files['principalSignatureUrl'], 'principalSignatureUrl'),
+            processImage(req.files['stampUrl'], 'stampUrl')
         ]);
 
         next();

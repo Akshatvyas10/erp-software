@@ -11,7 +11,6 @@ const AcademicYear = sequelize.define('AcademicYear', {
     name: {
         type: DataTypes.STRING(30),
         allowNull: false,
-        unique: true,
         comment: 'Standard academic year display label, e.g. 2026-27 or 2026-2027',
     },
     startDate: {
@@ -30,7 +29,6 @@ const AcademicYear = sequelize.define('AcademicYear', {
         type: DataTypes.ENUM('UPCOMING', 'ACTIVE', 'COMPLETED'),
         allowNull: false,
         defaultValue: 'UPCOMING',
-        comment: 'Lifecycle state of academic year',
     },
     isCurrent: {
         type: DataTypes.BOOLEAN,

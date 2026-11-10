@@ -23,7 +23,7 @@ const Permission = sequelize.define(
             allowNull: false,
         },
         action: {
-            type: DataTypes.ENUM('create', 'read', 'update', 'delete', 'manage'),
+            type: DataTypes.STRING(30),
             allowNull: false,
         },
         description: {

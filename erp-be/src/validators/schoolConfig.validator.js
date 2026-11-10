@@ -19,6 +19,8 @@ export const updateSchoolConfigSchema = z.object({
     taxId: z.string().optional(),
     currencySymbol: z.string().default('₹'),
     timezone: z.string().default('Asia/Kolkata'),
+    authorizedSignatoryName: z.string().optional(),
+    authorizedSignatoryDesignation: z.string().optional(),
     owners: z.string().optional().transform(val => val ? JSON.parse(val) : []), // Sent as JSON string in form-data
     bankDetails: z.string().optional().transform(val => val ? JSON.parse(val) : {}),
 });

@@ -4,7 +4,7 @@ import {
     LayoutDashboard, Users, GraduationCap, BookOpen,
     ShieldCheck, KeyRound, X, School, Building2, LayoutGrid,
     LogOut, User, ChevronsUpDown, Calendar, ClipboardList, CalendarCheck,
-    DollarSign
+    DollarSign, Settings, Receipt
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermissions, useAuth } from "@/store/hooks";
@@ -38,12 +38,14 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Classrooms", to: "/dashboard/classrooms", icon: LayoutGrid, resource: "classrooms", action: "read" },
     { label: "Staff Leaves", to: "/dashboard/leaves", icon: CalendarCheck, resource: "teacher_leaves", action: "read" },
     { label: "Student Leaves", to: "/dashboard/student-leaves", icon: CalendarCheck, resource: "student_leaves", action: "update" },
+    { label: "Fees & Billing", to: "/dashboard/fees", icon: Receipt, resource: "fees", action: "read" },
     { label: "Payroll", to: "/dashboard/salary", icon: DollarSign, resource: "teachers", action: "manage" },
     { label: "Homework", to: "/dashboard/homework", icon: BookOpen, resource: "homework", action: "read" },
     { label: "Calendar", to: "/dashboard/calendar", icon: Calendar, resource: "events", action: "read" },
     { label: "Admissions", to: "/dashboard/admissions", icon: ClipboardList, resource: "users", action: "read" },
     { label: "Roles", to: "/dashboard/roles", icon: ShieldCheck, resource: "roles", action: "read" },
     { label: "Permissions", to: "/dashboard/permissions", icon: KeyRound, resource: "permissions", action: "read" },
+    { label: "School Config", to: "/dashboard/school-config", icon: Settings, resource: "users", action: "manage" },
 ];
 
 interface SidebarProps {
@@ -59,11 +61,19 @@ export default function Sidebar({ mobileOpen, onMobileClose, isCollapsed }: Side
 
     const [showLogoutAlert, setShowLogoutAlert] = useState(false);
 
+    const userRec = user as Record<string, any>;
+
+    const handleViewProfile = () => {
+        // Navigate to the user's own detail page instead of a non-existent /profile route
+        if (userRec?.id) {
+            navigate(`/dashboard/users/${userRec.id}`);
+        }
+    };
+
     const visibleItems = NAV_ITEMS.filter(
         (item) => item.alwaysShow || (item.resource && item.action && can(item.resource, item.action))
     );
 
-    const userRec = user as Record<string, any>;
     const initials = userRec ? `${userRec.firstName?.[0] || ""}${userRec.lastName?.[0] || ""}`.toUpperCase() : "U";
     const roleName = userRec?.Roles?.[0]?.name?.replace(/_/g, " ") || "No Role";
     const fullName = `${String(userRec?.firstName || "")} ${String(userRec?.lastName || "")}`;
@@ -241,7 +251,7 @@ export default function Sidebar({ mobileOpen, onMobileClose, isCollapsed }: Side
                             <DropdownMenuSeparator className="bg-border" />
                             <DropdownMenuItem
                                 className="cursor-pointer gap-2 py-2 text-foreground focus:bg-primary/10 font-medium"
-                                onClick={() => navigate("/dashboard/profile")}
+                                onClick={handleViewProfile}
                             >
                                 <User className="h-4 w-4 text-primary" />
                                 <span>View Profile</span>

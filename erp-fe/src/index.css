@@ -158,4 +158,51 @@ body {
 
 body[data-scroll-locked] {
   pointer-events: auto !important;
-}
+}
+
+  /* Print Media Rules:
+   * Ensures only .printable-document / [data-printable-document] prints, 
+   * hiding all modal chrome, sidebars, headers, backgrounds, and toolbars.
+   */
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+    
+    [data-printable-document],
+    [data-printable-document] * {
+      visibility: visible;
+    }
+    
+    [data-printable-document] {
+      position: relative !important;
+      left: auto !important;
+      top: auto !important;
+      box-shadow: none !important;
+      border: 1px solid #d1d5db !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      margin: 8px auto !important;
+    }
+
+    .printable-sheet-container {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: white !important;
+    }
+
+    /* Force background colors and images in modern browsers */
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    @page {
+      margin: 10mm;
+      size: auto;
+    }
+  }

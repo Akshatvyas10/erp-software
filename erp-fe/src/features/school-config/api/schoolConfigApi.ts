@@ -21,6 +21,10 @@ export interface SchoolConfigData {
     taxId?: string;
     currencySymbol?: string;
     timezone?: string;
+    principalSignatureUrl?: string;
+    authorizedSignatoryName?: string;
+    authorizedSignatoryDesignation?: string;
+    stampUrl?: string;
     owners?: any[];
     bankDetails?: Record<string, any>;
     smtpSettings?: SmtpSettings;

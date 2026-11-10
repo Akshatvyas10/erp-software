@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
     GraduationCap, Plus, Search, RefreshCw, Loader2,
     MoreHorizontal, Pencil, Trash2, Filter,
-    Phone, ExternalLink,
+    Phone, ExternalLink, CreditCard
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem,
     DropdownMenuSeparator, DropdownMenuTrigger,
@@ -34,6 +35,8 @@ import AccessDenied from "@/components/auth/AccessDenied";
 import type { Student, StudentStatus, Classroom } from "@/types/erp";
 import AdmissionFormDialog from "./AdmissionFormDialog";
 import { useDebounce } from "@/hooks/use-debounce";
+import { BulkIdCardPrintDialog } from "@/features/school-config/components/templates/BulkIdCardPrintDialog";
+import { useGenerateStudentCards, type StudentCardItem } from "@/features/school-config/api/idCardApi";
 
 // Reusable Components
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -94,6 +97,38 @@ export default function StudentDirectory() {
     const [formOpen, setFormOpen] = useState(false);
     const [editTarget, setEditTarget] = useState<Student | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+    const [idCardDialogOpen, setIdCardDialogOpen] = useState(false);
+    const [generatedIdCardPayload, setGeneratedIdCardPayload] = useState<{
+        template: any;
+        cards: StudentCardItem[];
+    }>({ template: null, cards: [] });
+
+    const generateCardsMutation = useGenerateStudentCards();
+
+    const handleGenerateStudentIdCards = async (targetStudentId?: string) => {
+        const ids = targetStudentId 
+            ? [targetStudentId] 
+            : (selectedStudentIds.length > 0 ? selectedStudentIds : students.map(s => s.id));
+        
+        if (ids.length === 0) {
+            toast.error("No students selected for ID card generation");
+            return;
+        }
+
+        try {
+            toast.loading(ids.length === 1 ? "Generating Student ID Card..." : `Generating ${ids.length} Student ID Cards...`, { id: "student-id-gen" });
+            const res = await generateCardsMutation.mutateAsync({ studentIds: ids });
+            setGeneratedIdCardPayload({
+                template: res.template,
+                cards: res.cards
+            });
+            setIdCardDialogOpen(true);
+            toast.success(`Loaded ${res.total} Student ID Card${res.total > 1 ? "s" : ""}!`, { id: "student-id-gen" });
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || "Failed to generate student ID cards", { id: "student-id-gen" });
+        }
+    };
 
     const { data, isLoading, isFetching, refetch } = useQuery({
         queryKey: ["students", debouncedSearch, statusFilter, classFilter, page],
@@ -129,6 +164,25 @@ export default function StudentDirectory() {
     const canDelete = can("students", "delete");
 
     const columns: Column<Student>[] = [
+        {
+            header: "",
+            className: "w-10 text-center pl-4",
+            cell: (student) => (
+                <div onClick={(e) => e.stopPropagation()} className="flex items-center justify-center">
+                    <Checkbox
+                        checked={selectedStudentIds.includes(student.id)}
+                        onCheckedChange={() => {
+                            setSelectedStudentIds(prev =>
+                                prev.includes(student.id)
+                                    ? prev.filter(item => item !== student.id)
+                                    : [...prev, student.id]
+                            );
+                        }}
+                        aria-label={`Select ${student.account.firstName}`}
+                    />
+                </div>
+            ),
+        },
         {
             header: "Student Profile",
             cell: (student) => {
@@ -231,12 +285,18 @@ export default function StudentDirectory() {
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44 rounded-xl border border-border bg-background shadow-xl">
+                        <DropdownMenuContent align="end" className="w-48 rounded-xl border border-border bg-background shadow-xl">
                             <DropdownMenuItem
                                 className="gap-2 cursor-pointer font-medium"
                                 onClick={() => navigate(`/dashboard/students/${student.id}`)}
                             >
                                 <ExternalLink className="h-4 w-4 text-primary" /> View Profile
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                className="gap-2 cursor-pointer font-medium"
+                                onClick={() => handleGenerateStudentIdCards(student.id)}
+                            >
+                                <CreditCard className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Print ID Card
                             </DropdownMenuItem>
                             {canEdit && (
                                 <DropdownMenuItem
@@ -336,6 +396,23 @@ export default function StudentDirectory() {
                 >
                     <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin text-primary" : "text-muted-foreground"}`} />
                 </Button>
+
+                <Button
+                    variant="outline"
+                    className="gap-2 h-10 px-3.5 rounded-xl text-xs font-semibold shadow-xs text-primary border-primary/30 hover:bg-primary/5"
+                    onClick={() => handleGenerateStudentIdCards()}
+                    disabled={generateCardsMutation.isPending || students.length === 0}
+                >
+                    {generateCardsMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                        <CreditCard className="h-4 w-4" />
+                    )}
+                    {selectedStudentIds.length > 0
+                        ? `Print ID Cards (${selectedStudentIds.length})`
+                        : "Print All ID Cards"}
+                </Button>
+
                 <PermissionGate resource="students" action="create">
                     <Button
                         className="gap-2 h-10 px-4 rounded-xl font-semibold shadow-sm"
@@ -487,6 +564,18 @@ export default function StudentDirectory() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Student ID Card Generation Modal */}
+            <BulkIdCardPrintDialog
+                open={idCardDialogOpen}
+                onOpenChange={setIdCardDialogOpen}
+                title="Student Directory • ID Cards"
+                description="Preview and print official verified student credentials."
+                template={generatedIdCardPayload.template}
+                cards={generatedIdCardPayload.cards}
+                isLoading={generateCardsMutation.isPending}
+                documentType="STUDENT_ID_CARD"
+            />
         </motion.div>
     );
 }

@@ -30,6 +30,17 @@ export const queryKeys = {
   events: {
     all: ['events'] as const,
   },
+  fees: {
+    all: ['fees'] as const,
+    summary: () => ['fees', 'summary'] as const,
+    heads: (params?: Record<string, unknown>) => ['fees', 'heads', params] as const,
+    structures: (params?: Record<string, unknown>) => ['fees', 'structures', params] as const,
+    structureDetail: (id: string) => ['fees', 'structures', id] as const,
+    invoices: (params?: Record<string, unknown>) => ['fees', 'invoices', params] as const,
+    invoiceDetail: (id: string) => ['fees', 'invoices', id] as const,
+    receiptDetail: (id: string) => ['fees', 'receipts', id] as const,
+    studentLedger: (studentId: string) => ['fees', 'ledger', studentId] as const,
+  },
 } as const;
 
 export default queryKeys;

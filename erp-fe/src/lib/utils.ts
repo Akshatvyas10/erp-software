@@ -10,12 +10,18 @@ const BACKEND_BASE = (import.meta.env.VITE_API_URL?.replace(/\/api$/, "") ?? "ht
 /**
  * Resolves relative uploaded asset paths (e.g. /uploads/students/xyz.jpg) to full backend URLs.
  * Leaves blob:, data:, and full http(s) URLs untouched.
+ * Appends cache-busting query parameter for relative uploads if requested.
  */
-export function getImageUrl(path: string | null | undefined): string | null {
+export function getImageUrl(path: string | null | undefined, cacheBust?: string | number | boolean): string | null {
   if (!path) return null;
   if (path.startsWith("blob:") || path.startsWith("data:") || path.startsWith("http://") || path.startsWith("https://")) {
     return path;
   }
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
-  return `${BACKEND_BASE}${cleanPath}`;
+  const base = `${BACKEND_BASE}${cleanPath}`;
+  if (cacheBust) {
+    const bustParam = typeof cacheBust === "boolean" ? Date.now() : cacheBust;
+    return `${base}?v=${bustParam}`;
+  }
+  return base;
 }

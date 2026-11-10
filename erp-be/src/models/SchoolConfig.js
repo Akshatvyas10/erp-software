@@ -140,6 +140,26 @@ const SchoolConfig = sequelize.define(
             allowNull: false,
             defaultValue: 'royal-purple',
             field: 'active_theme',
+        },
+        principalSignatureUrl: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            field: 'principal_signature_url',
+        },
+        authorizedSignatoryName: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            field: 'authorized_signatory_name',
+        },
+        authorizedSignatoryDesignation: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            field: 'authorized_signatory_designation',
+        },
+        stampUrl: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            field: 'stamp_url',
         }
     },
     {

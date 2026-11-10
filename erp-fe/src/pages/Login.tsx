@@ -52,8 +52,16 @@ export default function Login() {
       }));
 
       toast.success(`Welcome back, ${data.data.user.firstName}!`);
-      // Navigate to dashboard — DashboardLayout will fetch + decrypt permissions
-      navigate("/dashboard");
+
+      // Determine landing route by role (Students/Parents go directly to /portal)
+      const userRoles = (data.data.user.Roles || []).map((r: any) => String(r?.name || r).toLowerCase());
+      const isStudentOnly = userRoles.includes("student") && !userRoles.some((r: string) => ["admin", "super_admin", "teacher", "principal"].includes(r));
+
+      if (isStudentOnly) {
+        navigate("/portal");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message

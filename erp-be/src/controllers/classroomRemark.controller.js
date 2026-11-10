@@ -74,12 +74,12 @@ export const getClassroomRemarks = async (req, res) => {
 
         res.json({
             success: true,
-            data: { remarks: formatted },
-            remarks: formatted
+            message: 'Remarks fetched successfully',
+            data: { remarks: formatted }
         });
     } catch (err) {
         logger.error('Error fetching classroom remarks:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -117,10 +117,22 @@ export const createClassroomRemark = async (req, res) => {
                 where: { userId: req.user.id },
                 include: [{ model: User, as: 'account', attributes: ['firstName', 'lastName'] }]
             });
-            if (teacherRecord) {
-                teacherId = teacherRecord.id;
-                if (teacherRecord.account) {
-                    teacherName = `${teacherRecord.account.firstName} ${teacherRecord.account.lastName}`.trim();
+            if (!teacherRecord) {
+                return res.status(403).json({ message: 'Teacher profile not found' });
+            }
+            teacherId = teacherRecord.id;
+            if (teacherRecord.account) {
+                teacherName = `${teacherRecord.account.firstName} ${teacherRecord.account.lastName}`.trim();
+            }
+
+            // Scope check: teacher must be class teacher OR subject teacher for this classroom
+            if (!isAdmin) {
+                const classroom = await Classroom.findByPk(payload.classroomId);
+                const subjectAssignment = await ClassroomSubject.findOne({
+                    where: { classroomId: payload.classroomId, teacherId }
+                });
+                if (classroom?.classTeacherId !== teacherId && !subjectAssignment) {
+                    return res.status(403).json({ message: 'You are not assigned to this classroom' });
                 }
             }
         }
@@ -136,13 +148,13 @@ export const createClassroomRemark = async (req, res) => {
             homeworkId: payload.homeworkId || null
         });
 
-        res.status(201).json({ remark: newRemark });
+        res.status(201).json({ success: true, message: 'Remark created successfully', data: { remark: newRemark } });
     } catch (err) {
         if (err instanceof z.ZodError) {
-            return res.status(400).json({ message: err.errors[0]?.message || 'Validation failed', errors: err.errors });
+            return res.status(400).json({ success: false, message: err.errors[0]?.message || 'Validation failed', errors: err.errors });
         }
         logger.error('Error creating classroom remark:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 

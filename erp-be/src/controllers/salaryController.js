@@ -68,6 +68,17 @@ const calculateSalary = (teacher, attendanceRows, month, year) => {
     };
 };
 
+const isPrivilegedSalaryUser = (req) => {
+    const rolesLower = (req.userRoles || []).map(r => String(r).toLowerCase());
+    return rolesLower.some(r => ['admin', 'super_admin', 'hr', 'principal'].includes(r));
+};
+
+const canAccessTeacherSalary = (req, teacherId) => {
+    if (isPrivilegedSalaryUser(req)) return true;
+    const userTeacherId = req.user?.teacherId || req.user?.teacherProfile?.id;
+    return Boolean(userTeacherId && userTeacherId === teacherId);
+};
+
 // ─── GET /api/salary/:teacherId/preview?month=&year= ─────────────────────────
 /**
  * Preview salary calculation without saving — used before generating the slip.
@@ -75,6 +86,11 @@ const calculateSalary = (teacher, attendanceRows, month, year) => {
 const previewSalary = async (req, res, next) => {
     try {
         const { teacherId } = req.params;
+
+        if (!canAccessTeacherSalary(req, teacherId)) {
+            return error(res, 'Forbidden: You can only preview your own salary details.', 403);
+        }
+
         const month = parseInt(req.query.month);
         const year = parseInt(req.query.year);
 
@@ -160,8 +176,14 @@ const generateSalarySlip = async (req, res, next) => {
  */
 const getTeacherSalarySlips = async (req, res, next) => {
     try {
+        const { teacherId } = req.params;
+
+        if (!canAccessTeacherSalary(req, teacherId)) {
+            return error(res, 'Forbidden: You can only view your own salary slips.', 403);
+        }
+
         const slips = await SalarySlip.findAll({
-            where: { teacherId: req.params.teacherId },
+            where: { teacherId },
             order: [['year', 'DESC'], ['month', 'DESC']],
         });
         return success(res, { slips });
@@ -183,6 +205,11 @@ const getSalarySlip = async (req, res, next) => {
             }],
         });
         if (!slip) return error(res, 'Salary slip not found', 404);
+
+        if (!canAccessTeacherSalary(req, slip.teacherId)) {
+            return error(res, 'Forbidden: You can only view your own salary slip.', 403);
+        }
+
         return success(res, { slip });
     } catch (err) { next(err); }
 };
@@ -212,6 +239,15 @@ const listAllSalarySlips = async (req, res, next) => {
         if (req.query.month) where.month = parseInt(req.query.month);
         if (req.query.year) where.year = parseInt(req.query.year);
         if (req.query.status) where.paymentStatus = req.query.status;
+
+        // If not privileged, scope strictly to the authenticated teacher's slips
+        if (!isPrivilegedSalaryUser(req)) {
+            const userTeacherId = req.user?.teacherId || req.user?.teacherProfile?.id;
+            if (!userTeacherId) {
+                return error(res, 'Forbidden: Teacher profile not found for this account.', 403);
+            }
+            where.teacherId = userTeacherId;
+        }
 
         const slips = await SalarySlip.findAll({
             where,

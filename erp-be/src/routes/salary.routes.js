@@ -12,16 +12,16 @@ import validate from '../middlewares/validate.js';
 
 router.use(authenticate);
 
-// List all slips — admin/manage
-router.get('/', requirePermission('teachers', 'read'), listAllSalarySlips);
+// List all slips — admin/manage (teachers scoped to own in controller)
+router.get('/', requirePermission('salary', 'read'), listAllSalarySlips);
 
-// Single slip (for printing)
-router.get('/slip/:slipId', [param('slipId').isUUID()], validate, requirePermission('teachers', 'read'), getSalarySlip);
+// Single slip (for printing - verified ownership/admin)
+router.get('/slip/:slipId', [param('slipId').isUUID()], validate, requirePermission('salary', 'read'), getSalarySlip);
 
-// Per-teacher slips
+// Per-teacher slips (verified ownership/admin)
 router.get('/:teacherId',
     [param('teacherId').isUUID()], validate,
-    requirePermission('teachers', 'read'),
+    requirePermission('salary', 'read'),
     getTeacherSalarySlips
 );
 
@@ -29,7 +29,7 @@ router.get('/:teacherId',
 router.get('/:teacherId/preview',
     [param('teacherId').isUUID(), query('month').isInt({ min: 1, max: 12 }), query('year').isInt({ min: 2000 })],
     validate,
-    requirePermission('teachers', 'read'),
+    requirePermission('salary', 'manage'),
     previewSalary
 );
 
@@ -41,7 +41,7 @@ router.post('/:teacherId/generate',
         body('year').isInt({ min: 2000 }),
     ],
     validate,
-    requirePermission('teachers', 'manage'),
+    requirePermission('salary', 'manage'),
     generateSalarySlip
 );
 
@@ -52,7 +52,7 @@ router.patch('/slip/:slipId/status',
         body('status').isIn(['pending', 'paid', 'on_hold']),
     ],
     validate,
-    requirePermission('teachers', 'manage'),
+    requirePermission('salary', 'manage'),
     updatePaymentStatus
 );
 

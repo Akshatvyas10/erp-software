@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import {
     Search, Trash2, Loader2, Users, Crown,
     UserPlus, Check, X, UserCheck, Hash, ArrowRightLeft,
-    MoreVertical, GraduationCap
+    MoreVertical, GraduationCap, CreditCard
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,8 @@ import { AutoAssignRollNumbersDialog } from "@/features/classrooms/components/di
 import { TransferSectionDialog } from "@/features/classrooms/components/directory/TransferSectionDialog";
 import { EditRollNumberDialog } from "@/features/classrooms/components/directory/EditRollNumberDialog";
 import { SingleStudentPromotionDialog } from "@/features/classrooms/components/directory/SingleStudentPromotionDialog";
+import { BulkIdCardPrintDialog } from "@/features/school-config/components/templates/BulkIdCardPrintDialog";
+import { useGenerateStudentCards, type StudentCardItem } from "@/features/school-config/api/idCardApi";
 import PermissionGate from "@/components/auth/PermissionGate";
 import { PERMISSIONS } from "@/constants/permissions";
 
@@ -81,6 +83,34 @@ export function ClassroomStudentsTab({
     const [transferEnrollment, setTransferEnrollment] = useState<ClassroomEnrollment | null>(null);
     const [editRollEnrollment, setEditRollEnrollment] = useState<ClassroomEnrollment | null>(null);
     const [promotionEnrollment, setPromotionEnrollment] = useState<ClassroomEnrollment | null>(null);
+
+    // ID Card Generation States
+    const [idCardDialogOpen, setIdCardDialogOpen] = useState(false);
+    const [generatedIdCardPayload, setGeneratedIdCardPayload] = useState<{
+        template: any;
+        cards: StudentCardItem[];
+    }>({ template: null, cards: [] });
+
+    const generateCardsMutation = useGenerateStudentCards();
+
+    const handleGenerateClassIdCards = async (targetStudentId?: string) => {
+        try {
+            toast.loading(targetStudentId ? "Generating Student ID Card..." : "Generating Classroom ID Cards...", { id: "id-gen" });
+            const payload = targetStudentId 
+                ? { studentIds: [targetStudentId] }
+                : { classroomId };
+
+            const res = await generateCardsMutation.mutateAsync(payload);
+            setGeneratedIdCardPayload({
+                template: res.template,
+                cards: res.cards
+            });
+            setIdCardDialogOpen(true);
+            toast.success(`Loaded ${res.total} ID Card${res.total > 1 ? "s" : ""}!`, { id: "id-gen" });
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || "Failed to generate ID cards", { id: "id-gen" });
+        }
+    };
 
     // Resolve real monitors
     const monitor1Student = enrollments.find(e => e.student?.id === monitorMaleId)?.student || maleMonitor;
@@ -306,6 +336,18 @@ export function ClassroomStudentsTab({
                     </div>
 
                     <div className="flex items-center gap-1.5 sm:gap-2 self-end sm:self-auto shrink-0 w-full sm:w-auto justify-end">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleGenerateClassIdCards()}
+                            disabled={generateCardsMutation.isPending || enrollments.length === 0}
+                            className="h-8 sm:h-9 text-[11px] sm:text-xs font-bold rounded-lg sm:rounded-xl gap-1 sm:gap-1.5 border-border/80 hover:bg-muted text-foreground"
+                            title="Generate Class ID Cards"
+                        >
+                            <CreditCard className="h-3.5 w-3.5 text-primary" />
+                            ID Cards ({enrollments.length})
+                        </Button>
+
                         {canEdit && (
                             <>
                                 <PermissionGate permission={PERMISSIONS.CLASSROOMS.UPDATE}>
@@ -577,6 +619,12 @@ export function ClassroomStudentsTab({
                                                                      >
                                                                          <Hash className="w-3.5 h-3.5 text-primary" /> Edit Roll Number
                                                                      </DropdownMenuItem>
+                                                                      <DropdownMenuItem
+                                                                          onClick={() => enr.student?.id && handleGenerateClassIdCards(enr.student.id)}
+                                                                          className="text-xs font-semibold gap-2 cursor-pointer text-primary"
+                                                                      >
+                                                                          <CreditCard className="w-3.5 h-3.5 text-primary" /> Generate ID Card
+                                                                      </DropdownMenuItem>
                                                                      <DropdownMenuItem
                                                                          onClick={() => setTransferEnrollment(enr)}
                                                                          className="text-xs font-semibold gap-2 cursor-pointer"
@@ -876,7 +924,19 @@ export function ClassroomStudentsTab({
                     onSuccess={onRefresh}
                 />
             )}
-</div>
+
+            {/* 11. Bulk & Single Student ID Card Generation Dialog */}
+            <BulkIdCardPrintDialog
+                open={idCardDialogOpen}
+                onOpenChange={setIdCardDialogOpen}
+                title={`${classroomName || "Class"} • Student ID Cards`}
+                description="Preview and print verified student credentials with active card layout."
+                template={generatedIdCardPayload.template}
+                cards={generatedIdCardPayload.cards}
+                isLoading={generateCardsMutation.isPending}
+                documentType="STUDENT_ID_CARD"
+            />
+        </div>
     );
 }
 

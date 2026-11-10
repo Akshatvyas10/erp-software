@@ -35,6 +35,7 @@ import classroomConfigRoutes from './routes/classroomConfig.routes.js';
 import academicYearRoutes from './routes/academicYear.routes.js';
 import leaveRoutes from './routes/leave.routes.js';
 import portalRoutes from './routes/portal.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 
 const app = express();
 
@@ -136,12 +137,19 @@ app.use('/api/exams', examRoutes);
 app.use('/api/admissions', admissionRoutes);
 app.use('/api/school-config/classroom', classroomConfigRoutes);
 app.use('/api/school-config', schoolConfigRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 import studentLeaveRoutes from './routes/studentLeave.routes.js';
+import documentTemplateRoutes from './routes/documentTemplate.routes.js';
+import idCardRoutes from './routes/idCard.routes.js';
+import feeRoutes from './routes/fee.routes.js';
 
 app.use('/api/academic-years', academicYearRoutes);
 app.use('/api/teacher-leaves', leaveRoutes);
 app.use('/api/student-leaves', studentLeaveRoutes);
 app.use('/api/portal', portalRoutes);
+app.use('/api/document-templates', documentTemplateRoutes);
+app.use('/api/id-cards', idCardRoutes);
+app.use('/api/fees', feeRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {

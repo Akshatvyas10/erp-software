@@ -51,6 +51,13 @@ export const PERMISSIONS = Object.freeze({
     TEACHERS_DELETE: 'teachers:delete',
     TEACHERS_MANAGE: 'teachers:manage',
 
+    // Document Templates
+    DOCUMENT_TEMPLATES_READ: 'document_templates:read',
+    DOCUMENT_TEMPLATES_CREATE: 'document_templates:create',
+    DOCUMENT_TEMPLATES_UPDATE: 'document_templates:update',
+    DOCUMENT_TEMPLATES_DELETE: 'document_templates:delete',
+    DOCUMENT_TEMPLATES_MANAGE: 'document_templates:manage',
+
     // Universal Admin
     ALL_MANAGE: 'all:manage',
 });

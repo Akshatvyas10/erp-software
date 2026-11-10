@@ -31,6 +31,17 @@ export const validateEnv = () => {
         errors.push('Database configuration missing. Set DATABASE_URL or DB_NAME, DB_USER, and DB_PASSWORD');
     }
 
+    // Encryption secret
+    if (!process.env.ENCRYPTION_SECRET) {
+        if (isProduction) {
+            errors.push('ENCRYPTION_SECRET is required in production (minimum 32 characters)');
+        } else {
+            warnings.push('ENCRYPTION_SECRET not set. Using insecure development fallback — NEVER use this in production');
+        }
+    } else if (process.env.ENCRYPTION_SECRET.length < 32 && isProduction) {
+        errors.push('ENCRYPTION_SECRET must be at least 32 characters long in production');
+    }
+
     // Production-specific strict requirements
     if (isProduction) {
         if (!process.env.REDIS_URL) {

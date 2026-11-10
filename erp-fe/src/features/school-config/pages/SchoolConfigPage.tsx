@@ -30,10 +30,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Building2, Save, MapPin, Building, CreditCard, Mail, Palette, Loader2, School } from "lucide-react";
+import { Building2, Save, MapPin, Building, CreditCard, Mail, Palette, Loader2, School, Layout } from "lucide-react";
 import { EmailServerTab } from "../components/EmailServerTab";
 import { ThemeConfigTab } from "../components/ThemeConfigTab";
 import { ClassroomConfigTab } from "../components/ClassroomConfigTab";
+import { DocumentTemplatesSection } from "../components/templates/DocumentTemplatesSection";
 
 const formSchema = z.object({
     schoolName: z.string().min(2, "School name is required"),
@@ -54,12 +55,16 @@ const formSchema = z.object({
     taxId: z.string().optional(),
     currencySymbol: z.string().default("₹"),
     timezone: z.string().default("Asia/Kolkata"),
+    authorizedSignatoryName: z.string().optional(),
+    authorizedSignatoryDesignation: z.string().optional(),
 });
 
 export default function SchoolConfigPage() {
     const queryClient = useQueryClient();
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [watermarkFile, setWatermarkFile] = useState<File | null>(null);
+    const [signatureFile, setSignatureFile] = useState<File | null>(null);
+    const [stampFile, setStampFile] = useState<File | null>(null);
     const [activeTab, setActiveTab] = useState("general");
 
     const { data: config, isLoading } = useQuery({
@@ -89,6 +94,8 @@ export default function SchoolConfigPage() {
             taxId: "",
             currencySymbol: "₹",
             timezone: "Asia/Kolkata",
+            authorizedSignatoryName: "",
+            authorizedSignatoryDesignation: "",
         },
     });
 
@@ -113,6 +120,8 @@ export default function SchoolConfigPage() {
                 taxId: config.taxId || "",
                 currencySymbol: config.currencySymbol || "₹",
                 timezone: config.timezone || "Asia/Kolkata",
+                authorizedSignatoryName: config.authorizedSignatoryName || "",
+                authorizedSignatoryDesignation: config.authorizedSignatoryDesignation || "",
             });
         }
     }, [config, form]);
@@ -123,6 +132,8 @@ export default function SchoolConfigPage() {
             toast.success("School configuration updated successfully");
             setLogoFile(null);
             setWatermarkFile(null);
+            setSignatureFile(null);
+            setStampFile(null);
             form.reset(data); // Resets the form's dirty state to the newly saved data
             queryClient.invalidateQueries({ queryKey: ["schoolConfig"] });
         },
@@ -144,6 +155,8 @@ export default function SchoolConfigPage() {
         // Append files if selected
         if (logoFile) formData.append("logoUrl", logoFile);
         if (watermarkFile) formData.append("watermarkUrl", watermarkFile);
+        if (signatureFile) formData.append("principalSignatureUrl", signatureFile);
+        if (stampFile) formData.append("stampUrl", stampFile);
 
         mutation.mutate(formData);
     };
@@ -191,7 +204,7 @@ export default function SchoolConfigPage() {
 
     const API_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || "http://localhost:5000";
 
-    const hasChanges = form.formState.isDirty || logoFile !== null || watermarkFile !== null;
+    const hasChanges = form.formState.isDirty || logoFile !== null || watermarkFile !== null || signatureFile !== null || stampFile !== null;
 
     return (
         <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
@@ -217,12 +230,15 @@ export default function SchoolConfigPage() {
                 {/* @ts-ignore */}
                 <form onSubmit={form.handleSubmit(onSubmit, onError)} className="space-y-6">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-7 lg:w-[980px] bg-muted/60 p-1 rounded-2xl">
+                        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-8 lg:w-[1040px] bg-muted/60 p-1 rounded-2xl">
                             <TabsTrigger value="general" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
                                 <Building2 className="w-4 h-4" /> <span className="hidden md:inline">General</span>
                             </TabsTrigger>
                             <TabsTrigger value="classroom" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
                                 <School className="w-4 h-4 text-primary" /> <span className="hidden md:inline font-bold">Classroom Config</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="templates" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
+                                <Layout className="w-4 h-4 text-indigo-500" /> <span className="hidden md:inline font-bold">Templates</span>
                             </TabsTrigger>
                             <TabsTrigger value="contact" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
                                 <MapPin className="w-4 h-4" /> <span className="hidden md:inline">Contact</span>
@@ -326,6 +342,97 @@ export default function SchoolConfigPage() {
                                                             className="cursor-pointer file:cursor-pointer file:bg-muted file:text-foreground hover:file:bg-muted/80 border-border"
                                                         />
                                                         <p className="text-xs text-muted-foreground">Used for certificates and reports. Max 2MB.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Document Signing Assets Section */}
+                                        <div className="pt-6 border-t border-border/60 space-y-4">
+                                            <div>
+                                                <h3 className="text-sm font-bold text-foreground">Document Signing Assets</h3>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Upload signature and stamp images used on Student/Teacher ID Cards, Transfer Certificates, and Report Cards.
+                                                </p>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <FormField
+                                                    control={form.control as any}
+                                                    name="authorizedSignatoryName"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>Authorized Signatory Name</FormLabel>
+                                                            <FormControl>
+                                                                <Input placeholder="e.g. Dr. Rajesh Sharma" {...field} />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control as any}
+                                                    name="authorizedSignatoryDesignation"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>Signatory Designation</FormLabel>
+                                                            <FormControl>
+                                                                <Input placeholder="e.g. Principal / Head of School" {...field} />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                                                {/* Principal Signature Upload */}
+                                                <div className="space-y-3">
+                                                    <FormLabel>Principal / Signatory Signature</FormLabel>
+                                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                                        <div className="h-20 w-32 rounded-xl border-2 border-dashed border-border flex items-center justify-center bg-muted/40 overflow-hidden shrink-0">
+                                                            {signatureFile ? (
+                                                                <img src={URL.createObjectURL(signatureFile)} alt="Signature Preview" className="w-full h-full object-contain p-1.5" />
+                                                            ) : config?.principalSignatureUrl ? (
+                                                                <img src={`${API_URL}${config.principalSignatureUrl}`} alt="Current Signature" className="w-full h-full object-contain p-1.5" />
+                                                            ) : (
+                                                                <span className="text-[10px] text-muted-foreground font-mono">No Signature</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 space-y-2 w-full">
+                                                            <Input 
+                                                                type="file" 
+                                                                accept="image/png, image/jpeg, image/webp" 
+                                                                onChange={(e) => setSignatureFile(e.target.files?.[0] || null)}
+                                                                className="cursor-pointer file:cursor-pointer file:bg-muted file:text-foreground hover:file:bg-muted/80 border-border"
+                                                            />
+                                                            <p className="text-xs text-muted-foreground">Used for ID cards & certificates. Transparent PNG recommended. Max 2MB.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* School Seal / Stamp Upload */}
+                                                <div className="space-y-3">
+                                                    <FormLabel>School Stamp / Institutional Seal</FormLabel>
+                                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                                        <div className="h-20 w-24 rounded-xl border-2 border-dashed border-border flex items-center justify-center bg-muted/40 overflow-hidden shrink-0">
+                                                            {stampFile ? (
+                                                                <img src={URL.createObjectURL(stampFile)} alt="Stamp Preview" className="w-full h-full object-contain p-1.5" />
+                                                            ) : config?.stampUrl ? (
+                                                                <img src={`${API_URL}${config.stampUrl}`} alt="Current Stamp" className="w-full h-full object-contain p-1.5" />
+                                                            ) : (
+                                                                <span className="text-[10px] text-muted-foreground font-mono">No Stamp</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 space-y-2 w-full">
+                                                            <Input 
+                                                                type="file" 
+                                                                accept="image/png, image/jpeg, image/webp" 
+                                                                onChange={(e) => setStampFile(e.target.files?.[0] || null)}
+                                                                className="cursor-pointer file:cursor-pointer file:bg-muted file:text-foreground hover:file:bg-muted/80 border-border"
+                                                            />
+                                                            <p className="text-xs text-muted-foreground">Official round/oval seal stamp. PNG or JPG. Max 2MB.</p>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -606,6 +713,22 @@ export default function SchoolConfigPage() {
                             {/* Theme Configuration Tab */}
                             <TabsContent value="theme" className="m-0">
                                 <ThemeConfigTab />
+                            </TabsContent>
+
+                            {/* Document & Certificate Templates Tab */}
+                            <TabsContent value="templates" className="m-0">
+                                <DocumentTemplatesSection 
+                                    schoolName={config?.schoolName} 
+                                    logoUrl={config?.logoUrl ? `${API_URL}${config.logoUrl}` : undefined} 
+                                    schoolInfo={config ? {
+                                        ...config,
+                                        logoUrl: config.logoUrl ? `${API_URL}${config.logoUrl}` : undefined,
+                                        watermarkUrl: config.watermarkUrl ? `${API_URL}${config.watermarkUrl}` : undefined,
+                                        principalSignatureUrl: config.principalSignatureUrl ? `${API_URL}${config.principalSignatureUrl}` : undefined,
+                                        stampUrl: config.stampUrl ? `${API_URL}${config.stampUrl}` : undefined,
+                                        address: [config.addressLine1, config.addressLine2, config.city, config.state, config.pincode, config.country].filter(Boolean).join(', ')
+                                    } : undefined}
+                                />
                             </TabsContent>
 
                             {/* Classroom Configuration Tab */}

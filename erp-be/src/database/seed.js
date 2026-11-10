@@ -58,6 +58,29 @@ const PERMISSIONS = [
     { name: 'events:update', resource: 'events', action: 'update', description: 'Update events' },
     { name: 'events:delete', resource: 'events', action: 'delete', description: 'Delete events' },
     { name: 'events:manage', resource: 'events', action: 'manage', description: 'Full event management' },
+    // Leave Management Permissions
+    { name: 'teacher_leaves:read', resource: 'teacher_leaves', action: 'read', description: 'View teacher leaves & balances' },
+    { name: 'teacher_leaves:create', resource: 'teacher_leaves', action: 'create', description: 'Apply for teacher leave' },
+    { name: 'teacher_leaves:update', resource: 'teacher_leaves', action: 'update', description: 'Approve or reject teacher leave' },
+    { name: 'teacher_leaves:delete', resource: 'teacher_leaves', action: 'delete', description: 'Cancel own teacher leave' },
+    { name: 'teacher_leaves:manage', resource: 'teacher_leaves', action: 'manage', description: 'Full management of teacher leaves' },
+    { name: 'leave_types:read', resource: 'leave_types', action: 'read', description: 'View leave types' },
+    { name: 'leave_types:manage', resource: 'leave_types', action: 'manage', description: 'Manage leave types' },
+    { name: 'leave_rules:read', resource: 'leave_rules', action: 'read', description: 'View leave policy rules' },
+    { name: 'leave_rules:create', resource: 'leave_rules', action: 'create', description: 'Create leave policy rules' },
+    { name: 'leave_rules:update', resource: 'leave_rules', action: 'update', description: 'Update leave policy rules' },
+    { name: 'leave_rules:manage', resource: 'leave_rules', action: 'manage', description: 'Manage leave policy rules' },
+    { name: 'student_leaves:read', resource: 'student_leaves', action: 'read', description: 'View student leaves' },
+    { name: 'student_leaves:create', resource: 'student_leaves', action: 'create', description: 'Apply for student leave' },
+    { name: 'student_leaves:update', resource: 'student_leaves', action: 'update', description: 'Approve or reject student leave' },
+    { name: 'student_leaves:manage', resource: 'student_leaves', action: 'manage', description: 'Manage student leaves' },
+    // Fee Management Permissions
+    { name: 'fees:read', resource: 'fees', action: 'read', description: 'View fees, invoices and ledgers' },
+    { name: 'fees:create', resource: 'fees', action: 'create', description: 'Issue fee invoices' },
+    { name: 'fees:update', resource: 'fees', action: 'update', description: 'Modify fee invoices or structures' },
+    { name: 'fees:delete', resource: 'fees', action: 'delete', description: 'Cancel fee invoices or heads' },
+    { name: 'fees:collect', resource: 'fees', action: 'collect', description: 'Collect and record fee payments' },
+    { name: 'fees:manage', resource: 'fees', action: 'manage', description: 'Full fee management & masters' },
     { name: 'all:manage', resource: 'all', action: 'manage', description: 'Full system access' },
 ];
 
@@ -74,8 +97,12 @@ const ROLES = [
         permissions: [
             'users:manage', 'students:manage', 'teachers:manage',
             'classrooms:manage', 'subjects:manage', 'departments:manage',
-            'attendance:manage', 'salary:manage', 'homework:create', 'homework:read', 'homework:update', 'homework:delete',
+            'attendance:manage', 'salary:manage', 'salary:read', 'homework:create', 'homework:read', 'homework:update', 'homework:delete',
             'exams:manage', 'roles:manage', 'permissions:manage', 'events:manage',
+            'teacher_leaves:manage', 'teacher_leaves:read', 'teacher_leaves:update',
+            'leave_types:manage', 'leave_types:read', 'leave_rules:manage', 'leave_rules:read',
+            'student_leaves:manage', 'student_leaves:read', 'student_leaves:update',
+            'fees:manage', 'fees:read', 'fees:create', 'fees:update', 'fees:delete', 'fees:collect',
         ],
     },
     {
@@ -85,13 +112,21 @@ const ROLES = [
             'students:read', 'teachers:read', 'users:read', 'classrooms:read',
             'subjects:read', 'departments:read', 'events:read', 'events:create', 'events:update',
             'homework:read', 'homework:create', 'homework:update', 'homework:delete',
-            'exams:read', 'attendance:read', 'attendance:create', 'attendance:update'
+            'exams:read', 'attendance:read', 'attendance:create', 'attendance:update',
+            'teacher_leaves:read', 'teacher_leaves:create', 'teacher_leaves:delete',
+            'leave_types:read', 'student_leaves:read', 'student_leaves:update',
+            'salary:read',
         ],
     },
     {
         name: 'student',
         description: 'Student access',
-        permissions: ['students:read', 'classrooms:read', 'subjects:read', 'events:read', 'homework:read', 'exams:read', 'attendance:read'],
+        permissions: [
+            'students:read', 'classrooms:read', 'subjects:read', 'events:read',
+            'homework:read', 'exams:read', 'attendance:read',
+            'student_leaves:read', 'student_leaves:create',
+            'fees:read',
+        ],
     },
 ];
 
@@ -151,6 +186,59 @@ const ADMIN_USER = {
                 }
             }
             logger.info(`✓ Admin user already exists: ${ADMIN_USER.userId}`);
+        }
+
+        // 4. Seed Default Leave Types
+        if (db.LeaveType) {
+            const defaultLeaveTypes = [
+                { code: 'CL', name: 'Casual Leave', description: 'Paid casual leave for personal or routine matters', isPaid: true, defaultDaysPerYear: 12.0, maxConsecutiveDays: 3, requiresAttachment: false, isActive: true },
+                { code: 'SL', name: 'Sick Leave', description: 'Paid medical leave for illness or healthcare', isPaid: true, defaultDaysPerYear: 10.0, maxConsecutiveDays: 7, requiresAttachment: true, isActive: true },
+                { code: 'EL', name: 'Earned Leave', description: 'Privilege / earned leave accrued on academic service', isPaid: true, defaultDaysPerYear: 15.0, maxConsecutiveDays: 14, requiresAttachment: false, isActive: true },
+                { code: 'ML', name: 'Maternity Leave', description: 'Paid maternity leave for female faculty', isPaid: true, defaultDaysPerYear: 90.0, maxConsecutiveDays: 90, requiresAttachment: true, isActive: true },
+                { code: 'LWP', name: 'Leave Without Pay', description: 'Unpaid leave impacting monthly payroll deductions', isPaid: false, defaultDaysPerYear: 30.0, maxConsecutiveDays: 30, requiresAttachment: false, isActive: true },
+            ];
+            for (const lt of defaultLeaveTypes) {
+                await db.LeaveType.findOrCreate({ where: { code: lt.code }, defaults: lt });
+            }
+            logger.info('✓ Default leave types seeded.');
+        }
+
+        // 5. Seed Event Types
+        if (db.EventType) {
+            const eventTypes = [
+                { name: 'Academic', code: 'ACADEMIC', is_leave_day: false },
+                { name: 'Exam', code: 'EXAM', is_leave_day: false },
+                { name: 'Assessment', code: 'ASSESSMENT', is_leave_day: false },
+                { name: 'Event', code: 'EVENT', is_leave_day: false },
+                { name: 'Holiday', code: 'HOLIDAY', is_leave_day: true },
+                { name: 'Sports', code: 'SPORTS', is_leave_day: false },
+                { name: 'Cultural', code: 'CULTURAL', is_leave_day: false },
+                { name: 'Festival / National', code: 'FESTIVAL', is_leave_day: true },
+                { name: 'Parent Meeting', code: 'PARENT_MEETING', is_leave_day: false },
+                { name: 'Staff Meeting', code: 'STAFF_MEETING', is_leave_day: false },
+                { name: 'Other', code: 'OTHER', is_leave_day: false },
+            ];
+            for (const et of eventTypes) {
+                await db.EventType.findOrCreate({ where: { code: et.code }, defaults: et });
+            }
+            logger.info('✓ Event types seeded.');
+        }
+
+        // 6. Seed Default Fee Heads
+        if (db.FeeHead) {
+            const defaultFeeHeads = [
+                { code: 'TUITION', name: 'Tuition Fee', description: 'Core academic and instructional tuition', category: 'TUITION', isOptional: false, isRefundable: false, isActive: true },
+                { code: 'ADMISSION', name: 'Admission & Registration', description: 'One-time admission and registration charge', category: 'ADMISSION', isOptional: false, isRefundable: false, isActive: true },
+                { code: 'EXAM', name: 'Examination & Assessment', description: 'Term/semester assessments, question papers and gradecards', category: 'EXAM', isOptional: false, isRefundable: false, isActive: true },
+                { code: 'LAB', name: 'Laboratory & Practical', description: 'Science, robotics and computer lab consumable fees', category: 'LAB', isOptional: false, isRefundable: false, isActive: true },
+                { code: 'TRANSPORT', name: 'Bus & Transport Fee', description: 'Optional school bus/van transit service fee', category: 'TRANSPORT', isOptional: true, isRefundable: false, isActive: true },
+                { code: 'ACTIVITY', name: 'Sports & Co-Curricular', description: 'Annual sports day, arts, cultural clubs and field activities', category: 'ACTIVITY', isOptional: false, isRefundable: false, isActive: true },
+                { code: 'LIBRARY', name: 'Library & E-Resources', description: 'Library deposit, access and digital resource access', category: 'LIBRARY', isOptional: false, isRefundable: false, isActive: true },
+            ];
+            for (const fh of defaultFeeHeads) {
+                await db.FeeHead.findOrCreate({ where: { code: fh.code }, defaults: fh });
+            }
+            logger.info('✓ Default fee heads seeded.');
         }
 
         logger.info('Seeding complete.');

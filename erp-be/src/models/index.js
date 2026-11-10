@@ -43,6 +43,14 @@ import LeaveRule from './LeaveRule.js';
 import TeacherLeaveAccrual from './TeacherLeaveAccrual.js';
 import StudentLeaveRequest from './StudentLeaveRequest.js';
 import ClassroomRemark from './ClassroomRemark.js';
+import DocumentTemplate from './DocumentTemplate.js';
+import IssuedDocument from './IssuedDocument.js';
+import FeeHead from './FeeHead.js';
+import FeeStructure from './FeeStructure.js';
+import FeeStructureItem from './FeeStructureItem.js';
+import StudentInvoice from './StudentInvoice.js';
+import StudentInvoiceItem from './StudentInvoiceItem.js';
+import FeePayment from './FeePayment.js';
 
 const PermissionAuditLog = PermissionAuditLogInit(sequelize);
 
@@ -149,18 +157,7 @@ Teacher.hasMany(TimetableSubstitute, { foreignKey: 'substituteTeacherId', as: 'p
 TimetableSubstitute.belongsTo(Teacher, { foreignKey: 'substituteTeacherId', as: 'substituteTeacher' });
 TimetableSubstitute.belongsTo(Teacher, { foreignKey: 'originalTeacherId', as: 'originalTeacher' });
 
-export default {
-    sequelize, Role, Permission, User, Student, Teacher,
-    TeacherAttendance, SalarySlip, Department,
-    Classroom, ClassroomStudent, ClassroomPeriod, ClassroomSubject, Timetable,
-    Subject, Homework, HomeworkSubmission, CalendarEvent, EventType, StudentAttendance,
-    PermissionAuditLog, ExamSchedule, Exam, ExamResult,
-    AdmissionForm, AdmissionApplication, SchoolConfig,
-    BuildingBlock, ClassroomRoom, TestExamConfig, AcademicClass, TimetableSubstitute,
-    PromotionRule, PromotionLog, StudentAcademicHistory, AcademicYear,
-    LeaveType, TeacherLeaveBalance, TeacherLeaveRequest, LeaveRule, TeacherLeaveAccrual,
-    StudentLeaveRequest, ClassroomRemark
-};
+
 
 // ─── StudentLeaveRequest Associations ───────────────────────────────────────
 Student.hasMany(StudentLeaveRequest, { foreignKey: 'student_id', as: 'leaveRequests', onDelete: 'CASCADE' });
@@ -338,5 +335,154 @@ ClassroomRemark.belongsTo(User, { foreignKey: 'created_by_id', as: 'author' });
 Homework.hasMany(ClassroomRemark, { foreignKey: 'homework_id', as: 'remarks', onDelete: 'SET NULL' });
 ClassroomRemark.belongsTo(Homework, { foreignKey: 'homework_id', as: 'homework' });
 
+// ─── DocumentTemplate & IssuedDocument Associations ─────────────────────
+User.hasMany(DocumentTemplate, { foreignKey: 'created_by_id', as: 'createdDocumentTemplates', onDelete: 'SET NULL' });
+DocumentTemplate.belongsTo(User, { foreignKey: 'created_by_id', as: 'creator' });
+User.hasMany(DocumentTemplate, { foreignKey: 'updated_by_id', as: 'updatedDocumentTemplates', onDelete: 'SET NULL' });
+DocumentTemplate.belongsTo(User, { foreignKey: 'updated_by_id', as: 'updater' });
 
+DocumentTemplate.hasMany(IssuedDocument, { foreignKey: 'template_id', as: 'issuedDocuments', onDelete: 'SET NULL' });
+IssuedDocument.belongsTo(DocumentTemplate, { foreignKey: 'template_id', as: 'template' });
+User.hasMany(IssuedDocument, { foreignKey: 'issued_by_id', as: 'issuedDocuments', onDelete: 'RESTRICT' });
+IssuedDocument.belongsTo(User, { foreignKey: 'issued_by_id', as: 'issuer' });
 
+// ─── Fee Management Associations ───────────────────────────────────────────
+FeeStructure.belongsTo(AcademicYear, { foreignKey: 'academicYearId', as: 'academicYear' });
+AcademicYear.hasMany(FeeStructure, { foreignKey: 'academicYearId', as: 'feeStructures' });
+
+FeeStructure.belongsTo(AcademicClass, { foreignKey: 'academicClassId', as: 'academicClass' });
+AcademicClass.hasMany(FeeStructure, { foreignKey: 'academicClassId', as: 'feeStructures' });
+
+FeeStructure.hasMany(FeeStructureItem, { foreignKey: 'feeStructureId', as: 'items', onDelete: 'CASCADE' });
+FeeStructureItem.belongsTo(FeeStructure, { foreignKey: 'feeStructureId', as: 'structure' });
+
+FeeStructureItem.belongsTo(FeeHead, { foreignKey: 'feeHeadId', as: 'feeHead' });
+FeeHead.hasMany(FeeStructureItem, { foreignKey: 'feeHeadId', as: 'structureItems' });
+
+StudentInvoice.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
+Student.hasMany(StudentInvoice, { foreignKey: 'studentId', as: 'invoices' });
+
+StudentInvoice.belongsTo(Classroom, { foreignKey: 'classroomId', as: 'classroom' });
+Classroom.hasMany(StudentInvoice, { foreignKey: 'classroomId', as: 'invoices' });
+
+StudentInvoice.belongsTo(AcademicYear, { foreignKey: 'academicYearId', as: 'academicYear' });
+StudentInvoice.belongsTo(FeeStructure, { foreignKey: 'feeStructureId', as: 'feeStructure' });
+StudentInvoice.belongsTo(User, { foreignKey: 'createdById', as: 'createdBy' });
+
+StudentInvoice.hasMany(StudentInvoiceItem, { foreignKey: 'studentInvoiceId', as: 'items', onDelete: 'CASCADE' });
+StudentInvoiceItem.belongsTo(StudentInvoice, { foreignKey: 'studentInvoiceId', as: 'invoice' });
+StudentInvoiceItem.belongsTo(FeeHead, { foreignKey: 'feeHeadId', as: 'feeHead' });
+
+StudentInvoice.hasMany(FeePayment, { foreignKey: 'studentInvoiceId', as: 'payments', onDelete: 'CASCADE' });
+FeePayment.belongsTo(StudentInvoice, { foreignKey: 'studentInvoiceId', as: 'invoice' });
+FeePayment.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
+FeePayment.belongsTo(User, { foreignKey: 'collectedById', as: 'collectedBy' });
+
+const db = {
+    sequelize,
+    Role,
+    Permission,
+    User,
+    Student,
+    Teacher,
+    TeacherAttendance,
+    SalarySlip,
+    Department,
+    Classroom,
+    ClassroomStudent,
+    ClassroomSubject,
+    ClassroomPeriod,
+    Timetable,
+    Subject,
+    Homework,
+    HomeworkSubmission,
+    CalendarEvent,
+    EventType,
+    StudentAttendance,
+    PermissionAuditLog,
+    ExamSchedule,
+    Exam,
+    ExamResult,
+    AdmissionForm,
+    AdmissionApplication,
+    SchoolConfig,
+    BuildingBlock,
+    ClassroomRoom,
+    TestExamConfig,
+    AcademicClass,
+    TimetableSubstitute,
+    PromotionRule,
+    PromotionLog,
+    StudentAcademicHistory,
+    AcademicYear,
+    LeaveType,
+    TeacherLeaveBalance,
+    TeacherLeaveRequest,
+    LeaveRule,
+    TeacherLeaveAccrual,
+    StudentLeaveRequest,
+    ClassroomRemark,
+    DocumentTemplate,
+    IssuedDocument,
+    FeeHead,
+    FeeStructure,
+    FeeStructureItem,
+    StudentInvoice,
+    StudentInvoiceItem,
+    FeePayment
+};
+
+export default db;
+export {
+    sequelize,
+    Role,
+    Permission,
+    User,
+    Student,
+    Teacher,
+    TeacherAttendance,
+    SalarySlip,
+    Department,
+    Classroom,
+    ClassroomStudent,
+    ClassroomSubject,
+    ClassroomPeriod,
+    Timetable,
+    Subject,
+    Homework,
+    HomeworkSubmission,
+    CalendarEvent,
+    EventType,
+    StudentAttendance,
+    PermissionAuditLog,
+    ExamSchedule,
+    Exam,
+    ExamResult,
+    AdmissionForm,
+    AdmissionApplication,
+    SchoolConfig,
+    BuildingBlock,
+    ClassroomRoom,
+    TestExamConfig,
+    AcademicClass,
+    TimetableSubstitute,
+    PromotionRule,
+    PromotionLog,
+    StudentAcademicHistory,
+    AcademicYear,
+    LeaveType,
+    TeacherLeaveBalance,
+    TeacherLeaveRequest,
+    LeaveRule,
+    TeacherLeaveAccrual,
+    StudentLeaveRequest,
+    ClassroomRemark,
+    DocumentTemplate,
+    IssuedDocument,
+    FeeHead,
+    FeeStructure,
+    FeeStructureItem,
+    StudentInvoice,
+    StudentInvoiceItem,
+    FeePayment
+};

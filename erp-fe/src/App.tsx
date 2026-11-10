@@ -44,6 +44,7 @@ const CalendarPage = lazy(() => import("./pages/dashboard/CalendarPage"));
 const TeacherLeavesHubPage = lazy(() => import("./pages/dashboard/leaves/TeacherLeavesHubPage"));
 const StudentLeavesApprovalPage = lazy(() => import("./pages/dashboard/StudentLeavesApprovalPage"));
 const SalaryHubPage = lazy(() => import("./pages/dashboard/SalaryHubPage"));
+const FeesHubPage = lazy(() => import("./pages/dashboard/FeesHubPage"));
 
 // Student / Parent Portal Pages
 const StudentDashboard = lazy(() => import("./pages/portal/StudentDashboard"));
@@ -52,6 +53,7 @@ const StudentAttendancePage = lazy(() => import("./pages/portal/StudentAttendanc
 const StudentLeavesPage = lazy(() => import("./pages/portal/StudentLeavesPage"));
 const StudentHomeworkPage = lazy(() => import("./pages/portal/StudentHomeworkPage"));
 const StudentReportCardPage = lazy(() => import("./pages/portal/StudentReportCardPage"));
+const StudentFeesPage = lazy(() => import("./pages/portal/StudentFeesPage"));
 
 // Admissions & Config Lazy Pages
 const ApplicationsListPage = lazy(() =>
@@ -374,6 +376,18 @@ function App() {
                                 </PermissionRoute>
                             }
                         />
+
+                        {/* Student Fees & Invoicing */}
+                        <Route
+                            path="/dashboard/fees"
+                            element={
+                                <PermissionRoute resource="fees" action="read">
+                                    <Suspense fallback={<PageLoader />}>
+                                        <FeesHubPage />
+                                    </Suspense>
+                                </PermissionRoute>
+                            }
+                        />
                     </Route>
 
                     {/* Student & Parent Portal Layout Group */}
@@ -423,6 +437,14 @@ function App() {
                             element={
                                 <Suspense fallback={<PageLoader />}>
                                     <StudentReportCardPage />
+                                </Suspense>
+                            }
+                        />
+                        <Route
+                            path="/portal/fees"
+                            element={
+                                <Suspense fallback={<PageLoader />}>
+                                    <StudentFeesPage />
                                 </Suspense>
                             }
                         />

@@ -17,7 +17,6 @@ const BuildingBlock = sequelize.define('BuildingBlock', {
     code: {
         type: DataTypes.STRING(30),
         allowNull: false,
-        unique: true,
         comment: 'e.g. BLK-A, SCI-BLK'
     },
     description: {
@@ -34,6 +33,12 @@ const BuildingBlock = sequelize.define('BuildingBlock', {
     timestamps: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    indexes: [
+        {
+            unique: true,
+            fields: ['code']
+        }
+    ]
 });
 
 export default BuildingBlock;

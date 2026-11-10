@@ -8,11 +8,17 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
     dialect: 'postgres',
     logging: process.env.NODE_ENV === 'development' ? (msg) => console.log(`[SQL] ${msg}`) : false,
 
-    // Neon requires SSL on every connection
+    // SSL configuration for Neon (and other PostgreSQL cloud providers)
+    // - In development: rejectUnauthorized: false (self-signed/SNI OK)
+    // - In production: rejectUnauthorized: true by default (CA-validated)
+    //   Override with DB_SSL_REJECT_UNAUTHORIZED=false ONLY if your provider
+    //   explicitly requires it and you understand the security implications.
     dialectOptions: {
         ssl: {
             require: true,
-            rejectUnauthorized: false, // Neon uses SNI; set to true + provide CA in prod if needed
+            rejectUnauthorized: process.env.NODE_ENV === 'production'
+                ? (process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false')
+                : false,
         },
         // Neon serverless pooler needs channel_binding disabled at the driver level
         // (it is handled in the connection string already)

@@ -40,9 +40,11 @@ export const updateSchoolConfig = async (req, res, next) => {
 
         let config = await SchoolConfig.findOne();
 
-        // If files were uploaded, they will be in req.body.logoUrl or watermarkUrl from middleware
+        // If files were uploaded, they will be in req.body.[fieldName] from middleware
         const logoUrl = req.body.logoUrl || (config ? config.logoUrl : null);
         const watermarkUrl = req.body.watermarkUrl || (config ? config.watermarkUrl : null);
+        const principalSignatureUrl = req.body.principalSignatureUrl || (config ? config.principalSignatureUrl : null);
+        const stampUrl = req.body.stampUrl || (config ? config.stampUrl : null);
 
         if (config) {
             // Update existing
@@ -50,6 +52,8 @@ export const updateSchoolConfig = async (req, res, next) => {
                 ...validated,
                 logoUrl,
                 watermarkUrl,
+                principalSignatureUrl,
+                stampUrl,
             });
             return success(res, config, 'School configuration updated successfully');
         } else {
@@ -58,6 +62,8 @@ export const updateSchoolConfig = async (req, res, next) => {
                 ...validated,
                 logoUrl,
                 watermarkUrl,
+                principalSignatureUrl,
+                stampUrl,
             });
             return success(res, config, 'School configuration created successfully', 201);
         }

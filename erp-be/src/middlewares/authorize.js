@@ -38,15 +38,16 @@ export const requirePermission = (...pairs) => {
  * User must have ANY of the listed roles.
  */
 export const requireRole = (...roles) => {
+    const flattenedRoles = roles.flat().filter(Boolean).map(r => String(r).toLowerCase());
     return (req, res, next) => {
         if (!req.user) return error(res, 'Authentication required', 401);
 
-        const userRolesLower = (req.userRoles || []).map(r => r.toLowerCase());
+        const userRolesLower = (req.userRoles || []).map(r => String(r).toLowerCase());
         if (userRolesLower.includes('super_admin')) return next();
 
-        const hasRole = roles.some((r) => userRolesLower.includes(r.toLowerCase()));
+        const hasRole = flattenedRoles.some((r) => userRolesLower.includes(r));
         if (!hasRole) {
-            return error(res, `Forbidden — required role: ${roles.join(' or ')}`, 403);
+            return error(res, `Forbidden — required role: ${flattenedRoles.join(' or ')}`, 403);
         }
         next();
     };

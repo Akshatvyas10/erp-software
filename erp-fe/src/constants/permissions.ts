@@ -49,6 +49,13 @@ export const PERMISSIONS = {
         DELETE: "teachers:delete",
         MANAGE: "teachers:manage",
     },
+    DOCUMENT_TEMPLATES: {
+        READ: "document_templates:read",
+        CREATE: "document_templates:create",
+        UPDATE: "document_templates:update",
+        DELETE: "document_templates:delete",
+        MANAGE: "document_templates:manage",
+    },
     ALL: {
         MANAGE: "all:manage",
     },
@@ -62,4 +69,5 @@ export type PermissionKey =
     | typeof PERMISSIONS.ATTENDANCE[keyof typeof PERMISSIONS.ATTENDANCE]
     | typeof PERMISSIONS.DEPARTMENTS[keyof typeof PERMISSIONS.DEPARTMENTS]
     | typeof PERMISSIONS.TEACHERS[keyof typeof PERMISSIONS.TEACHERS]
+    | typeof PERMISSIONS.DOCUMENT_TEMPLATES[keyof typeof PERMISSIONS.DOCUMENT_TEMPLATES]
     | typeof PERMISSIONS.ALL[keyof typeof PERMISSIONS.ALL];

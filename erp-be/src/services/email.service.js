@@ -93,7 +93,7 @@ export const sendEmail = async (to, subject, html) => {
 import { enqueueEmailJob, initEmailQueue } from '../queues/email.queue.js';
 
 // Initialize BullMQ processor mapping
-const emailProcessors = {
+export const emailProcessors = {
     WELCOME_EMAIL: async (p) => sendWelcomeEmailDirect(p.email, p.name, p.userId, p.tempPassword),
     STUDENT_ENROLLMENT: async (p) => sendStudentEnrollmentWelcomeDirect(p),
     PARENT_ENROLLMENT: async (p) => sendParentEnrollmentWelcomeDirect(p),
@@ -101,10 +101,20 @@ const emailProcessors = {
     ADMISSION_SUBMITTED: async (p) => sendAdmissionSubmissionDirect(p.parentEmail, p.studentName, p.applicationNumber),
     ADMISSION_APPROVED: async (p) => sendAdmissionApprovalDirect(p.parentEmail, p.studentName, p.studentId, p.temporaryPassword),
     ADMISSION_REJECTED: async (p) => sendAdmissionRejectionDirect(p.parentEmail, p.studentName, p.reason),
+    ADMIN_ADMISSION_ALERT: async (p) => sendAdminNewAdmissionAlertDirect(p.adminEmail, p.studentName, p.parentName, p.appliedClass, p.applicationNumber),
+    STUDENT_LEAVE_APPLIED: async (p) => sendStudentLeaveAppliedDirect(p),
+    STUDENT_LEAVE_DECIDED: async (p) => sendStudentLeaveDecidedDirect(p),
+    TEACHER_LEAVE_APPLIED: async (p) => sendTeacherLeaveAppliedDirect(p),
+    TEACHER_LEAVE_DECIDED: async (p) => sendTeacherLeaveDecidedDirect(p),
+    PASSWORD_RESET: async (p) => sendPasswordResetDirect(p.email, p.resetLink),
+    LOGIN_OTP: async (p) => sendLoginOtpDirect(p.email, p.userName, p.otp),
+    ACCOUNT_ACTIVATED: async (p) => sendAccountActivatedDirect(p.email, p.userName),
+    PERMISSION_UPDATED: async (p) => sendPermissionUpdatedDirect(p.email, p.userName, p.assignedRoles),
     SYSTEM_NOTIFICATION: async (p) => sendSystemNotificationDirect(p.email, p.userName, p.title, p.bodyText, p.actionUrl),
+    RAW_EMAIL: async (p) => sendRawEmailDirect(p.to, p.subject, p.html, p.text),
 };
 
-// Start queue worker listening for background tasks
+// Start queue initialization (producer queue in API, worker in dev/inline if requested)
 initEmailQueue(emailProcessors);
 
 // =============================================================================
@@ -392,7 +402,7 @@ export const sendTeacherEnrollmentWelcomeEmail = async (params) => {
 /**
  * 2. Login OTP / Verification Code
  */
-export const sendLoginOtpEmail = async (email, userName, otp) => {
+export const sendLoginOtpDirect = async (email, userName, otp) => {
     const ctx = await getSchoolContext();
     const subject = `Your Verification Code: ${otp}`;
 
@@ -421,10 +431,14 @@ export const sendLoginOtpEmail = async (email, userName, otp) => {
     return sendEmail(email, subject, html);
 };
 
+export const sendLoginOtpEmail = async (email, userName, otp) => {
+    return enqueueEmailJob('LOGIN_OTP', { email, userName, otp }, (p) => sendLoginOtpDirect(p.email, p.userName, p.otp));
+};
+
 /**
  * 3. Forgot Password Request
  */
-export const sendPasswordResetEmail = async (email, resetLink) => {
+export const sendPasswordResetDirect = async (email, resetLink) => {
     const ctx = await getSchoolContext();
     const subject = `Password Reset Request - ${ctx.schoolName}`;
 
@@ -450,6 +464,10 @@ export const sendPasswordResetEmail = async (email, resetLink) => {
 
     const html = getEmailWrapper(ctx.schoolName, '#4F46E5', contentHtml, ctx);
     return sendEmail(email, subject, html);
+};
+
+export const sendPasswordResetEmail = async (email, resetLink) => {
+    return enqueueEmailJob('PASSWORD_RESET', { email, resetLink }, (p) => sendPasswordResetDirect(p.email, p.resetLink));
 };
 
 /**
@@ -485,7 +503,7 @@ export const sendPasswordResetSuccessEmail = async (email, userName) => {
 /**
  * 5. Admission Form Submitted (to Parent)
  */
-export const sendAdmissionSubmissionEmail = async (parentEmail, studentName, applicationNumber) => {
+export const sendAdmissionSubmissionDirect = async (parentEmail, studentName, applicationNumber) => {
     const ctx = await getSchoolContext();
     const portalUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
     const subject = `Admission Application Received - ${studentName}`;
@@ -518,10 +536,16 @@ export const sendAdmissionSubmissionEmail = async (parentEmail, studentName, app
     return sendEmail(parentEmail, subject, html);
 };
 
+export const sendAdmissionSubmissionEmail = async (parentEmail, studentName, applicationNumber) => {
+    return enqueueEmailJob('ADMISSION_SUBMITTED', { parentEmail, studentName, applicationNumber }, (p) =>
+        sendAdmissionSubmissionDirect(p.parentEmail, p.studentName, p.applicationNumber)
+    );
+};
+
 /**
  * 6. Admission Approved
  */
-export const sendAdmissionApprovalEmail = async (parentEmail, studentName, studentId, temporaryPassword) => {
+export const sendAdmissionApprovalDirect = async (parentEmail, studentName, studentId, temporaryPassword) => {
     const ctx = await getSchoolContext();
     const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
     const subject = `Admission Approved - Welcome ${studentName}!`;
@@ -553,10 +577,16 @@ export const sendAdmissionApprovalEmail = async (parentEmail, studentName, stude
     return sendEmail(parentEmail, subject, html);
 };
 
+export const sendAdmissionApprovalEmail = async (parentEmail, studentName, studentId, temporaryPassword) => {
+    return enqueueEmailJob('ADMISSION_APPROVED', { parentEmail, studentName, studentId, temporaryPassword }, (p) =>
+        sendAdmissionApprovalDirect(p.parentEmail, p.studentName, p.studentId, p.temporaryPassword)
+    );
+};
+
 /**
  * 7. Admission Rejected
  */
-export const sendAdmissionRejectionEmail = async (parentEmail, studentName, reason) => {
+export const sendAdmissionRejectionDirect = async (parentEmail, studentName, reason) => {
     const ctx = await getSchoolContext();
     const portalUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
     const subject = `Admission Status Update - ${studentName}`;
@@ -592,10 +622,16 @@ export const sendAdmissionRejectionEmail = async (parentEmail, studentName, reas
     return sendEmail(parentEmail, subject, html);
 };
 
+export const sendAdmissionRejectionEmail = async (parentEmail, studentName, reason) => {
+    return enqueueEmailJob('ADMISSION_REJECTED', { parentEmail, studentName, reason }, (p) =>
+        sendAdmissionRejectionDirect(p.parentEmail, p.studentName, p.reason)
+    );
+};
+
 /**
  * 8. New Admission Application Received (to Admin)
  */
-export const sendAdminNewAdmissionAlert = async (adminEmail, studentName, parentName, appliedClass, applicationNumber) => {
+export const sendAdminNewAdmissionAlertDirect = async (adminEmail, studentName, parentName, appliedClass, applicationNumber) => {
     const ctx = await getSchoolContext();
     const adminUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/admissions`;
     const subject = `New Admission Application: ${studentName}`;
@@ -624,10 +660,16 @@ export const sendAdminNewAdmissionAlert = async (adminEmail, studentName, parent
     return sendEmail(adminEmail, subject, html);
 };
 
+export const sendAdminNewAdmissionAlert = async (adminEmail, studentName, parentName, appliedClass, applicationNumber) => {
+    return enqueueEmailJob('ADMIN_ADMISSION_ALERT', { adminEmail, studentName, parentName, appliedClass, applicationNumber }, (p) =>
+        sendAdminNewAdmissionAlertDirect(p.adminEmail, p.studentName, p.parentName, p.appliedClass, p.applicationNumber)
+    );
+};
+
 /**
  * 9. Account Activated
  */
-export const sendAccountActivatedEmail = async (email, userName) => {
+export const sendAccountActivatedDirect = async (email, userName) => {
     const ctx = await getSchoolContext();
     const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
     const subject = `Your Account is Activated - ${ctx.schoolName}`;
@@ -645,10 +687,16 @@ export const sendAccountActivatedEmail = async (email, userName) => {
     return sendEmail(email, subject, html);
 };
 
+export const sendAccountActivatedEmail = async (email, userName) => {
+    return enqueueEmailJob('ACCOUNT_ACTIVATED', { email, userName }, (p) =>
+        sendAccountActivatedDirect(p.email, p.userName)
+    );
+};
+
 /**
  * 10. Role / Permission Updated
  */
-export const sendPermissionUpdatedEmail = async (email, userName, assignedRoles) => {
+export const sendPermissionUpdatedDirect = async (email, userName, assignedRoles) => {
     const ctx = await getSchoolContext();
     const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
     const subject = `Account Permissions Updated - ${ctx.schoolName}`;
@@ -675,10 +723,16 @@ export const sendPermissionUpdatedEmail = async (email, userName, assignedRoles)
     return sendEmail(email, subject, html);
 };
 
+export const sendPermissionUpdatedEmail = async (email, userName, assignedRoles) => {
+    return enqueueEmailJob('PERMISSION_UPDATED', { email, userName, assignedRoles }, (p) =>
+        sendPermissionUpdatedDirect(p.email, p.userName, p.assignedRoles)
+    );
+};
+
 /**
  * 11. Important System Notification
  */
-export const sendSystemNotificationEmail = async (email, userName, title, bodyText, actionUrl) => {
+export const sendSystemNotificationDirect = async (email, userName, title, bodyText, actionUrl) => {
     const ctx = await getSchoolContext();
     const targetUrl = actionUrl || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard`;
     const subject = `${title} - ${ctx.schoolName}`;
@@ -700,4 +754,155 @@ export const sendSystemNotificationEmail = async (email, userName, title, bodyTe
 
     const html = getEmailWrapper(ctx.schoolName, '#4F46E5', contentHtml, ctx);
     return sendEmail(email, subject, html);
+};
+
+export const sendSystemNotificationEmail = async (email, userName, title, bodyText, actionUrl) => {
+    return enqueueEmailJob('SYSTEM_NOTIFICATION', { email, userName, title, bodyText, actionUrl }, (p) =>
+        sendSystemNotificationDirect(p.email, p.userName, p.title, p.bodyText, p.actionUrl)
+    );
+};
+
+/**
+ * 12. Student Leave Applied (to Faculty/Class Teacher)
+ */
+export const sendStudentLeaveAppliedDirect = async ({ studentName, classroomName, fromDate, toDate, reason, facultyEmail }) => {
+    if (!facultyEmail) return;
+    const ctx = await getSchoolContext();
+    const portalUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/student-leaves`;
+    const subject = `Student Leave Application: ${studentName} (${fromDate} to ${toDate})`;
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 14px 0; color: #0F172A; font-size: 20px; font-weight: 700;">Student Leave Application</h2>
+      <p style="margin: 0 0 16px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        A student in classroom <strong>${classroomName || 'Assigned Class'}</strong> has submitted a leave request requiring faculty review:
+      </p>
+
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; margin-bottom: 24px;">
+        <tr>
+          <td style="padding: 16px 20px; font-size: 14px; color: #1E293B;">
+            <p style="margin: 0 0 6px 0;"><strong>Student Name:</strong> ${studentName}</p>
+            <p style="margin: 0 0 6px 0;"><strong>Period:</strong> ${fromDate} to ${toDate}</p>
+            ${reason ? `<p style="margin: 0;"><strong>Reason:</strong> ${reason}</p>` : ''}
+          </td>
+        </tr>
+      </table>
+
+      ${getButtonHtml(portalUrl, 'Review Leave Application', '#4F46E5')}
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, '#4F46E5', contentHtml, ctx);
+    return sendEmail(facultyEmail, subject, html);
+};
+
+/**
+ * 13. Student Leave Decided (to Parent & Student)
+ */
+export const sendStudentLeaveDecidedDirect = async ({ status, studentName, studentEmail, guardianEmail, fromDate, toDate, actionByName, decisionRemark }) => {
+    const recipients = [studentEmail, guardianEmail].filter(Boolean);
+    if (recipients.length === 0) return;
+
+    const ctx = await getSchoolContext();
+    const isApproved = status === 'APPROVED';
+    const subject = `Student Leave Application ${isApproved ? 'Approved' : 'Rejected'} - ${studentName}`;
+    const headerColor = isApproved ? '#059669' : '#DC2626';
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 14px 0; color: #0F172A; font-size: 20px; font-weight: 700;">
+        Leave Request ${isApproved ? 'Approved' : 'Rejected'}
+      </h2>
+      <p style="margin: 0 0 16px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        The leave request for <strong>${studentName}</strong> from <strong>${fromDate}</strong> to <strong>${toDate}</strong> has been <strong>${status}</strong> by ${actionByName || 'Faculty'}.
+      </p>
+
+      ${decisionRemark ? `
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border-left: 4px solid ${headerColor}; border-radius: 4px; margin-bottom: 24px;">
+          <tr>
+            <td style="padding: 14px 18px; font-size: 14px;">
+              <p style="margin: 0 0 4px 0; color: #64748B; font-weight: 700; font-size: 12px; text-transform: uppercase;">Faculty Remark:</p>
+              <p style="margin: 0; color: #1E293B;">${decisionRemark}</p>
+            </td>
+          </tr>
+        </table>
+      ` : ''}
+
+      <p style="margin: 0; color: #64748B; font-size: 13px; line-height: 1.6;">
+        ${isApproved ? 'Daily attendance records have been synchronized with excused leave status.' : 'Please connect with your class teacher if you have any questions.'}
+      </p>
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, headerColor, contentHtml, ctx);
+    for (const recipient of recipients) {
+        await sendEmail(recipient, subject, html);
+    }
+};
+
+/**
+ * 14. Teacher Leave Applied & Decided
+ */
+export const sendTeacherLeaveAppliedDirect = async ({ teacherName, leaveTypeName, fromDate, toDate, reason, adminEmail }) => {
+    if (!adminEmail) return;
+    const ctx = await getSchoolContext();
+    const portalUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/leaves/approvals`;
+    const subject = `Staff Leave Request: ${teacherName} (${leaveTypeName})`;
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 14px 0; color: #0F172A; font-size: 20px; font-weight: 700;">Staff Leave Application</h2>
+      <p style="margin: 0 0 16px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Teacher <strong>${teacherName}</strong> has submitted an application for <strong>${leaveTypeName}</strong>:
+      </p>
+
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; margin-bottom: 24px;">
+        <tr>
+          <td style="padding: 16px 20px; font-size: 14px; color: #1E293B;">
+            <p style="margin: 0 0 6px 0;"><strong>Teacher:</strong> ${teacherName}</p>
+            <p style="margin: 0 0 6px 0;"><strong>Leave Type:</strong> ${leaveTypeName}</p>
+            <p style="margin: 0 0 6px 0;"><strong>Duration:</strong> ${fromDate} to ${toDate}</p>
+            ${reason ? `<p style="margin: 0;"><strong>Reason:</strong> ${reason}</p>` : ''}
+          </td>
+        </tr>
+      </table>
+
+      ${getButtonHtml(portalUrl, 'Action Leave in Portal', '#4F46E5')}
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, '#4F46E5', contentHtml, ctx);
+    return sendEmail(adminEmail, subject, html);
+};
+
+export const sendTeacherLeaveDecidedDirect = async ({ teacherEmail, teacherName, leaveTypeName, status, fromDate, toDate, remark }) => {
+    if (!teacherEmail) return;
+    const ctx = await getSchoolContext();
+    const isApproved = status === 'APPROVED';
+    const subject = `Leave Request ${isApproved ? 'Approved' : 'Rejected'} - ${leaveTypeName}`;
+    const headerColor = isApproved ? '#059669' : '#DC2626';
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 14px 0; color: #0F172A; font-size: 20px; font-weight: 700;">
+        Leave Request ${status}
+      </h2>
+      <p style="margin: 0 0 16px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Dear ${teacherName}, your request for <strong>${leaveTypeName}</strong> from <strong>${fromDate}</strong> to <strong>${toDate}</strong> has been <strong>${status}</strong>.
+      </p>
+
+      ${remark ? `
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border-left: 4px solid ${headerColor}; border-radius: 4px; margin-bottom: 24px;">
+          <tr>
+            <td style="padding: 14px 18px; font-size: 14px;">
+              <p style="margin: 0 0 4px 0; color: #64748B; font-weight: 700; font-size: 12px; text-transform: uppercase;">Administration Remark:</p>
+              <p style="margin: 0; color: #1E293B;">${remark}</p>
+            </td>
+          </tr>
+        </table>
+      ` : ''}
+    `;
+
+    const html = getEmailWrapper(ctx.schoolName, headerColor, contentHtml, ctx);
+    return sendEmail(teacherEmail, subject, html);
+};
+
+/**
+ * 15. Generic Raw Email Dispatcher
+ */
+export const sendRawEmailDirect = async (to, subject, html, text = '') => {
+    return sendEmail(to, subject, html);
 };

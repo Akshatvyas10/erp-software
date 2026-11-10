@@ -20,8 +20,7 @@ const Classroom = sequelize.define('Classroom', {
     section: {
         type: DataTypes.ENUM('A', 'B', 'C', 'D', 'E', 'F', 'G'),
         allowNull: false,
-        defaultValue: 'A',
-        comment: 'Classroom Section Enum A-G'
+        defaultValue: 'A'
     },
     academicYear: {
         type: DataTypes.STRING(20), allowNull: false,

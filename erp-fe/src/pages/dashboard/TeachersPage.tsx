@@ -29,7 +29,6 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// Icons
 import {
     Plus,
     Search,
@@ -41,11 +40,14 @@ import {
     Loader2,
     Activity,
     Users,
+    CreditCard
 } from "lucide-react";
 import { toast } from "sonner";
 import AccessDenied from "@/components/auth/AccessDenied";
 import { motion } from "framer-motion";
 import { TeacherWorkloadMatrix } from "@/features/teachers/components/TeacherWorkloadMatrix";
+import { BulkIdCardPrintDialog } from "@/features/school-config/components/templates/BulkIdCardPrintDialog";
+import { useGenerateTeacherCards, type TeacherCardItem } from "@/features/school-config/api/idCardApi";
 
 import {
     Select,
@@ -77,6 +79,34 @@ export default function TeachersPage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [teacherToEdit, setTeacherToEdit] = useState<Teacher | null>(null);
     const [teacherToDelete, setTeacherToDelete] = useState<string | null>(null);
+
+    // ID Card Generation States
+    const [idCardDialogOpen, setIdCardDialogOpen] = useState(false);
+    const [generatedIdCardPayload, setGeneratedIdCardPayload] = useState<{
+        template: any;
+        cards: TeacherCardItem[];
+    }>({ template: null, cards: [] });
+
+    const generateTeacherCardsMutation = useGenerateTeacherCards();
+
+    const handleGenerateTeacherCards = async (targetTeacherId?: string) => {
+        try {
+            toast.loading(targetTeacherId ? "Generating Faculty ID Card..." : "Generating All Faculty ID Cards...", { id: "tch-id-gen" });
+            const payload = targetTeacherId
+                ? { teacherIds: [targetTeacherId] }
+                : { teacherIds: teachersList.map((t: Teacher) => t.id) };
+
+            const res = await generateTeacherCardsMutation.mutateAsync(payload);
+            setGeneratedIdCardPayload({
+                template: res.template,
+                cards: res.cards as TeacherCardItem[]
+            });
+            setIdCardDialogOpen(true);
+            toast.success(`Loaded ${res.total} Faculty ID Card${res.total > 1 ? "s" : ""}!`, { id: "tch-id-gen" });
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || "Failed to generate faculty ID cards", { id: "tch-id-gen" });
+        }
+    };
 
     const { data, isLoading, isFetching, refetch } = useQuery({
         queryKey: ["teachers", page, search, statusFilter, employmentTypeFilter],
@@ -246,6 +276,15 @@ export default function TeachersPage() {
                     >
                         <Eye className="h-4 w-4" />
                     </Button>
+                    <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                        onClick={() => handleGenerateTeacherCards(teacher.id)}
+                        title="Generate Faculty ID Card"
+                    >
+                        <CreditCard className="h-4 w-4 text-primary" />
+                    </Button>
                     <PermissionGate resource="teachers" action="update">
                         <Button
                             size="icon-xs"
@@ -352,6 +391,15 @@ export default function TeachersPage() {
                     disabled={isFetching}
                 >
                     <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin text-primary" : "text-muted-foreground"}`} />
+                </Button>
+                <Button
+                    variant="outline"
+                    className="gap-2 h-10 px-3.5 rounded-xl font-semibold border-border/80 hover:bg-muted"
+                    onClick={() => handleGenerateTeacherCards()}
+                    disabled={generateTeacherCardsMutation.isPending || teachersList.length === 0}
+                    title="Generate Faculty ID Cards"
+                >
+                    <CreditCard className="h-4 w-4 text-primary" /> Faculty ID Cards
                 </Button>
                 <PermissionGate resource="teachers" action="create">
                     <Button
@@ -549,6 +597,18 @@ export default function TeachersPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Faculty ID Card Generation Modal */}
+            <BulkIdCardPrintDialog
+                open={idCardDialogOpen}
+                onOpenChange={setIdCardDialogOpen}
+                title="Faculty & Staff • ID Badges"
+                description="Preview and print official faculty identification badges."
+                template={generatedIdCardPayload.template}
+                cards={generatedIdCardPayload.cards}
+                isLoading={generateTeacherCardsMutation.isPending}
+                documentType="TEACHER_ID_CARD"
+            />
         </motion.div>
     );
 }

@@ -14,16 +14,40 @@ import { initSocket } from './config/socket.js';
 
 const PORT = parseInt(process.env.PORT, 10) || 5000;
 
+let httpServer = null;
+
 const start = async () => {
     try {
         await sequelize.authenticate();
         logger.info('PostgreSQL connection established.');
 
+        // Enforce Redis in production multi-instance environment
+        if (process.env.NODE_ENV === 'production') {
+            const { default: redisClient, getRedisStatus } = await import('./config/redis.js');
+            try {
+                await redisClient.ping();
+                logger.info('Production Redis ping verified: distributed token store and queues operational.');
+            } catch (redisErr) {
+                logger.error('FATAL: Production mode requires an active distributed Redis instance.');
+                logger.error(`Redis connection failed: ${redisErr.message}`);
+                process.exit(1);
+            }
+        }
+
         const server = http.createServer(app);
         initSocket(server);
 
-        server.listen(PORT, () => {
+        httpServer = server.listen(PORT, () => {
             logger.info(`ERP server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+        });
+
+        server.on('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+                logger.error(`Port ${PORT} is already in use. Please ensure no stale node process is holding port ${PORT}.`);
+            } else {
+                logger.error('HTTP server error:', err);
+            }
+            process.exit(1);
         });
     } catch (err) {
         logger.error('Failed to start server:', err);
@@ -34,9 +58,24 @@ const start = async () => {
 // Graceful shutdown
 const shutdown = async (signal) => {
     logger.info(`${signal} received — shutting down gracefully`);
+    if (httpServer) {
+        httpServer.close();
+    }
     await sequelize.close();
     process.exit(0);
 };
+
+// Handlers for standard shutdown and nodemon restart
+process.once('SIGUSR2', async () => {
+    logger.info('SIGUSR2 received (nodemon restart) — closing HTTP server');
+    if (httpServer) {
+        httpServer.close(() => {
+            process.kill(process.pid, 'SIGUSR2');
+        });
+    } else {
+        process.kill(process.pid, 'SIGUSR2');
+    }
+});
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));

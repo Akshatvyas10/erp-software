@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import db from '../models/index.js';
 import logger from '../utils/logger.js';
+import { success, error } from '../utils/apiResponse.js';
 
 const { Homework, HomeworkSubmission, ClassroomStudent, ClassroomSubject, Student, Teacher, Subject, Classroom, User, ClassroomRemark, sequelize } = db;
 
@@ -84,10 +85,10 @@ export const getHomeworks = async (req, res) => {
             return json;
         });
 
-        res.json(formatted);
+        res.json({ success: true, message: 'Homeworks fetched successfully', data: { homeworks: formatted } });
     } catch (err) {
         logger.error('Error fetching homeworks:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -153,13 +154,13 @@ export const getHomeworkDetails = async (req, res) => {
             const submission = await HomeworkSubmission.findOne({
                 where: { homeworkId: id, studentId: student.id }
             });
-            return res.json({ homework: json, submission });
+            return res.json({ success: true, message: 'Homework fetched', data: { homework: json, submission } });
         }
 
-        res.json({ homework: json });
+        res.json({ success: true, message: 'Homework fetched', data: { homework: json } });
     } catch (err) {
         logger.error('Error fetching homework details:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -242,15 +243,15 @@ export const createHomework = async (req, res) => {
         }
 
         await t.commit();
-        res.status(201).json(homework);
+        res.status(201).json({ success: true, message: 'Homework created successfully', data: { homework } });
     } catch (err) {
         await t.rollback();
         if (err instanceof z.ZodError) {
             const firstError = err.errors[0]?.message || 'Validation failed';
-            return res.status(400).json({ message: firstError, errors: err.errors });
+            return res.status(400).json({ success: false, message: firstError, errors: err.errors });
         }
         logger.error('Error creating homework:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -317,15 +318,15 @@ export const updateHomework = async (req, res) => {
         }
 
         await t.commit();
-        res.json(homework);
+        res.json({ success: true, message: 'Homework updated successfully', data: { homework } });
     } catch (err) {
         await t.rollback();
         if (err instanceof z.ZodError) {
             const firstError = err.errors[0]?.message || 'Validation failed';
-            return res.status(400).json({ message: firstError, errors: err.errors });
+            return res.status(400).json({ success: false, message: firstError, errors: err.errors });
         }
         logger.error('Error updating homework:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -407,10 +408,10 @@ export const getHomeworkSubmissions = async (req, res) => {
             return json;
         });
 
-        res.json(formattedSubmissions);
+        res.json({ success: true, message: 'Submissions fetched', data: { submissions: formattedSubmissions } });
     } catch (err) {
         logger.error('Error fetching submissions:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -514,13 +515,13 @@ export const updateSubmission = async (req, res) => {
 
         await submission.save({ transaction: t });
         await t.commit();
-        res.json(submission);
+        res.json({ success: true, message: 'Submission updated successfully', data: { submission } });
     } catch (err) {
         await t.rollback();
         if (err instanceof z.ZodError) {
-            return res.status(400).json({ message: err.errors[0]?.message || 'Validation failed', errors: err.errors });
+            return res.status(400).json({ success: false, message: err.errors[0]?.message || 'Validation failed', errors: err.errors });
         }
         logger.error('Error updating submission:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

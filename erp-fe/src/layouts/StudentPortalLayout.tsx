@@ -5,6 +5,7 @@ import {
     CalendarCheck,
     BookOpen,
     Award,
+    Receipt,
     LogOut,
     School,
 } from "lucide-react";
@@ -26,6 +27,7 @@ const PORTAL_NAV: PortalNavItem[] = [
     { label: "Leaves", to: "/portal/leaves", icon: CalendarCheck },
     { label: "Homework", to: "/portal/homework", icon: BookOpen },
     { label: "Report Cards", to: "/portal/report-cards", icon: Award },
+    { label: "Fees & Receipts", to: "/portal/fees", icon: Receipt },
 ];
 
 export default function StudentPortalLayout() {

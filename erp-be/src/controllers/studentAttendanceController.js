@@ -183,6 +183,24 @@ export const updateAttendance = async (req, res) => {
         const record = await StudentAttendance.findOne({ where: { id } });
         if (!record) return res.status(404).json({ success: false, message: "Record not found" });
 
+        // Security / Scope Check: verify caller has authority over record's classroom
+        const rolesLower = (req.userRoles || []).map(r => String(r).toLowerCase());
+        const isPrivileged = rolesLower.some(r => ['admin', 'super_admin', 'principal'].includes(r));
+        if (!isPrivileged) {
+            const userTeacherId = req.user.teacherProfileId || req.user.teacherId;
+            if (!userTeacherId) {
+                return res.status(403).json({ success: false, message: "Forbidden: Teacher profile required" });
+            }
+            const classroom = await Classroom.findByPk(record.classroomId);
+            const isClassTeacher = classroom && classroom.classTeacherId === userTeacherId;
+            const isSubjectTeacher = await ClassroomSubject.findOne({
+                where: { classroomId: record.classroomId, teacherId: userTeacherId }
+            });
+            if (!isClassTeacher && !isSubjectTeacher) {
+                return res.status(403).json({ success: false, message: "Forbidden: You are not assigned to this classroom" });
+            }
+        }
+
         await record.update({ status, remarks, updatedBy: req.user.id });
 
         return res.json({ success: true, message: "Attendance updated successfully.", record });

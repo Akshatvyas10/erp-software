@@ -20,12 +20,12 @@ router.get('/public/application/:id/status', apiLimiter, admissionController.get
 router.use(authenticate);
 
 // Only Admins and specific staff should manage admissions
-router.post('/generate', requireRole(['Admin']), generateForm);
-router.get('/', requireRole(['Admin', 'Teacher', 'Staff']), listApplications);
-router.get('/forms', requireRole(['Admin', 'Teacher', 'Staff']), listForms);
-router.patch('/:id/status', requireRole(['Admin']), updateApplicationStatus);
-router.get('/forms/classroom/:classroomId', requireRole(['Admin', 'Staff', 'Teacher']), getFormByClassroom);
-router.patch('/forms/bulk-toggle-status', requireRole(['Admin']), admissionController.bulkToggleFormStatus);
-router.patch('/forms/:id/toggle-status', requireRole(['Admin']), admissionController.toggleFormStatus);
+router.post('/generate', requireRole('admin', 'super_admin'), generateForm);
+router.get('/', requireRole('admin', 'super_admin', 'teacher', 'staff'), listApplications);
+router.get('/forms', requireRole('admin', 'super_admin', 'teacher', 'staff'), listForms);
+router.patch('/:id/status', requireRole('admin', 'super_admin'), updateApplicationStatus);
+router.get('/forms/classroom/:classroomId', requireRole('admin', 'super_admin', 'teacher', 'staff'), getFormByClassroom);
+router.patch('/forms/bulk-toggle-status', requireRole('admin', 'super_admin'), admissionController.bulkToggleFormStatus);
+router.patch('/forms/:id/toggle-status', requireRole('admin', 'super_admin'), admissionController.toggleFormStatus);
 
 export default router;
