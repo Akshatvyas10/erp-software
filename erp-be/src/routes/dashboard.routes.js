@@ -18,7 +18,7 @@ router.get('/stats', async (req, res) => {
         const [totalStudents, totalTeachers, totalUsers, pendingTeacherLeaves, pendingStudentLeaves] = await Promise.all([
             Student.count(),
             Teacher.count(),
-            User.count({ where: { status: 'ACTIVE' } }),
+            User.count({ where: { isActive: true } }),
             TeacherLeave ? TeacherLeave.count({ where: { status: 'PENDING' } }) : 0,
             StudentLeave ? StudentLeave.count({ where: { status: 'PENDING' } }) : 0,
         ]);

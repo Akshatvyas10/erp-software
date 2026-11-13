@@ -13,6 +13,7 @@ const {
     FeePayment,
     Student,
     Classroom,
+    AcademicClass,
     AcademicYear,
     User,
 } = db;
@@ -100,12 +101,12 @@ class FeeService {
     // FEE STRUCTURES
     // ══════════════════════════════════════════════════════════════════════════
 
-    async getFeeStructures({ academicYearId, classroomId, quota, isActive } = {}) {
+    async getFeeStructures({ academicYearId, academicClassId, quota, isActive } = {}) {
         const where = {};
         if (academicYearId) where.academicYearId = academicYearId;
-        if (classroomId) where.classroomId = classroomId;
+        if (academicClassId) where.academicClassId = academicClassId;
         if (quota) where.quota = quota;
-        if (typeof isActive === 'boolean') where.isActive = isActive;
+        if (typeof isActive === 'boolean') where.status = isActive ? 'ACTIVE' : 'INACTIVE';
 
         return await FeeStructure.findAll({
             where,
@@ -113,12 +114,12 @@ class FeeService {
                 {
                     model: AcademicYear,
                     as: 'academicYear',
-                    attributes: ['id', 'name', 'code', 'isCurrent'],
+                    attributes: ['id', 'name', 'isCurrent'],
                 },
                 {
-                    model: Classroom,
-                    as: 'classroom',
-                    attributes: ['id', 'name', 'grade', 'section'],
+                    model: AcademicClass,
+                    as: 'academicClass',
+                    attributes: ['id', 'name', 'code', 'orderIndex'],
                 },
                 {
                     model: FeeStructureItem,
@@ -127,7 +128,7 @@ class FeeService {
                         {
                             model: FeeHead,
                             as: 'feeHead',
-                            attributes: ['id', 'code', 'name', 'category'],
+                            attributes: ['id', 'code', 'name', 'description'],
                         },
                     ],
                 },
@@ -142,12 +143,12 @@ class FeeService {
                 {
                     model: AcademicYear,
                     as: 'academicYear',
-                    attributes: ['id', 'name', 'code', 'isCurrent'],
+                    attributes: ['id', 'name', 'isCurrent'],
                 },
                 {
-                    model: Classroom,
-                    as: 'classroom',
-                    attributes: ['id', 'name', 'grade', 'section'],
+                    model: AcademicClass,
+                    as: 'academicClass',
+                    attributes: ['id', 'name', 'code', 'orderIndex'],
                 },
                 {
                     model: FeeStructureItem,
@@ -156,7 +157,7 @@ class FeeService {
                         {
                             model: FeeHead,
                             as: 'feeHead',
-                            attributes: ['id', 'code', 'name', 'category'],
+                            attributes: ['id', 'code', 'name', 'description'],
                         },
                     ],
                 },
@@ -446,34 +447,34 @@ class FeeService {
                 {
                     model: Student,
                     as: 'student',
-                    attributes: ['id', 'admissionNumber', 'rollNumber', 'status'],
+                    attributes: ['id', 'admissionNumber', 'status'],
                     include: [
                         {
                             model: User,
-                            as: 'user',
-                            attributes: ['id', 'firstName', 'lastName', 'email', 'avatar'],
+                            as: 'account',
+                            attributes: ['id', 'firstName', 'lastName', 'email'],
                         },
                     ],
                 },
                 {
                     model: Classroom,
                     as: 'classroom',
-                    attributes: ['id', 'name', 'grade', 'section'],
+                    attributes: ['id', 'name', 'section'],
                 },
                 {
                     model: AcademicYear,
                     as: 'academicYear',
-                    attributes: ['id', 'name', 'code', 'isCurrent'],
+                    attributes: ['id', 'name', 'isCurrent'],
                 },
                 {
                     model: StudentInvoiceItem,
                     as: 'items',
-                    include: [{ model: FeeHead, as: 'feeHead', attributes: ['id', 'code', 'name', 'category'] }],
+                    include: [{ model: FeeHead, as: 'feeHead', attributes: ['id', 'code', 'name', 'description'] }],
                 },
                 {
                     model: FeePayment,
                     as: 'payments',
-                    attributes: ['id', 'receiptNumber', 'amount', 'paymentMode', 'paymentDate'],
+                    attributes: ['id', 'receiptNumber', 'amountPaid', 'paymentMode', 'paymentDate'],
                 },
             ],
             order: [['createdAt', 'DESC']],
@@ -499,17 +500,17 @@ class FeeService {
                 {
                     model: Student,
                     as: 'student',
-                    include: [{ model: User, as: 'user', attributes: ['firstName', 'lastName', 'email', 'phone', 'avatar'] }],
+                    include: [{ model: User, as: 'account', attributes: ['firstName', 'lastName', 'email', 'phone'] }],
                 },
                 {
                     model: Classroom,
                     as: 'classroom',
-                    attributes: ['id', 'name', 'grade', 'section'],
+                    attributes: ['id', 'name', 'section'],
                 },
                 {
                     model: AcademicYear,
                     as: 'academicYear',
-                    attributes: ['id', 'name', 'code', 'isCurrent'],
+                    attributes: ['id', 'name', 'isCurrent'],
                 },
                 {
                     model: StudentInvoiceItem,
@@ -601,7 +602,7 @@ class FeeService {
                             {
                                 model: Student,
                                 as: 'student',
-                                include: [{ model: User, as: 'user', attributes: ['firstName', 'lastName', 'email'] }],
+                                include: [{ model: User, as: 'account', attributes: ['firstName', 'lastName', 'email'] }],
                             },
                             { model: Classroom, as: 'classroom' },
                         ],
@@ -627,7 +628,7 @@ class FeeService {
                         {
                             model: Student,
                             as: 'student',
-                            include: [{ model: User, as: 'user', attributes: ['firstName', 'lastName', 'email', 'phone'] }],
+                            include: [{ model: User, as: 'account', attributes: ['firstName', 'lastName', 'email', 'phone'] }],
                         },
                         { model: Classroom, as: 'classroom' },
                         { model: AcademicYear, as: 'academicYear' },
@@ -652,8 +653,8 @@ class FeeService {
     async getStudentFeeLedger(studentId) {
         const student = await Student.findByPk(studentId, {
             include: [
-                { model: User, as: 'user', attributes: ['firstName', 'lastName', 'email', 'phone', 'avatar'] },
-                { model: Classroom, as: 'classroom', attributes: ['id', 'name', 'grade', 'section'] },
+                { model: User, as: 'account', attributes: ['firstName', 'lastName', 'email', 'phone'] },
+                { model: Classroom, as: 'classroom', attributes: ['id', 'name', 'section'] },
             ],
         });
         if (!student) throw new ApiError(404, 'Student not found');
@@ -662,7 +663,7 @@ class FeeService {
             where: { studentId },
             include: [
                 { model: StudentInvoiceItem, as: 'items', include: [{ model: FeeHead, as: 'feeHead' }] },
-                { model: AcademicYear, as: 'academicYear', attributes: ['id', 'name', 'code'] },
+                { model: AcademicYear, as: 'academicYear', attributes: ['id', 'name'] },
             ],
             order: [['createdAt', 'DESC']],
         });
@@ -680,7 +681,7 @@ class FeeService {
             .filter((inv) => inv.status !== 'CANCELLED')
             .reduce((sum, inv) => sum + Number(inv.totalAmount), 0);
 
-        const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+        const totalPaid = payments.reduce((sum, p) => sum + Number(p.amountPaid || 0), 0);
         const outstandingBalance = Math.max(0, totalBilled - totalPaid);
 
         return {
