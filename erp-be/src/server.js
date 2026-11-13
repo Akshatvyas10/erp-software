@@ -18,8 +18,20 @@ let httpServer = null;
 
 const start = async () => {
     try {
-        await sequelize.authenticate();
-        logger.info('PostgreSQL connection established.');
+        // Retry connection logic for cloud database (e.g. Neon DNS / cold wake)
+        let retries = 5;
+        while (retries > 0) {
+            try {
+                await sequelize.authenticate();
+                logger.info('PostgreSQL connection established.');
+                break;
+            } catch (authErr) {
+                retries -= 1;
+                if (retries === 0) throw authErr;
+                logger.warn(`PostgreSQL connection failed (${authErr.message}). Retrying in 3s... (${retries} retries left)`);
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+            }
+        }
 
         // Enforce Redis in production multi-instance environment
         if (process.env.NODE_ENV === 'production') {
