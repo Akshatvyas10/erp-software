@@ -52,6 +52,8 @@ import FeeStructureDiscount from './FeeStructureDiscount.js';
 import StudentInvoice from './StudentInvoice.js';
 import StudentInvoiceItem from './StudentInvoiceItem.js';
 import FeePayment from './FeePayment.js';
+import FeePaymentReversal from './FeePaymentReversal.js';
+import FeeRefund from './FeeRefund.js';
 import FeeReminderLog from './FeeReminderLog.js';
 
 const PermissionAuditLog = PermissionAuditLogInit(sequelize);
@@ -383,6 +385,16 @@ FeePayment.belongsTo(StudentInvoice, { foreignKey: 'studentInvoiceId', as: 'invo
 FeePayment.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
 FeePayment.belongsTo(User, { foreignKey: 'collectedById', as: 'collectedBy' });
 
+FeePayment.hasOne(FeePaymentReversal, { foreignKey: 'paymentId', as: 'reversal' });
+FeePaymentReversal.belongsTo(FeePayment, { foreignKey: 'paymentId', as: 'payment' });
+FeePaymentReversal.belongsTo(User, { foreignKey: 'authorizedById', as: 'authorizedBy' });
+
+FeeRefund.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
+Student.hasMany(FeeRefund, { foreignKey: 'studentId', as: 'feeRefunds' });
+FeeRefund.belongsTo(FeePayment, { foreignKey: 'paymentId', as: 'originalPayment' });
+FeeRefund.belongsTo(User, { foreignKey: 'requestedById', as: 'requestedBy' });
+FeeRefund.belongsTo(User, { foreignKey: 'approvedById', as: 'approvedBy' });
+
 FeeReminderLog.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
 Student.hasMany(FeeReminderLog, { foreignKey: 'studentId', as: 'feeReminders' });
 FeeReminderLog.belongsTo(Classroom, { foreignKey: 'classroomId', as: 'classroom' });
@@ -441,6 +453,8 @@ const db = {
     StudentInvoice,
     StudentInvoiceItem,
     FeePayment,
+    FeePaymentReversal,
+    FeeRefund,
     FeeReminderLog
 };
 
@@ -498,5 +512,7 @@ export {
     StudentInvoice,
     StudentInvoiceItem,
     FeePayment,
+    FeePaymentReversal,
+    FeeRefund,
     FeeReminderLog
 };

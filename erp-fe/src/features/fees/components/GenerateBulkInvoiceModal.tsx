@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { AxiosError } from 'axios';
 import feeApi, {
   type FeeStructure,
   type BulkClassInvoicePreviewResponse,
@@ -183,7 +184,7 @@ export const GenerateBulkInvoiceModal: React.FC<GenerateBulkInvoiceModalProps> =
       setSelectedStudentIds(eligibleIds);
       setStep(3);
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ message?: string }>) => {
       toast.error(err?.response?.data?.message || err?.message || 'Failed to generate preview');
     },
   });
@@ -217,7 +218,7 @@ export const GenerateBulkInvoiceModal: React.FC<GenerateBulkInvoiceModalProps> =
       queryClient.invalidateQueries({ queryKey: queryKeys.fees.all });
       setStep(4);
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ message?: string }>) => {
       toast.error(err?.response?.data?.message || err?.message || 'Invoice generation failed');
     },
   });

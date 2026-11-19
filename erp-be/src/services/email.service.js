@@ -915,6 +915,7 @@ export const sendFeeReminderDirect = async ({
     arrears,
     advanceCredit,
     payableAmount,
+    administrativeNote,
     schoolNameOverride,
 }) => {
     if (!recipientEmail) return;
@@ -928,6 +929,8 @@ export const sendFeeReminderDirect = async ({
     const formattedAdvance = Number(advanceCredit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
     const formattedPayable = Number(payableAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
     const formattedDueDate = dueDate ? new Date(dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Immediate';
+
+    const safeAdminNote = administrativeNote && typeof administrativeNote === 'string' ? administrativeNote.trim() : '';
 
     const contentHtml = `
       <h2 style="margin: 0 0 14px 0; color: #0F172A; font-size: 20px; font-weight: 700;">
@@ -967,6 +970,17 @@ export const sendFeeReminderDirect = async ({
           <td style="padding: 10px 16px; color: #0F172A; font-size: 13px; font-weight: 600; text-align: right;">${formattedDueDate}</td>
         </tr>
       </table>
+
+      ${safeAdminNote ? `
+      <div style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 14px 16px; border-radius: 4px; margin-bottom: 24px;">
+        <p style="margin: 0 0 4px 0; color: #92400E; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+          Administrative Note
+        </p>
+        <p style="margin: 0; color: #78350F; font-size: 14px; line-height: 1.5;">
+          ${safeAdminNote}
+        </p>
+      </div>
+      ` : ''}
 
       <div style="background-color: #EFF6FF; border-left: 4px solid #3B82F6; padding: 14px 16px; border-radius: 4px; margin-bottom: 24px;">
         <p style="margin: 0; color: #1E40AF; font-size: 13px; line-height: 1.5;">

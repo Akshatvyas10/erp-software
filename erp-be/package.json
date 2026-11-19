@@ -9,8 +9,11 @@
     "dev": "nodemon src/server.js",
     "worker:email": "node -r dotenv/config src/workers/email.worker.js",
     "db:migrate": "node -r dotenv/config src/database/migrate.js",
+    "db:migrate:up": "node -r dotenv/config src/database/migrationManager.js up",
+    "db:migrate:status": "node -r dotenv/config src/database/migrationManager.js status",
     "db:seed": "node -r dotenv/config src/database/seed.js",
-    "db:export": "node -r dotenv/config src/database/exportDb.js"
+    "db:export": "node -r dotenv/config src/database/exportDb.js",
+    "test": "node --env-file=.env.example --test tests/**/*.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

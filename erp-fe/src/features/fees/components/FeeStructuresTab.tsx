@@ -9,18 +9,64 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { usePermissions } from '@/store/hooks';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import feeApi, { type FeeHead, type FeeStructure, type FeeStructureItem, type FeeStructureDiscount } from '../api/feeApi';
+import type { AxiosError } from 'axios';
+import feeApi, {
+  type FeeHead,
+  type FeeStructure,
+  type FeeStructureItem,
+  type FeeStructureDiscount,
+} from '../api/feeApi';
 import queryKeys from '@/lib/queryKeys';
 import { toast } from 'sonner';
-import { Plus, Trash2, Layers, CheckCircle, Percent, IndianRupee, Loader2, Copy, AlertCircle, Edit2 } from 'lucide-react';
+import {
+  Plus,
+  Trash2,
+  Layers,
+  CheckCircle,
+  Percent,
+  IndianRupee,
+  Loader2,
+  Copy,
+  AlertCircle,
+  Edit2,
+  ChevronDown,
+  ChevronRight,
+  Power,
+  Search,
+} from 'lucide-react';
+import { formatMoney } from '../utils/moneyUtils';
 
 interface FeeStructuresTabProps {
   structures: FeeStructure[];
@@ -34,6 +80,7 @@ const SUPPORTED_FREQUENCIES = [
   { id: 'MONTHLY', label: 'Monthly' },
   { id: 'QUARTERLY', label: 'Quarterly' },
   { id: 'ANNUAL', label: 'Annual / One-Time' },
+  { id: 'TERM', label: 'Term (Semester)' },
 ] as const;
 
 type FrequencyKey = typeof SUPPORTED_FREQUENCIES[number]['id'];
@@ -63,22 +110,43 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
   academicClasses,
 }) => {
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
+
+  const canManageFees = can('fees', 'manage');
+  const canDeleteFees = can('fees', 'delete');
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
+
+  // Confirmation Modal States
+  const [deactivateTarget, setDeactivateTarget] = useState<FeeStructure | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FeeStructure | null>(null);
+
+  // Filter States
+  const [filterYearId, setFilterYearId] = useState<string>('ALL');
+  const [filterClassId, setFilterClassId] = useState<string>('ALL');
+  const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [expandedStructureIds, setExpandedStructureIds] = useState<string[]>([]);
 
   // Section 1: Basic Info
   const [name, setName] = useState('');
   const [academicYearId, setAcademicYearId] = useState('');
   const [academicClassId, setAcademicClassId] = useState('');
-  const [selectedFrequencies, setSelectedFrequencies] = useState<FrequencyKey[]>(['MONTHLY', 'QUARTERLY', 'ANNUAL']);
+  const [selectedFrequencies, setSelectedFrequencies] = useState<FrequencyKey[]>([
+    'MONTHLY',
+    'QUARTERLY',
+    'ANNUAL',
+  ]);
 
-  // Section 2: Fee Heads Matrix (every catalog head preloaded with 0)
+  // Section 2: Fee Heads Matrix
   const [matrixRows, setMatrixRows] = useState<MatrixRowState[]>([]);
-  // Quick fill base inputs per head for "Apply to all frequencies"
   const [quickFillValues, setQuickFillValues] = useState<Record<string, string>>({});
 
   // Section 3: Quota Discounts
-  const [discounts, setDiscounts] = useState<Array<Omit<FeeStructureDiscount, 'id' | 'feeStructureId'>>>([]);
+  const [discounts, setDiscounts] = useState<
+    Array<Omit<FeeStructureDiscount, 'id' | 'feeStructureId'>>
+  >([]);
 
   // Auto-init state when dialog opens or dependencies load
   useEffect(() => {
@@ -103,6 +171,7 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
             MONTHLY: 0,
             QUARTERLY: 0,
             ANNUAL: 0,
+            TERM: 0,
           },
         }))
       );
@@ -116,9 +185,12 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
     setName(structure.name || '');
     setAcademicYearId(structure.academicYearId || '');
     setAcademicClassId(structure.academicClassId || '');
-    const activeFreqs: FrequencyKey[] = (structure.activeFrequencies && structure.activeFrequencies.length > 0)
-      ? (structure.activeFrequencies.filter((f): f is FrequencyKey => ['MONTHLY', 'QUARTERLY', 'ANNUAL'].includes(f)))
-      : ['MONTHLY', 'QUARTERLY', 'ANNUAL'];
+    const activeFreqs: FrequencyKey[] =
+      structure.activeFrequencies && structure.activeFrequencies.length > 0
+        ? (structure.activeFrequencies.filter((f): f is FrequencyKey =>
+            ['MONTHLY', 'QUARTERLY', 'ANNUAL', 'TERM'].includes(f)
+          ) as FrequencyKey[])
+        : ['MONTHLY', 'QUARTERLY', 'ANNUAL'];
     setSelectedFrequencies(activeFreqs);
 
     // Populate matrix rows mapping structure items
@@ -129,6 +201,7 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
         MONTHLY: 0,
         QUARTERLY: 0,
         ANNUAL: 0,
+        TERM: 0,
       };
       headItems.forEach((it) => {
         const freq = it.frequency as FrequencyKey;
@@ -157,8 +230,13 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
       applicableFeeHeadIds: d.applicableFeeHeadIds || [],
     }));
     setDiscounts(existingDiscounts);
-
     setIsCreateOpen(true);
+  };
+
+  const handleDuplicateStructure = (structure: FeeStructure) => {
+    handleEditStructure(structure);
+    setEditingStructureId(null);
+    setName(`${structure.name} (Copy)`);
   };
 
   const handleOpenCreateNew = () => {
@@ -179,6 +257,7 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
           MONTHLY: 0,
           QUARTERLY: 0,
           ANNUAL: 0,
+          TERM: 0,
         },
       }))
     );
@@ -186,11 +265,11 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
     setIsCreateOpen(true);
   };
 
-  // Frequency Toggle Handler
+  // Toggle active frequencies
   const toggleFrequency = (freq: FrequencyKey) => {
     if (selectedFrequencies.includes(freq)) {
       if (selectedFrequencies.length === 1) {
-        toast.warning('At least one billing frequency must remain enabled');
+        toast.error('At least one frequency cycle must be active');
         return;
       }
       setSelectedFrequencies(selectedFrequencies.filter((f) => f !== freq));
@@ -199,102 +278,100 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
     }
   };
 
-  // Matrix cell update with strict digits-only (0-9) parsing
-  const updateMatrixAmount = (feeHeadId: string, freq: FrequencyKey, rawDigits: string) => {
-    const sanitized = rawDigits.replace(/\D/g, '');
-    const num = sanitized === '' ? 0 : parseInt(sanitized, 10);
+  // Toggle fee head row active
+  const toggleHeadEnabled = (feeHeadId: string, isEnabled: boolean) => {
     setMatrixRows((prev) =>
-      prev.map((row) =>
-        row.feeHeadId === feeHeadId
-          ? { ...row, amounts: { ...row.amounts, [freq]: num } }
-          : row
+      prev.map((r) => (r.feeHeadId === feeHeadId ? { ...r, isEnabled } : r))
+    );
+  };
+
+  // Numeric input change handler for matrix cells
+  const handleAmountChange = (feeHeadId: string, freq: FrequencyKey, rawValue: string) => {
+    const digitsOnly = rawValue.replace(/\D/g, '');
+    const num = digitsOnly === '' ? 0 : parseInt(digitsOnly, 10);
+    setMatrixRows((prev) =>
+      prev.map((r) =>
+        r.feeHeadId === feeHeadId
+          ? {
+              ...r,
+              amounts: {
+                ...r.amounts,
+                [freq]: num,
+              },
+            }
+          : r
       )
     );
   };
 
-  // "Apply to all frequencies" for a fee head
-  const applyAmountToAllFrequencies = (feeHeadId: string, baseAmountRaw?: string) => {
-    const targetRow = matrixRows.find((r) => r.feeHeadId === feeHeadId);
-    if (!targetRow) return;
-
-    let numVal: number;
-    if (baseAmountRaw !== undefined) {
-      const sanitized = baseAmountRaw.replace(/\D/g, '');
-      numVal = sanitized === '' ? 0 : parseInt(sanitized, 10);
-    } else {
-      const firstEnabled = selectedFrequencies[0] || 'MONTHLY';
-      numVal = targetRow.amounts[firstEnabled] || 0;
-    }
+  // Quick fill: copy single value across all active frequencies
+  const handleApplyToAllFrequencies = (feeHeadId: string) => {
+    const rawVal = quickFillValues[feeHeadId] || '';
+    const digitsOnly = rawVal.replace(/\D/g, '');
+    const num = digitsOnly === '' ? 0 : parseInt(digitsOnly, 10);
 
     setMatrixRows((prev) =>
-      prev.map((row) => {
-        if (row.feeHeadId !== feeHeadId) return row;
-        const updatedAmounts = { ...row.amounts };
-        for (const freq of selectedFrequencies) {
-          updatedAmounts[freq] = numVal;
-        }
-        return { ...row, amounts: updatedAmounts };
+      prev.map((r) => {
+        if (r.feeHeadId !== feeHeadId) return r;
+        const newAmounts = { ...r.amounts };
+        selectedFrequencies.forEach((f) => {
+          newAmounts[f] = num;
+        });
+        return { ...r, amounts: newAmounts };
       })
     );
-    toast.info(`Applied ₹${numVal.toLocaleString('en-IN')} across all frequencies for ${targetRow.name}`);
+    toast.success(`Applied ₹${num.toLocaleString('en-IN')} across active cycles.`);
   };
 
-  const toggleHeadEnabled = (feeHeadId: string, checked: boolean) => {
-    setMatrixRows((prev) =>
-      prev.map((row) => (row.feeHeadId === feeHeadId ? { ...row, isEnabled: checked } : row))
-    );
-  };
-
-  // Live Frequency Totals calculation
-  const frequencyTotals = useMemo(() => {
-    const totals: Record<FrequencyKey, number> = {
-      MONTHLY: 0,
-      QUARTERLY: 0,
-      ANNUAL: 0,
-    };
-    for (const row of matrixRows) {
-      if (row.isEnabled) {
-        for (const freq of selectedFrequencies) {
-          totals[freq] += Number(row.amounts[freq] || 0);
-        }
-      }
-    }
-    return totals;
-  }, [matrixRows, selectedFrequencies]);
-
-  // Quota Discounts Management & Validation
-  const addDiscountRule = () => {
+  // Quota discounts helpers
+  const handleAddDiscount = () => {
     setDiscounts((prev) => [
       ...prev,
       {
         quota: 'STAFF_CHILD',
         discountType: 'PERCENTAGE',
-        discountValue: 50,
+        discountValue: 25,
         scope: 'ALL_HEADS',
         applicableFeeHeadIds: [],
       },
     ]);
   };
 
-  const removeDiscountRule = (index: number) => {
-    setDiscounts((prev) => prev.filter((_, i) => i !== index));
+  const handleRemoveDiscount = (idx: number) => {
+    setDiscounts((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const updateDiscountRule = (index: number, updates: Partial<FeeStructureDiscount>) => {
-    setDiscounts((prev) => {
-      const clone = [...prev];
-      clone[index] = { ...clone[index], ...updates };
-      return clone;
-    });
+  const updateDiscountRule = (
+    idx: number,
+    updates: Partial<Omit<FeeStructureDiscount, 'id' | 'feeStructureId'>>
+  ) => {
+    setDiscounts((prev) =>
+      prev.map((d, i) => (i === idx ? { ...d, ...updates } : d))
+    );
   };
 
-  // Calculate maximum applicable fee amount for a fixed discount rule
-  const getApplicableMaxAmount = (rule: Omit<FeeStructureDiscount, 'id' | 'feeStructureId'>) => {
-    const activeFreq = selectedFrequencies[0] || 'MONTHLY';
-    if (rule.scope === 'SPECIFIC_HEADS' && rule.applicableFeeHeadIds && rule.applicableFeeHeadIds.length > 0) {
-      const selectedHeadIds = new Set(rule.applicableFeeHeadIds);
+  // Compute live totals per frequency cycle
+  const frequencyTotals = useMemo(() => {
+    const totals: Record<FrequencyKey, number> = {
+      MONTHLY: 0,
+      QUARTERLY: 0,
+      ANNUAL: 0,
+      TERM: 0,
+    };
+    for (const row of matrixRows) {
+      if (!row.isEnabled) continue;
+      for (const f of selectedFrequencies) {
+        totals[f] += Number(row.amounts[f] || 0);
+      }
+    }
+    return totals;
+  }, [matrixRows, selectedFrequencies]);
+
+  const getApplicableMaxAmount = (rule: (typeof discounts)[number]) => {
+    const activeFreq = selectedFrequencies[0] || 'ANNUAL';
+    if (rule.scope === 'SPECIFIC_HEADS' && rule.applicableFeeHeadIds?.length) {
       return matrixRows
-        .filter((r) => r.isEnabled && selectedHeadIds.has(r.feeHeadId))
+        .filter((r) => r.isEnabled && rule.applicableFeeHeadIds?.includes(r.feeHeadId))
         .reduce((sum, r) => sum + (r.amounts[activeFreq] || 0), 0);
     }
     return frequencyTotals[activeFreq] || 0;
@@ -306,14 +383,16 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
     discounts.forEach((rule, idx) => {
       if (rule.discountType === 'PERCENTAGE') {
         if (rule.discountValue > 100) {
-          errors[idx] = 'Percent discount cannot exceed 100% (must be 0 to 100)';
+          errors[idx] = 'Percent discount cannot exceed 100%';
         } else if (rule.discountValue < 0) {
           errors[idx] = 'Percent discount cannot be negative';
         }
       } else if (rule.discountType === 'FIXED_AMOUNT') {
         const maxFee = getApplicableMaxAmount(rule);
         if (maxFee > 0 && rule.discountValue >= maxFee) {
-          errors[idx] = `Fixed discount (₹${rule.discountValue.toLocaleString('en-IN')}) must be less than applicable fee amount (₹${maxFee.toLocaleString('en-IN')})`;
+          errors[idx] = `Fixed discount (₹${rule.discountValue.toLocaleString(
+            'en-IN'
+          )}) must be less than applicable fee amount (₹${maxFee.toLocaleString('en-IN')})`;
         } else if (rule.discountValue < 0) {
           errors[idx] = 'Fixed discount cannot be negative';
         }
@@ -379,137 +458,430 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
       setName('');
       setDiscounts([]);
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ message?: string }>) => {
       toast.error(err?.response?.data?.message || err?.message || 'Failed to save fee structure');
     },
   });
 
+  // Toggle Structure Active/Inactive Mutation
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'ACTIVE' | 'INACTIVE' }) =>
+      feeApi.updateFeeStructureStatus(id, status),
+    onSuccess: (_, vars) => {
+      toast.success(`Template marked as ${vars.status}`);
+      queryClient.invalidateQueries({ queryKey: queryKeys.fees.structures() });
+    },
+    onError: (err: AxiosError<{ message?: string }>) => {
+      toast.error(err?.response?.data?.message || 'Failed to update status');
+    },
+  });
+
+  // Delete Structure Mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => feeApi.deleteFeeStructure(id),
+    onSuccess: () => {
+      toast.success('Fee structure template deleted');
+      queryClient.invalidateQueries({ queryKey: queryKeys.fees.structures() });
+    },
+    onError: (err: AxiosError<{ message?: string }>) => {
+      toast.error(err?.response?.data?.message || 'Failed to delete fee structure');
+    },
+  });
+
+  const toggleExpand = (id: string) => {
+    setExpandedStructureIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  // Helper to compute totals for any structure from its items
+  const computeStructureCycleTotals = (s: FeeStructure) => {
+    const totals: Record<string, number> = {};
+    const items = s.items || [];
+    items.forEach((it) => {
+      if (it.isEnabled !== false && Number(it.amount) > 0) {
+        const freq = it.frequency || 'MONTHLY';
+        totals[freq] = (totals[freq] || 0) + Number(it.amount);
+      }
+    });
+    return totals;
+  };
+
+  // Count charged heads (amount > 0 for at least one active frequency)
+  const getChargedHeadsCount = (s: FeeStructure) => {
+    const items = s.items || [];
+    const chargedHeadIds = new Set(
+      items
+        .filter((it) => it.isEnabled !== false && Number(it.amount) > 0)
+        .map((it) => it.feeHeadId)
+    );
+    return chargedHeadIds.size;
+  };
+
+  // Filtered structures
+  const filteredStructures = useMemo(() => {
+    return structures.filter((s) => {
+      if (filterYearId !== 'ALL' && s.academicYearId !== filterYearId) return false;
+      if (filterClassId !== 'ALL' && s.academicClassId !== filterClassId) return false;
+      if (filterStatus !== 'ALL' && s.status !== filterStatus) return false;
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase();
+        const matchesName = s.name.toLowerCase().includes(q);
+        const matchesClass = (s.academicClass?.name || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesClass) return false;
+      }
+      return true;
+    });
+  }, [structures, filterYearId, filterClassId, filterStatus, searchTerm]);
+
   return (
     <div className="space-y-4">
-      {/* Tab Header using Theme Tokens */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-card p-4 rounded-xl border border-border shadow-sm">
+      {/* 1. Header with Actions */}
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-card p-4 rounded-xl border border-border/80 shadow-2xs">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Fee Structure Templates</h3>
-          <p className="text-xs text-muted-foreground">
-            Define multi-frequency rate cards (Monthly, Quarterly, Annual) and quota concession rules
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <Layers className="w-4 h-4 text-primary" /> Fee Structure Templates
+            </h3>
+            <Badge variant="outline" className="text-[11px] font-semibold rounded-lg">
+              {filteredStructures.length} Configured
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Configure multi-frequency rate cards (Monthly, Quarterly, Annual, Term) and quota concession rules.
           </p>
         </div>
-        <Button
-          size="sm"
-          className="gap-1.5 text-xs font-bold rounded-xl shadow-xs self-start sm:self-auto"
-          onClick={handleOpenCreateNew}
-        >
-          <Plus className="w-3.5 h-3.5" /> Create Structure Template
-        </Button>
+        {canManageFees && (
+          <Button
+            size="sm"
+            className="gap-1.5 text-xs font-bold rounded-xl shadow-xs self-start sm:self-auto"
+            onClick={handleOpenCreateNew}
+          >
+            <Plus className="w-3.5 h-3.5" /> Create Template
+          </Button>
+        )}
       </div>
 
-      {/* Existing Structures Table */}
-      <div className="rounded-2xl border border-border overflow-hidden bg-card shadow-xs">
+      {/* 2. Filter Bar matching ERP standard */}
+      <div className="bg-card p-3 rounded-xl border border-border/70 shadow-2xs space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-muted-foreground" />
+            <Input
+              placeholder="Search template name or class..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8 text-xs h-8 rounded-xl bg-background"
+            />
+          </div>
+
+          <div>
+            <Select value={filterYearId} onValueChange={setFilterYearId}>
+              <SelectTrigger className="text-xs h-8 rounded-xl bg-background">
+                <SelectValue placeholder="All Academic Years" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="ALL">All Academic Years</SelectItem>
+                {academicYears.map((y) => (
+                  <SelectItem key={y.id} value={y.id}>
+                    {y.name} {y.isCurrent ? '(Current)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Select value={filterClassId} onValueChange={setFilterClassId}>
+              <SelectTrigger className="text-xs h-8 rounded-xl bg-background">
+                <SelectValue placeholder="All Academic Classes" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="ALL">All Academic Classes</SelectItem>
+                {academicClasses.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="text-xs h-8 rounded-xl bg-background">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="ALL">All Statuses</SelectItem>
+                <SelectItem value="ACTIVE">Active Templates</SelectItem>
+                <SelectItem value="INACTIVE">Draft / Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Existing Structures Table with Expandable Breakdowns */}
+      <div className="rounded-xl border border-border/80 overflow-hidden bg-card shadow-2xs">
         <Table>
           <TableHeader className="bg-muted/40">
-            <TableRow>
-              <TableHead className="text-xs font-semibold">Template Name</TableHead>
-              <TableHead className="text-xs font-semibold">Academic Class</TableHead>
-              <TableHead className="text-xs font-semibold">Active Frequencies</TableHead>
-              <TableHead className="text-xs font-semibold">Quota Concessions</TableHead>
-              <TableHead className="text-xs font-semibold">Status</TableHead>
-              <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
+            <TableRow className="border-b border-border/80">
+              <TableHead className="w-8"></TableHead>
+              <TableHead className="text-xs font-bold">Template & Class</TableHead>
+              <TableHead className="text-xs font-bold">Fee Cycles & Net Rates</TableHead>
+              <TableHead className="text-xs font-bold text-center">Charged Heads</TableHead>
+              <TableHead className="text-xs font-bold">Quota Discounts</TableHead>
+              <TableHead className="text-xs font-bold text-center">Status</TableHead>
+              <TableHead className="text-xs font-bold text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {structures.length === 0 ? (
+            {filteredStructures.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-10 text-xs text-muted-foreground">
-                  No fee structure templates configured yet. Click above to create one.
+                <TableCell colSpan={7} className="text-center py-10 text-xs text-muted-foreground">
+                  No fee structure templates found matching criteria.
                 </TableCell>
               </TableRow>
             ) : (
-              structures.map((s) => (
-                <TableRow key={s.id} className="text-xs hover:bg-muted/40 transition-colors">
-                  <TableCell className="font-semibold text-foreground">{s.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="font-mono text-[11px]">
-                      {s.academicClass?.name || 'All Classes'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {s.activeFrequencies?.map((freq) => (
-                        <Badge key={freq} variant="secondary" className="text-[10px]">
-                          {freq}
+              filteredStructures.map((s) => {
+                const totals = computeStructureCycleTotals(s);
+                const isExpanded = expandedStructureIds.includes(s.id);
+                const chargedCount = getChargedHeadsCount(s);
+                const activeFreqs = s.activeFrequencies || ['MONTHLY', 'QUARTERLY', 'ANNUAL'];
+
+                return (
+                  <React.Fragment key={s.id}>
+                    <TableRow className="text-xs hover:bg-muted/30 transition-colors">
+                      <TableCell className="text-center p-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-muted-foreground"
+                          onClick={() => toggleExpand(s.id)}
+                          title="Toggle Head Breakdown"
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          )}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <div className="font-bold text-foreground text-xs">{s.name}</div>
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                          <span className="font-semibold text-primary">{s.academicClass?.name || 'All Classes'}</span>
+                          <span>•</span>
+                          <span>{s.academicYear?.name || ''}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {activeFreqs.map((freq) => {
+                            const amt = totals[freq] || 0;
+                            return (
+                              <Badge
+                                key={freq}
+                                variant="outline"
+                                className="text-[10px] py-0.5 px-2 font-mono rounded-lg bg-muted/30"
+                              >
+                                <span className="text-muted-foreground font-sans font-medium mr-1">
+                                  {freq === 'MONTHLY'
+                                    ? 'Monthly'
+                                    : freq === 'QUARTERLY'
+                                    ? 'Quarterly'
+                                    : freq === 'ANNUAL'
+                                    ? 'Annual'
+                                    : 'Term'}
+                                  :
+                                </span>
+                                <strong className="text-foreground">{formatMoney(amt)}</strong>
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3 text-center">
+                        <Badge variant="secondary" className="font-mono text-[10px] rounded-lg">
+                          {chargedCount} fee head(s)
                         </Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {s.discounts && s.discounts.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {s.discounts.map((d, i) => {
-                          const quotaLabel = QUOTA_OPTIONS.find((q) => q.value === d.quota)?.label || d.quota.replace(/_/g, ' ');
-                          return (
-                            <Badge key={i} variant="outline" className="text-[10px] bg-primary/5 text-primary border-primary/20">
-                              {quotaLabel}: {d.discountValue}{d.discountType === 'PERCENTAGE' ? '%' : '₹'}
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">None</span>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        {s.discounts && s.discounts.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {s.discounts.map((d, i) => {
+                              const quotaLabel =
+                                QUOTA_OPTIONS.find((q) => q.value === d.quota)?.label ||
+                                d.quota.replace(/_/g, ' ');
+                              return (
+                                <Badge
+                                  key={i}
+                                  variant="outline"
+                                  className="text-[10px] bg-primary/5 text-primary border-primary/20 rounded-lg"
+                                >
+                                  {quotaLabel}: {d.discountValue}
+                                  {d.discountType === 'PERCENTAGE' ? '%' : '₹'}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-[11px]">No concessions</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-3 text-center">
+                        <Badge
+                          variant={s.status === 'ACTIVE' ? 'default' : 'secondary'}
+                          className="text-[10px] font-bold rounded-lg"
+                        >
+                          {s.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="py-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {canManageFees && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs rounded-xl font-semibold gap-1"
+                                onClick={() => handleEditStructure(s)}
+                                title="Edit Structure"
+                              >
+                                <Edit2 className="w-3 h-3" /> Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs rounded-xl font-semibold gap-1 text-muted-foreground"
+                                onClick={() => handleDuplicateStructure(s)}
+                                title="Duplicate as new template"
+                              >
+                                <Copy className="w-3 h-3" /> Copy
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 rounded-xl text-muted-foreground hover:text-foreground"
+                                onClick={() => setDeactivateTarget(s)}
+                                title={s.status === 'ACTIVE' ? 'Deactivate Template' : 'Activate Template'}
+                              >
+                                <Power className={`w-3.5 h-3.5 ${s.status === 'ACTIVE' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                              </Button>
+                            </>
+                          )}
+                          {canDeleteFees && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 rounded-xl text-destructive hover:bg-destructive/10"
+                              onClick={() => setDeleteTarget(s)}
+                              title="Delete Template"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Expandable Breakdown Drawer */}
+                    {isExpanded && (
+                      <TableRow className="bg-muted/15 border-b border-border/60">
+                        <TableCell colSpan={7} className="p-3">
+                          <div className="rounded-xl border border-border/70 bg-card p-3 space-y-2">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-bold text-foreground">
+                                Fee Head Breakdown by Cycle for {s.name}
+                              </span>
+                              <span className="text-[11px] text-muted-foreground">
+                                Active Frequencies: {activeFreqs.join(', ')}
+                              </span>
+                            </div>
+
+                            <Table>
+                              <TableHeader className="bg-muted/40">
+                                <TableRow>
+                                  <TableHead className="text-[11px] font-bold">Fee Head</TableHead>
+                                  {activeFreqs.map((f) => (
+                                    <TableHead key={f} className="text-[11px] font-bold text-right">
+                                      {f}
+                                    </TableHead>
+                                  ))}
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {feeHeads
+                                  .filter((h) => {
+                                    const headItems = (s.items || []).filter((it) => it.feeHeadId === h.id);
+                                    return headItems.some((it) => it.isEnabled !== false && Number(it.amount) > 0);
+                                  })
+                                  .map((h) => {
+                                    const headItems = (s.items || []).filter((it) => it.feeHeadId === h.id);
+                                    return (
+                                      <TableRow key={h.id} className="text-xs">
+                                        <TableCell className="py-1.5 font-medium">
+                                          {h.name}
+                                          <span className="text-[10px] text-muted-foreground font-mono ml-1.5">
+                                            ({h.code})
+                                          </span>
+                                        </TableCell>
+                                        {activeFreqs.map((f) => {
+                                          const item = headItems.find((it) => it.frequency === f);
+                                          const amt = Number(item?.amount || 0);
+                                          return (
+                                            <TableCell key={f} className="py-1.5 text-right font-mono font-semibold">
+                                              {amt > 0 ? formatMoney(amt) : '—'}
+                                            </TableCell>
+                                          );
+                                        })}
+                                      </TableRow>
+                                    );
+                                  })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={s.status === 'ACTIVE' ? 'default' : 'secondary'}>
-                      {s.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs rounded-xl font-semibold gap-1"
-                      onClick={() => handleEditStructure(s)}
-                    >
-                      <Edit2 className="w-3 h-3" /> Edit
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+                  </React.Fragment>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </div>
 
       {/* ═════════════════════════════════════════════════════════════════════════ */}
-      {/* CREATE FEE STRUCTURE TEMPLATE MODAL (Properly sized & responsive) */}
+      {/* CREATE / EDIT FEE STRUCTURE TEMPLATE MODAL */}
       {/* ═════════════════════════════════════════════════════════════════════════ */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="w-[95vw] sm:w-[90vw] md:max-w-3xl lg:max-w-4xl max-h-[85vh] p-0 flex flex-col gap-0 overflow-hidden border border-border bg-card">
+        <DialogContent className="w-[95vw] sm:w-[90vw] md:max-w-3xl lg:max-w-4xl max-h-[85vh] p-0 flex flex-col gap-0 overflow-hidden border border-border bg-card rounded-2xl">
           {/* Sticky Dialog Header */}
           <DialogHeader className="p-4 sm:p-5 border-b border-border bg-card shrink-0">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                <Layers className="w-4 h-4" />
+              <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                <Layers className="w-5 h-5" />
               </div>
               <div>
                 <DialogTitle className="text-base font-bold text-foreground">
                   {editingStructureId ? 'Edit Fee Structure Template' : 'Create Fee Structure Template'}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                  {editingStructureId
-                    ? 'Update grade-level tuition rates, multi-frequency pricing, and quota concessions.'
-                    : 'Configure grade-level tuition rates, multi-frequency pricing, and quota concessions.'}
+                  Configure grade-level tuition rates, multi-frequency pricing cycles, and quota concessions.
                 </DialogDescription>
               </div>
             </div>
           </DialogHeader>
 
           {/* Scrollable Form Body with controlled height */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5 text-xs">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
             {/* ── Section 1: Basic Information ── */}
-            <Card className="border border-border shadow-none bg-card">
-              <CardHeader className="py-2.5 px-3.5 bg-muted/40 border-b border-border">
+            <Card className="border border-border/80 shadow-none bg-card rounded-xl">
+              <CardHeader className="py-2.5 px-3.5 bg-muted/40 border-b border-border/80">
                 <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                  1. Basic Details & Frequencies
+                  1. Basic Details & Billing Cycles
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-3.5 sm:p-4 space-y-4">
@@ -517,22 +889,22 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
                   <div className="sm:col-span-2 lg:col-span-1">
                     <Label className="text-xs font-semibold text-foreground">Template Name *</Label>
                     <Input
-                      placeholder="e.g. Class 10 Standard 2026-27"
-                      className="mt-1 text-xs h-9 bg-background"
+                      placeholder="e.g. Primary Grade 1-5 Standard"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
+                      className="mt-1 h-9 text-xs rounded-xl"
                     />
                   </div>
 
                   <div>
                     <Label className="text-xs font-semibold text-foreground">Academic Year *</Label>
                     <Select value={academicYearId} onValueChange={setAcademicYearId}>
-                      <SelectTrigger className="mt-1 text-xs h-9 bg-background">
-                        <SelectValue placeholder="Academic Year" />
+                      <SelectTrigger className="mt-1 h-9 text-xs rounded-xl">
+                        <SelectValue placeholder="Select Year" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="rounded-xl">
                         {academicYears.map((y) => (
-                          <SelectItem key={y.id} value={y.id}>
+                          <SelectItem key={y.id} value={y.id} className="text-xs">
                             {y.name} {y.isCurrent ? '(Current)' : ''}
                           </SelectItem>
                         ))}
@@ -541,15 +913,15 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
                   </div>
 
                   <div>
-                    <Label className="text-xs font-semibold text-foreground">Academic Class / Grade *</Label>
+                    <Label className="text-xs font-semibold text-foreground">Target Grade Class *</Label>
                     <Select value={academicClassId} onValueChange={setAcademicClassId}>
-                      <SelectTrigger className="mt-1 text-xs h-9 bg-background">
+                      <SelectTrigger className="mt-1 h-9 text-xs rounded-xl">
                         <SelectValue placeholder="Select Class" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="rounded-xl">
                         {academicClasses.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name} ({c.code})
+                          <SelectItem key={c.id} value={c.id} className="text-xs">
+                            {c.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -558,50 +930,53 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
                 </div>
 
                 {/* Enabled Frequencies Checkbox Group */}
-                <div className="pt-2 border-t border-border">
-                  <Label className="text-xs font-semibold text-foreground mb-1.5 block">
-                    Enabled Billing Frequencies
+                <div className="pt-2 border-t border-border/60">
+                  <Label className="text-xs font-semibold text-foreground block mb-2">
+                    Supported Fee Billing Cycles *
                   </Label>
-                  <div className="flex flex-wrap gap-2.5">
-                    {SUPPORTED_FREQUENCIES.map((freq) => (
-                      <label
-                        key={freq.id}
-                        className={`flex items-center gap-2 cursor-pointer border rounded-lg px-3 py-1.5 transition text-xs font-medium ${
-                          selectedFrequencies.includes(freq.id)
-                            ? 'bg-primary/5 border-primary/40 text-foreground'
-                            : 'bg-muted/40 border-border text-muted-foreground hover:bg-muted'
-                        }`}
-                      >
-                        <Checkbox
-                          checked={selectedFrequencies.includes(freq.id)}
-                          onCheckedChange={() => toggleFrequency(freq.id)}
-                        />
-                        <span>{freq.label}</span>
-                      </label>
-                    ))}
+                  <div className="flex flex-wrap gap-2">
+                    {SUPPORTED_FREQUENCIES.map((freq) => {
+                      const isChecked = selectedFrequencies.includes(freq.id);
+                      return (
+                        <label
+                          key={freq.id}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
+                            isChecked
+                              ? 'border-primary bg-primary/10 text-primary shadow-xs'
+                              : 'border-border/80 bg-background text-muted-foreground hover:bg-muted/50'
+                          }`}
+                        >
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={() => toggleFrequency(freq.id)}
+                            className="hidden"
+                          />
+                          <span>{freq.label}</span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* ── Section 2: Fee Heads Amount Matrix ── */}
-            <Card className="border border-border shadow-none bg-card">
-              <CardHeader className="py-2.5 px-3.5 bg-muted/40 border-b border-border flex flex-col sm:flex-row justify-between sm:items-center gap-1.5">
+            <Card className="border border-border/80 shadow-none bg-card rounded-xl">
+              <CardHeader className="py-2.5 px-3.5 bg-muted/40 border-b border-border/80 flex flex-col sm:flex-row justify-between sm:items-center gap-1.5">
                 <div>
                   <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider">
                     2. Fee Heads Amount Matrix
                   </CardTitle>
                   <p className="text-[11px] text-muted-foreground font-normal">
-                    Enter digits only (0-9). Heads with amount ₹0 will not be billed under that frequency.
+                    Enter digits only (0-9). Heads with amount ₹0 will not be billed under that cycle.
                   </p>
                 </div>
                 <div className="text-[11px] text-muted-foreground">
-                  Quick tip: Use <strong className="text-foreground">Apply to all</strong> when a fee head (e.g. Transport/Tuition) shares the same rate.
+                  Tip: Use <strong className="text-foreground">Apply to all</strong> when a fee head shares the same rate across cycles.
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {/* Desktop/Tablet: Clean Table Matrix with Quick Fill */}
-                <div className="hidden md:block overflow-x-auto">
+                <div className="overflow-x-auto">
                   <Table>
                     <TableHeader className="bg-muted/30">
                       <TableRow>
@@ -612,7 +987,13 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
                         </TableHead>
                         {selectedFrequencies.map((f) => (
                           <TableHead key={f} className="text-xs font-semibold text-right min-w-[125px]">
-                            {f === 'MONTHLY' ? 'Monthly' : f === 'QUARTERLY' ? 'Quarterly' : 'Annual / One-Time'}
+                            {f === 'MONTHLY'
+                              ? 'Monthly (₹)'
+                              : f === 'QUARTERLY'
+                              ? 'Quarterly (₹)'
+                              : f === 'ANNUAL'
+                              ? 'Annual (₹)'
+                              : 'Term (₹)'}
                           </TableHead>
                         ))}
                       </TableRow>
@@ -620,13 +1001,19 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
                     <TableBody>
                       {matrixRows.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={selectedFrequencies.length + 3} className="text-center py-6 text-muted-foreground">
+                          <TableCell
+                            colSpan={selectedFrequencies.length + 3}
+                            className="text-center py-6 text-muted-foreground"
+                          >
                             No active fee heads found in catalog.
                           </TableCell>
                         </TableRow>
                       ) : (
                         matrixRows.map((row) => (
-                          <TableRow key={row.feeHeadId} className={!row.isEnabled ? 'opacity-40 bg-muted/20' : ''}>
+                          <TableRow
+                            key={row.feeHeadId}
+                            className={!row.isEnabled ? 'opacity-40 bg-muted/20' : ''}
+                          >
                             <TableCell className="text-center">
                               <Switch
                                 checked={row.isEnabled}
@@ -639,23 +1026,25 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
                                 {row.code ? row.code.replace(/_/g, ' ') : ''}
                               </div>
                             </TableCell>
+
                             {/* Quick fill column */}
                             <TableCell>
                               <div className="flex items-center gap-1.5">
-                                <div className="relative w-24">
-                                  <span className="absolute left-2 top-2 text-[10px] text-muted-foreground select-none">₹</span>
+                                <div className="relative flex-1">
                                   <Input
                                     type="text"
                                     inputMode="numeric"
                                     pattern="[0-9]*"
+                                    placeholder="Rate"
                                     disabled={!row.isEnabled}
-                                    placeholder="0"
-                                    value={quickFillValues[row.feeHeadId] ?? ''}
-                                    onChange={(e) => {
-                                      const digitsOnly = e.target.value.replace(/\D/g, '');
-                                      setQuickFillValues((prev) => ({ ...prev, [row.feeHeadId]: digitsOnly }));
-                                    }}
-                                    className="h-8 pl-5 pr-2 text-right font-medium text-xs bg-background"
+                                    value={quickFillValues[row.feeHeadId] || ''}
+                                    onChange={(e) =>
+                                      setQuickFillValues({
+                                        ...quickFillValues,
+                                        [row.feeHeadId]: e.target.value.replace(/\D/g, ''),
+                                      })
+                                    }
+                                    className="h-8 text-xs bg-background font-mono rounded-lg"
                                   />
                                 </div>
                                 <Button
@@ -663,29 +1052,33 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
                                   variant="outline"
                                   size="sm"
                                   disabled={!row.isEnabled}
-                                  onClick={() => applyAmountToAllFrequencies(row.feeHeadId, quickFillValues[row.feeHeadId])}
-                                  title="Copy this amount across all enabled frequencies"
-                                  className="h-8 px-2 text-[11px] gap-1 shrink-0 bg-background hover:bg-muted"
+                                  onClick={() => handleApplyToAllFrequencies(row.feeHeadId)}
+                                  className="h-8 text-[11px] px-2 rounded-lg font-semibold shrink-0"
                                 >
-                                  <Copy className="w-3 h-3" />
-                                  <span>Apply all</span>
+                                  Apply
                                 </Button>
                               </div>
                             </TableCell>
-                            {selectedFrequencies.map((freq) => (
-                              <TableCell key={freq} className="text-right">
+
+                            {/* Dynamic Frequency Inputs */}
+                            {selectedFrequencies.map((f) => (
+                              <TableCell key={f} className="text-right">
                                 <div className="relative inline-block w-full">
-                                  <span className="absolute left-2.5 top-2 text-[10px] text-muted-foreground select-none">₹</span>
                                   <Input
                                     type="text"
                                     inputMode="numeric"
                                     pattern="[0-9]*"
                                     disabled={!row.isEnabled}
-                                    value={row.amounts[freq] === 0 ? '' : String(row.amounts[freq])}
+                                    value={row.amounts[f] === 0 ? '' : String(row.amounts[f])}
                                     placeholder="0"
-                                    onChange={(e) => updateMatrixAmount(row.feeHeadId, freq, e.target.value)}
-                                    className="h-8 pl-6 pr-2 text-right font-mono font-medium text-xs bg-background"
+                                    onChange={(e) =>
+                                      handleAmountChange(row.feeHeadId, f, e.target.value)
+                                    }
+                                    className="h-8 text-xs text-right font-mono font-semibold bg-background rounded-lg pl-6"
                                   />
+                                  <span className="absolute left-2 top-2 text-muted-foreground pointer-events-none select-none text-[11px]">
+                                    ₹
+                                  </span>
                                 </div>
                               </TableCell>
                             ))}
@@ -693,160 +1086,68 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
                         ))
                       )}
 
-                      {/* Live Calculated Subtotals Footer */}
-                      <TableRow className="bg-primary/5 font-bold border-t-2 border-primary/20">
-                        <TableCell colSpan={3} className="text-xs text-foreground pl-4">
-                          Calculated Standard Subtotal:
+                      {/* Live Totals Row */}
+                      <TableRow className="bg-muted/40 font-bold border-t-2 border-border/80">
+                        <TableCell colSpan={3} className="text-right text-xs uppercase tracking-wider text-foreground">
+                          Total Rate per Cycle:
                         </TableCell>
-                        {selectedFrequencies.map((freq) => (
-                          <TableCell key={freq} className="text-right text-xs text-foreground font-mono">
-                            ₹{frequencyTotals[freq].toLocaleString('en-IN')}
+                        {selectedFrequencies.map((f) => (
+                          <TableCell key={f} className="text-right font-mono text-sm text-primary">
+                            {formatMoney(frequencyTotals[f])}
                           </TableCell>
                         ))}
                       </TableRow>
                     </TableBody>
                   </Table>
                 </div>
-
-                {/* Mobile & Small Tablet View: Touch-Friendly Accordion per Head */}
-                <div className="md:hidden p-3 divide-y divide-border">
-                  {matrixRows.map((row) => (
-                    <div key={row.feeHeadId} className="py-3 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium text-foreground text-xs">{row.name}</div>
-                          <div className="font-mono text-[10px] text-muted-foreground">
-                            {row.code ? row.code.replace(/_/g, ' ') : ''}
-                          </div>
-                        </div>
-                        <Switch
-                          checked={row.isEnabled}
-                          onCheckedChange={(val) => toggleHeadEnabled(row.feeHeadId, val)}
-                        />
-                      </div>
-                      {row.isEnabled && (
-                        <div className="space-y-2 pt-1 bg-muted/20 p-2.5 rounded-lg border border-border">
-                          {/* Mobile Quick Fill row */}
-                          <div className="flex items-center gap-2 pb-1 border-b border-border/50">
-                            <div className="relative flex-1">
-                              <span className="absolute left-2.5 top-2 text-[10px] text-muted-foreground select-none">₹</span>
-                              <Input
-                                type="text"
-                                inputMode="numeric"
-                                pattern="[0-9]*"
-                                placeholder="Amount to copy"
-                                value={quickFillValues[row.feeHeadId] ?? ''}
-                                onChange={(e) => {
-                                  const digitsOnly = e.target.value.replace(/\D/g, '');
-                                  setQuickFillValues((prev) => ({ ...prev, [row.feeHeadId]: digitsOnly }));
-                                }}
-                                className="h-8 pl-6 pr-2 text-right text-xs bg-background"
-                              />
-                            </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => applyAmountToAllFrequencies(row.feeHeadId, quickFillValues[row.feeHeadId])}
-                              className="h-8 px-2.5 text-xs gap-1 bg-background"
-                            >
-                              <Copy className="w-3 h-3" />
-                              Apply to all
-                            </Button>
-                          </div>
-
-                          {/* Individual frequency amount inputs */}
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            {selectedFrequencies.map((freq) => (
-                              <div key={freq} className="space-y-1">
-                                <Label className="text-[10px] text-muted-foreground">
-                                  {freq === 'MONTHLY' ? 'Monthly' : freq === 'QUARTERLY' ? 'Quarterly' : 'Annual'}
-                                </Label>
-                                <div className="relative">
-                                  <span className="absolute left-2.5 top-2 text-[10px] text-muted-foreground select-none">₹</span>
-                                  <Input
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    value={row.amounts[freq] === 0 ? '' : String(row.amounts[freq])}
-                                    placeholder="0"
-                                    onChange={(e) => updateMatrixAmount(row.feeHeadId, freq, e.target.value)}
-                                    className="h-8 pl-6 pr-2 text-xs text-right font-mono bg-background"
-                                  />
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {/* Mobile Subtotals Card */}
-                  <div className="pt-3 mt-2 bg-primary/5 p-2.5 rounded-lg border border-primary/20 space-y-1.5">
-                    <div className="text-[11px] font-bold text-foreground">Standard Subtotals:</div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      {selectedFrequencies.map((f) => (
-                        <span key={f}>
-                          {f}: <strong className="text-foreground font-mono">₹{frequencyTotals[f].toLocaleString('en-IN')}</strong>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
-            {/* ── Section 3: Quota-Based Discounts ── */}
-            <Card className="border border-border shadow-none bg-card">
-              <CardHeader className="py-2.5 px-3.5 bg-muted/40 border-b border-border flex flex-row justify-between items-center">
+            {/* ── Section 3: Quota Discounts ── */}
+            <Card className="border border-border/80 shadow-none bg-card rounded-xl">
+              <CardHeader className="py-2.5 px-3.5 bg-muted/40 border-b border-border/80 flex flex-row items-center justify-between">
                 <div>
                   <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                    3. Quota-Based Concessions & Discounts
+                    3. Quota Concessions & Scholarships
                   </CardTitle>
                   <p className="text-[11px] text-muted-foreground font-normal">
-                    Apply automatic fee reductions based on student quota (Staff child, Scholarship, etc.)
+                    Concessions apply automatically based on student profile quota (e.g. Staff Child, RTE, Scholarship).
                   </p>
                 </div>
-                <Button size="sm" variant="outline" className="h-7 text-xs gap-1 bg-background" onClick={addDiscountRule}>
-                  <Plus className="w-3 h-3" /> Add Quota Rule
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs font-semibold gap-1 rounded-lg"
+                  onClick={handleAddDiscount}
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Concession
                 </Button>
               </CardHeader>
               <CardContent className="p-3.5 sm:p-4 space-y-3">
                 {discounts.length === 0 ? (
-                  <div className="text-center py-4 text-xs text-muted-foreground">
+                  <div className="text-center py-5 text-muted-foreground border border-dashed border-border/80 rounded-xl">
                     No quota discount rules added. Standard rates will apply for all students.
                   </div>
                 ) : (
                   discounts.map((rule, idx) => (
                     <div
                       key={idx}
-                      className="p-3 bg-muted/30 border border-border rounded-lg space-y-3 relative"
+                      className="p-3 border border-border/80 rounded-xl bg-muted/20 space-y-2.5"
                     >
-                      <div className="flex justify-between items-center">
-                        <Badge variant="outline" className="text-[11px] font-semibold bg-background">
-                          Rule #{idx + 1}
-                        </Badge>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-6 w-6 text-destructive hover:bg-destructive/10"
-                          onClick={() => removeDiscountRule(idx)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                         <div>
                           <Label className="text-[11px] font-semibold text-foreground">Target Quota</Label>
                           <Select
                             value={rule.quota}
-                            onValueChange={(val: any) => updateDiscountRule(idx, { quota: val })}
+                            onValueChange={(val: FeeStructureDiscount['quota']) =>
+                              updateDiscountRule(idx, { quota: val })
+                            }
                           >
-                            <SelectTrigger className="h-8 text-xs mt-1 bg-background">
+                            <SelectTrigger className="h-8 text-xs mt-1 bg-background rounded-lg">
                               <SelectValue placeholder="Quota" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="rounded-xl">
                               {QUOTA_OPTIONS.map((q) => (
                                 <SelectItem key={q.value} value={q.value}>
                                   {q.label}
@@ -860,12 +1161,14 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
                           <Label className="text-[11px] font-semibold text-foreground">Discount Type</Label>
                           <Select
                             value={rule.discountType}
-                            onValueChange={(val: any) => updateDiscountRule(idx, { discountType: val })}
+                            onValueChange={(val: FeeStructureDiscount['discountType']) =>
+                              updateDiscountRule(idx, { discountType: val })
+                            }
                           >
-                            <SelectTrigger className="h-8 text-xs mt-1 bg-background">
+                            <SelectTrigger className="h-8 text-xs mt-1 bg-background rounded-lg">
                               <SelectValue placeholder="Type" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="rounded-xl">
                               <SelectItem value="PERCENTAGE">Percentage (%)</SelectItem>
                               <SelectItem value="FIXED_AMOUNT">Fixed Amount (₹)</SelectItem>
                             </SelectContent>
@@ -879,8 +1182,10 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
                               type="text"
                               inputMode="numeric"
                               pattern="[0-9]*"
-                              className={`h-8 text-xs bg-background pr-7 font-mono ${
-                                discountErrors[idx] ? 'border-destructive focus-visible:ring-destructive' : ''
+                              className={`h-8 text-xs bg-background pr-7 font-mono rounded-lg ${
+                                discountErrors[idx]
+                                  ? 'border-destructive focus-visible:ring-destructive'
+                                  : ''
                               }`}
                               value={rule.discountValue === 0 ? '' : String(rule.discountValue)}
                               placeholder="0"
@@ -904,12 +1209,14 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
                           <Label className="text-[11px] font-semibold text-foreground">Applicable Scope</Label>
                           <Select
                             value={rule.scope}
-                            onValueChange={(val: any) => updateDiscountRule(idx, { scope: val })}
+                            onValueChange={(val: FeeStructureDiscount['scope']) =>
+                              updateDiscountRule(idx, { scope: val })
+                            }
                           >
-                            <SelectTrigger className="h-8 text-xs mt-1 bg-background">
+                            <SelectTrigger className="h-8 text-xs mt-1 bg-background rounded-lg">
                               <SelectValue placeholder="Scope" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="rounded-xl">
                               <SelectItem value="ALL_HEADS">All Fee Heads</SelectItem>
                               <SelectItem value="SPECIFIC_HEADS">Selected Fee Heads</SelectItem>
                             </SelectContent>
@@ -917,53 +1224,25 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
                         </div>
                       </div>
 
-                      {/* Inline Validation Error or Helper Text */}
-                      {discountErrors[idx] ? (
-                        <div className="flex items-center gap-1.5 text-[11px] text-destructive bg-destructive/10 px-2.5 py-1.5 rounded-md border border-destructive/20 font-medium">
+                      {/* Error text if any */}
+                      {discountErrors[idx] && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-destructive font-medium pt-1">
                           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                           <span>{discountErrors[idx]}</span>
                         </div>
-                      ) : (
-                        <div className="text-[10px] text-muted-foreground">
-                          {rule.discountType === 'PERCENTAGE'
-                            ? 'Percent must be between 0 and 100.'
-                            : `Fixed amount must be strictly less than applicable fee (max ₹${getApplicableMaxAmount(rule).toLocaleString('en-IN')}).`}
-                        </div>
                       )}
 
-                      {/* If specific heads selected */}
-                      {rule.scope === 'SPECIFIC_HEADS' && (
-                        <div className="pt-2 border-t border-border">
-                          <Label className="text-[10px] font-semibold text-muted-foreground block mb-1">
-                            Select Fee Heads to discount:
-                          </Label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {feeHeads.map((h) => {
-                              const isSelected = (rule.applicableFeeHeadIds || []).includes(h.id);
-                              return (
-                                <button
-                                  key={h.id}
-                                  type="button"
-                                  onClick={() => {
-                                    const current = rule.applicableFeeHeadIds || [];
-                                    const next = isSelected
-                                      ? current.filter((id) => id !== h.id)
-                                      : [...current, h.id];
-                                    updateDiscountRule(idx, { applicableFeeHeadIds: next });
-                                  }}
-                                  className={`px-2 py-0.5 rounded text-[10px] border transition ${
-                                    isSelected
-                                      ? 'bg-primary text-primary-foreground border-primary font-medium'
-                                      : 'bg-background text-foreground border-border hover:bg-muted'
-                                  }`}
-                                >
-                                  {h.name}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveDiscount(idx)}
+                          className="h-6 text-[11px] text-destructive hover:bg-destructive/10 rounded-lg"
+                        >
+                          <Trash2 className="w-3 h-3 mr-1" /> Remove Rule
+                        </Button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -971,46 +1250,137 @@ export const FeeStructuresTab: React.FC<FeeStructuresTabProps> = ({
             </Card>
           </div>
 
-          {/* Sticky Dialog Footer Actions */}
-          <DialogFooter className="p-3 sm:p-4 border-t border-border bg-card flex flex-col-reverse sm:flex-row justify-end gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full sm:w-auto text-xs rounded-xl font-semibold"
-              onClick={() => setIsCreateOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="w-full sm:w-auto text-xs rounded-xl font-semibold"
-              onClick={() => saveMutation.mutate('INACTIVE')}
-              disabled={saveMutation.isPending || hasValidationErrors}
-            >
-              Save Draft
-            </Button>
-            <Button
-              size="sm"
-              className="w-full sm:w-auto text-xs gap-1.5 rounded-xl font-bold shadow-xs"
-              onClick={() => saveMutation.mutate('ACTIVE')}
-              disabled={saveMutation.isPending || hasValidationErrors}
-            >
-              {saveMutation.isPending ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  {editingStructureId ? 'Update Template' : 'Save & Activate Template'}
-                </>
-              )}
-            </Button>
+          {/* Sticky Dialog Footer */}
+          <DialogFooter className="p-3 sm:p-4 border-t border-border bg-card shrink-0 flex flex-row items-center justify-between gap-2">
+            <div className="text-left hidden sm:block">
+              <span className="text-[11px] text-muted-foreground block">Active Frequencies</span>
+              <span className="text-xs font-bold text-foreground">{selectedFrequencies.join(' • ')}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs rounded-xl"
+                onClick={() => setIsCreateOpen(false)}
+                disabled={saveMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="text-xs font-bold rounded-xl gap-1.5 shadow-xs"
+                onClick={() => saveMutation.mutate('ACTIVE')}
+                disabled={saveMutation.isPending}
+              >
+                {saveMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    {editingStructureId ? 'Update Template' : 'Save & Activate'}
+                  </>
+                )}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* ═════════════════════════════════════════════════════════════════════════ */}
+      {/* DEACTIVATE / ACTIVATE CONFIRMATION DIALOG */}
+      {/* ═════════════════════════════════════════════════════════════════════════ */}
+      <AlertDialog
+        open={Boolean(deactivateTarget)}
+        onOpenChange={(open) => !open && setDeactivateTarget(null)}
+      >
+        <AlertDialogContent className="max-w-md rounded-2xl bg-card border border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-bold text-foreground">
+              {deactivateTarget?.status === 'ACTIVE'
+                ? 'Deactivate Fee Structure Template?'
+                : 'Activate Fee Structure Template?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground space-y-2">
+              <p>
+                Template: <strong className="text-foreground">{deactivateTarget?.name}</strong> (
+                {deactivateTarget?.academicClass?.name || 'Class'} • {deactivateTarget?.academicYear?.name || 'Year'})
+              </p>
+              {deactivateTarget?.status === 'ACTIVE' ? (
+                <p className="p-2.5 rounded-lg bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-500/20">
+                  New invoice batches will be blocked from using this structure. Historical invoices and collected ledgers will remain completely unaffected.
+                </p>
+              ) : (
+                <p>
+                  This template will be restored to active status and will become available for issuing new classroom invoices.
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel className="text-xs rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={`text-xs font-bold rounded-xl ${
+                deactivateTarget?.status === 'ACTIVE'
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                  : 'bg-primary text-primary-foreground'
+              }`}
+              onClick={() => {
+                if (deactivateTarget) {
+                  toggleStatusMutation.mutate({
+                    id: deactivateTarget.id,
+                    status: deactivateTarget.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
+                  });
+                  setDeactivateTarget(null);
+                }
+              }}
+            >
+              {deactivateTarget?.status === 'ACTIVE' ? 'Confirm Deactivate' : 'Confirm Activate'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ═════════════════════════════════════════════════════════════════════════ */}
+      {/* PERMANENT DELETE CONFIRMATION DIALOG */}
+      {/* ═════════════════════════════════════════════════════════════════════════ */}
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent className="max-w-md rounded-2xl bg-card border border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-bold text-destructive flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-destructive" /> Delete Fee Structure Template?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground space-y-2">
+              <p>
+                Are you sure you want to permanently delete{' '}
+                <strong className="text-foreground">{deleteTarget?.name}</strong>?
+              </p>
+              <p className="p-2.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 font-medium">
+                Warning: If this template is currently in use by any issued invoices or student ledger records, deletion will be blocked by system security rules. In that case, deactivate it instead.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel className="text-xs rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="text-xs font-bold rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              onClick={() => {
+                if (deleteTarget) {
+                  deleteMutation.mutate(deleteTarget.id);
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

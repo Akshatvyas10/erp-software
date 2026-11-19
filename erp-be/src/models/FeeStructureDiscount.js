@@ -51,6 +51,7 @@ const FeeStructureDiscount = sequelize.define('FeeStructureDiscount', {
     tableName: 'fee_structure_discounts',
     timestamps: true,
     paranoid: true,
+    underscored: true,
     indexes: [
         {
             fields: ['fee_structure_id'],

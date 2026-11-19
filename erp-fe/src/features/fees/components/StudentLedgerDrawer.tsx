@@ -18,9 +18,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import feeApi, { type FeePayment, type FeeReminderLog } from '../api/feeApi';
 import queryKeys from '@/lib/queryKeys';
+import { toast } from 'sonner';
 import {
   UserCheck,
   Printer,
@@ -32,8 +33,10 @@ import {
   Receipt,
   Calendar,
   BellRing,
+  RotateCcw,
 } from 'lucide-react';
 import { formatMoney, toMoney } from '../utils/moneyUtils';
+import { usePermissions } from '@/store/hooks';
 
 interface StudentLedgerDrawerProps {
   studentId: string | null;
@@ -48,7 +51,27 @@ export const StudentLedgerDrawer: React.FC<StudentLedgerDrawerProps> = ({
   onClose,
   onPrintReceipt,
 }) => {
+  const queryClient = useQueryClient();
+  const { can } = usePermissions();
+  const canAdjust = can('fees', 'adjust');
   const [selectedPaymentDetail, setSelectedPaymentDetail] = useState<FeePayment | null>(null);
+  const [reversalPayment, setReversalPayment] = useState<FeePayment | null>(null);
+  const [reversalReason, setReversalReason] = useState<string>('');
+
+  const reverseMutation = useMutation({
+    mutationFn: ({ paymentId, reason }: { paymentId: string; reason: string }) =>
+      feeApi.reversePayment(paymentId, { reason }),
+    onSuccess: () => {
+      toast.success('Payment successfully reversed and invoice balance restored');
+      setReversalPayment(null);
+      setReversalReason('');
+      queryClient.invalidateQueries({ queryKey: ['fees'] });
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to reverse payment';
+      toast.error(msg);
+    },
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.fees.studentLedger(studentId || ''),
@@ -439,6 +462,17 @@ export const StudentLedgerDrawer: React.FC<StudentLedgerDrawerProps> = ({
                                   Re-print Receipt
                                 </Button>
                               )}
+                              {canAdjust && !p.isReversed && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-xs px-2.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 gap-1 rounded-lg justify-center"
+                                  onClick={() => setReversalPayment(p)}
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                  Reverse
+                                </Button>
+                              )}
                             </div>
                           </div>
                         );
@@ -716,6 +750,81 @@ export const StudentLedgerDrawer: React.FC<StudentLedgerDrawerProps> = ({
                 <Printer className="w-3.5 h-3.5" /> Re-print Receipt
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Reversal Confirmation Dialog */}
+      <Dialog open={!!reversalPayment} onOpenChange={(open) => !open && setReversalPayment(null)}>
+        <DialogContent className="w-[95vw] sm:max-w-md rounded-2xl p-5">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-rose-600">
+              <RotateCcw className="w-5 h-5 text-rose-600" />
+              Reverse Fee Payment
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              This action will mark the receipt as reversed, re-open the invoice balance, and log an audit record.
+            </DialogDescription>
+          </DialogHeader>
+
+          {reversalPayment && (
+            <div className="space-y-3 py-2 text-xs">
+              <div className="p-3 bg-muted/30 rounded-xl space-y-1.5 border">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Receipt Number:</span>
+                  <span className="font-mono font-bold text-foreground">{reversalPayment.receiptNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Reversal Amount:</span>
+                  <span className="font-bold text-rose-600">{formatMoney(reversalPayment.amountPaid)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Original Mode:</span>
+                  <span className="font-medium text-foreground">{reversalPayment.paymentMode}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Mandatory Reversal Justification</label>
+                <textarea
+                  placeholder="e.g. Cheque returned unpaid / Bounced or duplicate entry correction..."
+                  value={reversalReason}
+                  onChange={(e) => setReversalReason(e.target.value)}
+                  rows={3}
+                  className="w-full text-xs p-2 rounded-lg border bg-background resize-none focus:outline-none focus:ring-1 focus:ring-rose-500"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setReversalPayment(null);
+                setReversalReason('');
+              }}
+              className="rounded-xl text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={!reversalReason.trim() || reverseMutation.isPending}
+              onClick={() => {
+                if (reversalPayment) {
+                  reverseMutation.mutate({
+                    paymentId: reversalPayment.id,
+                    reason: reversalReason.trim(),
+                  });
+                }
+              }}
+              className="rounded-xl text-xs font-bold gap-1.5"
+            >
+              {reverseMutation.isPending ? 'Reversing...' : 'Confirm Reversal'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

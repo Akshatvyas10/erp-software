@@ -106,6 +106,7 @@ const FeeReminderLog = sequelize.define('FeeReminderLog', {
     tableName: 'fee_reminder_logs',
     timestamps: true,
     paranoid: true,
+    underscored: true,
     indexes: [
         {
             fields: ['student_id'],

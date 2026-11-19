@@ -205,25 +205,31 @@ function App() {
                         <Route
                             path="/dashboard/classrooms"
                             element={
-                                <Suspense fallback={<PageLoader />}>
-                                    <ClassroomList />
-                                </Suspense>
+                                <PermissionRoute resource="classrooms" action="read">
+                                    <Suspense fallback={<PageLoader />}>
+                                        <ClassroomList />
+                                    </Suspense>
+                                </PermissionRoute>
                             }
                         />
                         <Route
                             path="/dashboard/classrooms/:id"
                             element={
-                                <Suspense fallback={<PageLoader />}>
-                                    <ClassroomDetails />
-                                </Suspense>
+                                <PermissionRoute resource="classrooms" action="read">
+                                    <Suspense fallback={<PageLoader />}>
+                                        <ClassroomDetails />
+                                    </Suspense>
+                                </PermissionRoute>
                             }
                         />
                         <Route
                             path="/dashboard/subjects"
                             element={
-                                <Suspense fallback={<PageLoader />}>
-                                    <SubjectsPage />
-                                </Suspense>
+                                <PermissionRoute resource="subjects" action="read">
+                                    <Suspense fallback={<PageLoader />}>
+                                        <SubjectsPage />
+                                    </Suspense>
+                                </PermissionRoute>
                             }
                         />
 
@@ -231,17 +237,21 @@ function App() {
                         <Route
                             path="/dashboard/students"
                             element={
-                                <Suspense fallback={<PageLoader />}>
-                                    <StudentDirectory />
-                                </Suspense>
+                                <PermissionRoute resource="students" action="read">
+                                    <Suspense fallback={<PageLoader />}>
+                                        <StudentDirectory />
+                                    </Suspense>
+                                </PermissionRoute>
                             }
                         />
                         <Route
                             path="/dashboard/students/:id"
                             element={
-                                <Suspense fallback={<PageLoader />}>
-                                    <StudentDetailsPage />
-                                </Suspense>
+                                <PermissionRoute resource="students" action="read">
+                                    <Suspense fallback={<PageLoader />}>
+                                        <StudentDetailsPage />
+                                    </Suspense>
+                                </PermissionRoute>
                             }
                         />
 

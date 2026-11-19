@@ -43,6 +43,7 @@ const FeeStructureItem = sequelize.define('FeeStructureItem', {
 }, {
     tableName: 'fee_structure_items',
     timestamps: true,
+    underscored: true,
     indexes: [
         {
             unique: true,

@@ -80,6 +80,8 @@ const PERMISSIONS = [
     { name: 'fees:update', resource: 'fees', action: 'update', description: 'Modify fee invoices or structures' },
     { name: 'fees:delete', resource: 'fees', action: 'delete', description: 'Cancel fee invoices or heads' },
     { name: 'fees:collect', resource: 'fees', action: 'collect', description: 'Collect and record fee payments' },
+    { name: 'fees:adjust', resource: 'fees', action: 'adjust', description: 'Payment reversal, fine waiver, and policy exception' },
+    { name: 'fees:refund', resource: 'fees', action: 'refund', description: 'Request, approve and disburse fee refunds' },
     { name: 'fees:manage', resource: 'fees', action: 'manage', description: 'Full fee management & masters' },
     { name: 'all:manage', resource: 'all', action: 'manage', description: 'Full system access' },
 ];
@@ -102,7 +104,7 @@ const ROLES = [
             'teacher_leaves:manage', 'teacher_leaves:read', 'teacher_leaves:update',
             'leave_types:manage', 'leave_types:read', 'leave_rules:manage', 'leave_rules:read',
             'student_leaves:manage', 'student_leaves:read', 'student_leaves:update',
-            'fees:manage', 'fees:read', 'fees:create', 'fees:update', 'fees:delete', 'fees:collect',
+            'fees:manage', 'fees:read', 'fees:create', 'fees:update', 'fees:delete', 'fees:collect', 'fees:adjust', 'fees:refund',
         ],
     },
     {

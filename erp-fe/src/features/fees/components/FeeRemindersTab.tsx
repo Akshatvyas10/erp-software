@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import feeApi, { type FeeReminderLog } from '../api/feeApi';
 import queryKeys from '@/lib/queryKeys';
+import { usePermissions } from '@/store/hooks';
 import { formatMoney, toMoney } from '../utils/moneyUtils';
 import { DatePicker } from '@/components/common/DatePicker';
 import { Button } from '@/components/ui/button';
@@ -63,6 +64,8 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
   onOpenLedger,
 }) => {
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
+  const canManage = can('fees', 'manage');
 
   // Filters
   const [selectedClassroom, setSelectedClassroom] = useState<string>('ALL');
@@ -117,6 +120,7 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
     enabled: false,
     daysBeforeDue: '7, 3, 1',
     remindBeforeExam: false,
+    defaultAdministrativeNote: '',
   });
 
   // Keep localSettings in sync when loaded
@@ -126,6 +130,7 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
         enabled: !!settingsData.enabled,
         daysBeforeDue: (settingsData.daysBeforeDue || [7, 3, 1]).join(', '),
         remindBeforeExam: !!settingsData.remindBeforeExam,
+        defaultAdministrativeNote: settingsData.defaultAdministrativeNote || '',
       });
     }
   }, [settingsData]);
@@ -245,6 +250,7 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
       periodKey: periodKey || undefined,
       dueDate: asOfDate || undefined,
       customNote: customNote || undefined,
+      administrativeNote: customNote || undefined,
     });
   };
 
@@ -309,14 +315,16 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsSettingsOpen(true)}
-            className="text-xs font-semibold gap-1.5 rounded-lg"
-          >
-            <Settings className="w-3.5 h-3.5" /> Automation Rules
-          </Button>
+          {canManage && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsSettingsOpen(true)}
+              className="text-xs font-semibold gap-1.5 rounded-lg"
+            >
+              <Settings className="w-3.5 h-3.5" /> Automation Rules
+            </Button>
+          )}
 
           <Button
             variant="outline"
@@ -327,14 +335,16 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
             <History className="w-3.5 h-3.5" /> Dispatch History
           </Button>
 
-          <Button
-            size="sm"
-            disabled={selectedStudentIds.length === 0 || sendMutation.isPending}
-            onClick={() => setIsSendModalOpen(true)}
-            className="text-xs font-bold gap-1.5 rounded-lg shadow-2xs"
-          >
-            <Send className="w-3.5 h-3.5" /> Send Reminders ({selectedStudentIds.length})
-          </Button>
+          {canManage && (
+            <Button
+              size="sm"
+              disabled={selectedStudentIds.length === 0 || sendMutation.isPending}
+              onClick={() => setIsSendModalOpen(true)}
+              className="text-xs font-bold gap-1.5 rounded-lg shadow-2xs"
+            >
+              <Send className="w-3.5 h-3.5" /> Send Reminders ({selectedStudentIds.length})
+            </Button>
+          )}
         </div>
       </div>
 
@@ -631,14 +641,21 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground">Custom Administrative Note (Optional)</label>
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-semibold text-foreground">Custom Administrative Note</label>
+                <span className="text-[10px] text-muted-foreground">{customNote.length}/500</span>
+              </div>
               <Textarea
                 placeholder="e.g. Kindly clear outstanding dues before term examinations begin."
                 value={customNote}
+                maxLength={500}
                 onChange={(e) => setCustomNote(e.target.value)}
                 rows={3}
                 className="text-xs resize-none"
               />
+              <p className="text-[11px] text-muted-foreground">
+                This note will be included in the fee reminder email.
+              </p>
             </div>
 
             <div className="text-[11px] text-muted-foreground bg-blue-50/70 p-2.5 rounded-md border border-blue-100 flex items-start gap-1.5">
@@ -829,6 +846,27 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
               />
             </div>
 
+            {/* Default Administrative Note */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-semibold text-foreground">Default Administrative Note (Optional)</label>
+                <span className="text-[10px] text-muted-foreground">{localSettings.defaultAdministrativeNote.length}/500</span>
+              </div>
+              <Textarea
+                placeholder="e.g. Kindly clear all fee dues before exam week to avoid hall ticket suspension."
+                value={localSettings.defaultAdministrativeNote}
+                maxLength={500}
+                onChange={(e) =>
+                  setLocalSettings((prev) => ({ ...prev, defaultAdministrativeNote: e.target.value }))
+                }
+                rows={2}
+                className="text-xs resize-none"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                This note will be included by default in scheduled automated reminder emails.
+              </p>
+            </div>
+
             {/* Manual Trigger Test Button */}
             <div className="p-3 bg-indigo-50/50 rounded-lg border border-indigo-100 flex items-center justify-between">
               <div>
@@ -870,6 +908,7 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
                   daysBeforeDue: days.length > 0 ? days : [7, 3, 1],
                   remindBeforeExam: localSettings.remindBeforeExam,
                   maxRemindersPerDay: 1,
+                  defaultAdministrativeNote: localSettings.defaultAdministrativeNote.trim() || null,
                 });
               }}
               disabled={updateSettingsMutation.isPending}

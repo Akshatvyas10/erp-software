@@ -23,6 +23,7 @@ import {
     CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollableTabsList } from "@/components/common/ScrollableTabsList";
 import {
     Select,
     SelectContent,
@@ -230,32 +231,34 @@ export default function SchoolConfigPage() {
                 {/* @ts-ignore */}
                 <form onSubmit={form.handleSubmit(onSubmit, onError)} className="space-y-6">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-8 lg:w-[1040px] bg-muted/60 p-1 rounded-2xl">
-                            <TabsTrigger value="general" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                                <Building2 className="w-4 h-4" /> <span className="hidden md:inline">General</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="classroom" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                                <School className="w-4 h-4 text-primary" /> <span className="hidden md:inline font-bold">Classroom Config</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="templates" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                                <Layout className="w-4 h-4 text-indigo-500" /> <span className="hidden md:inline font-bold">Templates</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="contact" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                                <MapPin className="w-4 h-4" /> <span className="hidden md:inline">Contact</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="board" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                                <Building className="w-4 h-4" /> <span className="hidden md:inline">Board</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="financial" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                                <CreditCard className="w-4 h-4" /> <span className="hidden md:inline">Financial</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="email" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                                <Mail className="w-4 h-4" /> <span className="hidden md:inline">Email Server</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="theme" className="gap-2 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                                <Palette className="w-4 h-4" /> <span className="hidden md:inline">Theme</span>
-                            </TabsTrigger>
-                        </TabsList>
+                        <ScrollableTabsList>
+                            <TabsList className="inline-flex w-max justify-start flex-nowrap whitespace-nowrap bg-muted/50 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl h-auto border border-border/80 gap-1 sm:gap-1.5 shadow-2xs">
+                                <TabsTrigger value="general" className="shrink-0 gap-1.5 sm:gap-2 px-3 py-1.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold">
+                                    <Building2 className="w-4 h-4 text-primary" /> <span>General</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="classroom" className="shrink-0 gap-1.5 sm:gap-2 px-3 py-1.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold">
+                                    <School className="w-4 h-4 text-primary" /> <span>Classroom Config</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="templates" className="shrink-0 gap-1.5 sm:gap-2 px-3 py-1.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold">
+                                    <Layout className="w-4 h-4 text-indigo-500" /> <span>Templates</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="contact" className="shrink-0 gap-1.5 sm:gap-2 px-3 py-1.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold">
+                                    <MapPin className="w-4 h-4 text-primary" /> <span>Contact</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="board" className="shrink-0 gap-1.5 sm:gap-2 px-3 py-1.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold">
+                                    <Building className="w-4 h-4 text-primary" /> <span>Board</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="financial" className="shrink-0 gap-1.5 sm:gap-2 px-3 py-1.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold">
+                                    <CreditCard className="w-4 h-4 text-primary" /> <span>Financial</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="email" className="shrink-0 gap-1.5 sm:gap-2 px-3 py-1.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold">
+                                    <Mail className="w-4 h-4 text-primary" /> <span>Email Server</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="theme" className="shrink-0 gap-1.5 sm:gap-2 px-3 py-1.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold">
+                                    <Palette className="w-4 h-4 text-primary" /> <span>Theme</span>
+                                </TabsTrigger>
+                            </TabsList>
+                        </ScrollableTabsList>
 
                         <div className="mt-6">
                             {/* General Tab */}

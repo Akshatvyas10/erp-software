@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ScrollableTabsList } from "@/components/common/ScrollableTabsList";
 import {
     Dialog,
     DialogContent,
@@ -527,43 +528,45 @@ export function StudentClassroomPortalView({ classroomId }: StudentClassroomPort
 
             {/* ── 3. Navigation Tabs (Identical Design & Pill Badges) ───────────────── */}
             <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="space-y-4">
-                <TabsList className="w-full justify-start overflow-x-auto flex-nowrap whitespace-nowrap scrollbar-none bg-muted/40 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl h-auto border border-border/70 gap-1 sm:gap-1.5">
-                    <TabsTrigger value="overview" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                        <Sparkles className="h-3.5 w-3.5 text-primary" /> Overview
-                    </TabsTrigger>
-                    <TabsTrigger value="classmates" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                        <Users className="h-3.5 w-3.5 text-primary" /> Students
-                        <Badge variant="secondary" className="ml-1 text-[10px] sm:text-[11px] font-black px-1.5 py-0 rounded-full bg-primary/15 text-primary">
-                            {studentCount}
-                        </Badge>
-                    </TabsTrigger>
-                    <TabsTrigger value="timetable" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                        <Calendar className="h-3.5 w-3.5 text-primary" /> Timetable
-                        <Badge variant="secondary" className="ml-1 text-[10px] sm:text-[11px] font-black px-1.5 py-0 rounded-full bg-primary/15 text-primary">
-                            {subjectsCount || 3}
-                        </Badge>
-                    </TabsTrigger>
-                    <TabsTrigger value="homework" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                        <FileText className="h-3.5 w-3.5 text-primary" /> Homework
-                        <Badge variant="secondary" className="ml-1 text-[10px] sm:text-[11px] font-black px-1.5 py-0 rounded-full bg-primary/15 text-primary">
-                            {homeworks.length}
-                        </Badge>
-                    </TabsTrigger>
-                    <TabsTrigger value="remarks" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                        <MessageSquare className="h-3.5 w-3.5 text-primary" /> Remarks
-                        {remarks.length > 0 && (
-                            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-[11px] font-black px-1.5 py-0 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400">
-                                {remarks.length}
+                <ScrollableTabsList>
+                    <TabsList className="inline-flex w-max justify-start flex-nowrap whitespace-nowrap bg-muted/50 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl h-auto border border-border/80 gap-1 sm:gap-1.5 shadow-2xs">
+                        <TabsTrigger value="overview" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                            <Sparkles className="h-4 w-4 text-primary" /> Overview
+                        </TabsTrigger>
+                        <TabsTrigger value="classmates" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                            <Users className="h-4 w-4 text-primary" /> Students
+                            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-[11px] font-black px-1.5 py-0 rounded-full bg-primary/15 text-primary">
+                                {studentCount}
                             </Badge>
-                        )}
-                    </TabsTrigger>
-                    <TabsTrigger value="results" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                        <Award className="h-3.5 w-3.5 text-primary" /> Gradebook
-                    </TabsTrigger>
-                    <TabsTrigger value="attendance" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-[state=active]:bg-background data-[state=active]:shadow-xs">
-                        <CalendarCheck className="h-3.5 w-3.5 text-primary" /> Attendance
-                    </TabsTrigger>
-                </TabsList>
+                        </TabsTrigger>
+                        <TabsTrigger value="timetable" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                            <Calendar className="h-4 w-4 text-primary" /> Timetable
+                            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-[11px] font-black px-1.5 py-0 rounded-full bg-primary/15 text-primary">
+                                {subjectsCount || 3}
+                            </Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="homework" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                            <FileText className="h-4 w-4 text-primary" /> Homework
+                            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-[11px] font-black px-1.5 py-0 rounded-full bg-primary/15 text-primary">
+                                {homeworks.length}
+                            </Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="remarks" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                            <MessageSquare className="h-4 w-4 text-primary" /> Remarks
+                            {remarks.length > 0 && (
+                                <Badge variant="secondary" className="ml-1 text-[10px] sm:text-[11px] font-black px-1.5 py-0 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400">
+                                    {remarks.length}
+                                </Badge>
+                            )}
+                        </TabsTrigger>
+                        <TabsTrigger value="results" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                            <Award className="h-4 w-4 text-primary" /> Gradebook
+                        </TabsTrigger>
+                        <TabsTrigger value="attendance" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                            <CalendarCheck className="h-4 w-4 text-primary" /> Attendance
+                        </TabsTrigger>
+                    </TabsList>
+                </ScrollableTabsList>
 
                 {/* ── 1. OVERVIEW TAB: Responsive Executive Summary & Feed ─────────── */}
                 <TabsContent value="overview" className="space-y-4 sm:space-y-6 outline-none focus:outline-none">

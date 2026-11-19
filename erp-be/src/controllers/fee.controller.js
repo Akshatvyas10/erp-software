@@ -85,6 +85,25 @@ export const updateFeeStructure = async (req, res, next) => {
     }
 };
 
+export const updateFeeStructureStatus = async (req, res, next) => {
+    try {
+        const { status } = req.body;
+        const structure = await feeService.updateFeeStructureStatus(req.params.id, status, req.user?.id);
+        return success(res, structure, `Fee structure marked as ${status}`);
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const deleteFeeStructure = async (req, res, next) => {
+    try {
+        const result = await feeService.deleteFeeStructure(req.params.id, req.user?.id);
+        return success(res, result, 'Fee structure deleted successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
 // ─── Student Invoices ─────────────────────────────────────────────────────────
 export const getInvoices = async (req, res, next) => {
     try {
@@ -288,5 +307,142 @@ export const triggerScheduledReminders = async (req, res, next) => {
         next(err);
     }
 };
+
+// ─── Phase 1: Defaulters, Reversals, Refunds, and Reports ────────────────────
+
+export const getDefaulters = async (req, res, next) => {
+    try {
+        const { classroomId, agingBracket, minAmount, maxAmount, search, limit, offset } = req.query;
+        const defaulters = await feeService.getDefaulters({
+            classroomId,
+            agingBracket,
+            minAmount,
+            maxAmount,
+            search,
+            limit,
+            offset,
+        });
+        return success(res, defaulters, 'Fee defaulters retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const reversePayment = async (req, res, next) => {
+    try {
+        const paymentId = req.params.id;
+        const { reason, bouncePenaltyAmount } = req.body;
+        const result = await feeService.reversePayment(
+            { paymentId, reason, bouncePenaltyAmount },
+            req.user.id
+        );
+        return success(res, result, 'Payment reversed and invoice balance restored successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const getReversedPaymentsLog = async (req, res, next) => {
+    try {
+        const { limit, offset } = req.query;
+        const logs = await feeService.getReversedPaymentsLog({ limit, offset });
+        return success(res, logs, 'Reversed payments log retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const waiveLateFine = async (req, res, next) => {
+    try {
+        const invoiceId = req.params.id;
+        const { waiveAmount, reason } = req.body;
+        const result = await feeService.waiveLateFine(
+            { invoiceId, waiveAmount, reason },
+            req.user.id
+        );
+        return success(res, result, 'Late fine waived successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const requestRefund = async (req, res, next) => {
+    try {
+        const refund = await feeService.requestRefund(req.body, req.user.id);
+        return success(res, refund, 'Fee refund voucher requested successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const updateRefundStatus = async (req, res, next) => {
+    try {
+        const refundId = req.params.id;
+        const refund = await feeService.updateRefundStatus(
+            { refundId, ...req.body },
+            req.user.id
+        );
+        return success(res, refund, 'Fee refund status updated successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const getRefunds = async (req, res, next) => {
+    try {
+        const { status, studentId, limit, offset } = req.query;
+        const refunds = await feeService.getRefunds({ status, studentId, limit, offset });
+        return success(res, refunds, 'Fee refunds retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const getFinancialReports = async (req, res, next) => {
+    try {
+        const { startDate, endDate, classroomId } = req.query;
+        const reports = await feeService.getFinancialReports({ startDate, endDate, classroomId });
+        return success(res, reports, 'Fee financial reports generated successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const getCounterHistory = async (req, res, next) => {
+    try {
+        const {
+            startDate,
+            endDate,
+            collectedById,
+            paymentMode,
+            classroomId,
+            search,
+            includeReversed,
+            limit,
+            offset,
+        } = req.query;
+
+        const history = await feeService.getCounterHistory(
+            {
+                startDate,
+                endDate,
+                collectedById,
+                paymentMode,
+                classroomId,
+                search,
+                includeReversed,
+                limit,
+                offset,
+            },
+            req.user
+        );
+
+        return success(res, history, 'Counter collection history retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+
 
 

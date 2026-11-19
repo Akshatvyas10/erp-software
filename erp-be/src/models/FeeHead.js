@@ -35,6 +35,7 @@ const FeeHead = sequelize.define('FeeHead', {
     tableName: 'fee_heads',
     timestamps: true,
     paranoid: true,
+    underscored: true,
     indexes: [
         {
             unique: true,

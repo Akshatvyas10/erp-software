@@ -68,6 +68,27 @@ const FeePayment = sequelize.define('FeePayment', {
         defaultValue: 'SUCCESS',
         validate: { isIn: [['SUCCESS', 'BOUNCED', 'REVERSED', 'CANCELLED']] },
     },
+    isReversed: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        field: 'is_reversed',
+    },
+    reversedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        field: 'reversed_at',
+    },
+    reversedById: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        field: 'reversed_by_id',
+        references: { model: 'users', key: 'id' },
+    },
+    reversalReason: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        field: 'reversal_reason',
+    },
     isBelowMinimum: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
@@ -102,6 +123,7 @@ const FeePayment = sequelize.define('FeePayment', {
     tableName: 'fee_payments',
     timestamps: true,
     paranoid: true,
+    underscored: true,
     indexes: [
         {
             unique: true,

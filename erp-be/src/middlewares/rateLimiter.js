@@ -35,3 +35,13 @@ export const apiLimiter = rateLimit({
     legacyHeaders: false,
     message: { success: false, message: 'Too many requests, please slow down.' },
 });
+
+/** Biometric device ingestion limiter (high frequency bursts allowed for multi-user punch clocks) */
+export const biometricLimiter = rateLimit({
+    store: getStore('biometric'),
+    windowMs: 60 * 1000, // 1 minute
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Device punch rate limit exceeded.' },
+});

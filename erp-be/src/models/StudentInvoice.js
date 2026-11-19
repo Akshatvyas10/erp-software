@@ -112,6 +112,7 @@ const StudentInvoice = sequelize.define('StudentInvoice', {
     tableName: 'student_invoices',
     timestamps: true,
     paranoid: true,
+    underscored: true,
     indexes: [
         {
             unique: true,

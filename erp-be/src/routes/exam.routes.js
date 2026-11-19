@@ -1,32 +1,32 @@
 import express from 'express';
 import authenticate from '../middlewares/authenticate.js';
-import { requireRole } from '../middlewares/authorize.js';
+import { requirePermission } from '../middlewares/authorize.js';
 import * as examController from '../controllers/examController.js';
 
 const router = express.Router();
 
 router.use(authenticate);
 
-router.get('/', examController.listExams);
-router.get('/schedules', examController.listSchedules);
-router.get('/schedules/:id/results-matrix', examController.getScheduleMatrix);
-router.get('/:id/results', examController.getResults);
+// Viewing exams, schedules, and published results
+router.get('/', requirePermission('exams', 'read'), examController.listExams);
+router.get('/schedules', requirePermission('exams', 'read'), examController.listSchedules);
+router.get('/schedules/:id/results-matrix', requirePermission('exams', 'read'), examController.getScheduleMatrix);
+router.get('/:id/results', requirePermission('exams', 'read'), examController.getResults);
 
-// Only admins and teachers can manage exams and results
-const manageExamRoles = requireRole('admin', 'super_admin', 'teacher');
+// Exam schedule management & automation
+router.get('/schedules/preview', requirePermission('exams', 'manage'), examController.previewAutoSchedule);
+router.post('/schedules/auto-generate', requirePermission('exams', 'manage'), examController.autoGenerateSchedules);
+router.post('/schedules/:id/publish', requirePermission('exams', 'manage'), examController.publishSchedule);
 
-router.get('/schedules/preview', manageExamRoles, examController.previewAutoSchedule);
-router.post('/schedules/auto-generate', manageExamRoles, examController.autoGenerateSchedules);
-router.post('/schedules/:id/publish', manageExamRoles, examController.publishSchedule);
+router.post('/schedules', requirePermission('exams', 'create'), examController.createSchedule);
+router.put('/schedules/:id', requirePermission('exams', 'update'), examController.updateSchedule);
+router.delete('/schedules/:id', requirePermission('exams', 'manage'), examController.deleteSchedule);
 
-router.post('/schedules', manageExamRoles, examController.createSchedule);
-router.put('/schedules/:id', manageExamRoles, examController.updateSchedule);
-router.delete('/schedules/:id', manageExamRoles, examController.deleteSchedule);
-
-router.post('/', manageExamRoles, examController.createExam);
-router.put('/:id', manageExamRoles, examController.updateExam);
-router.delete('/:id', manageExamRoles, examController.deleteExam);
-router.post('/:id/results', manageExamRoles, examController.upsertResults);
-router.post('/:id/publish', manageExamRoles, examController.publishResults);
+// Exam catalog & marks entry
+router.post('/', requirePermission('exams', 'create'), examController.createExam);
+router.put('/:id', requirePermission('exams', 'update'), examController.updateExam);
+router.delete('/:id', requirePermission('exams', 'manage'), examController.deleteExam);
+router.post('/:id/results', requirePermission('exams', 'update'), examController.upsertResults);
+router.post('/:id/publish', requirePermission('exams', 'manage'), examController.publishResults);
 
 export default router;

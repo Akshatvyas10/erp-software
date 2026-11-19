@@ -148,6 +148,7 @@ export const bulkFeeReminderSchema = z.object({
     periodKey: z.string().max(50).optional(),
     dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Due date must be YYYY-MM-DD').optional(),
     customNote: z.string().max(500).optional().nullable(),
+    administrativeNote: z.string().max(500).optional().nullable(),
 });
 
 export const feeReminderSettingsSchema = z.object({
@@ -155,7 +156,37 @@ export const feeReminderSettingsSchema = z.object({
     daysBeforeDue: z.array(z.number().int().nonnegative()).optional().default([7, 3, 1]),
     remindBeforeExam: z.boolean().optional().default(false),
     maxRemindersPerDay: z.number().int().positive().optional().default(1),
+    defaultAdministrativeNote: z.string().max(500).optional().nullable(),
 });
+
+export const reversePaymentSchema = z.object({
+    reason: z.string().min(3, 'Reversal reason is mandatory').max(255),
+    bouncePenaltyAmount: z.number().min(0).optional().default(0),
+});
+
+export const waiveFineSchema = z.object({
+    waiveAmount: z.number().positive('Waiver amount must be greater than 0'),
+    reason: z.string().min(3, 'Waiver justification is mandatory').max(255),
+});
+
+export const requestRefundSchema = z.object({
+    studentId: z.string().uuid('Invalid Student UUID'),
+    paymentId: z.string().uuid('Invalid Payment UUID').optional().nullable(),
+    refundType: z.enum(['ADMISSION_CANCEL', 'SECURITY_DEPOSIT', 'EXCESS_PAYMENT', 'SCHOLARSHIP_RETRO', 'OTHER']),
+    amount: z.number().positive('Refund amount must be greater than 0'),
+    paymentMode: z.enum(['CASH', 'CHEQUE', 'BANK_TRANSFER', 'UPI']).default('BANK_TRANSFER'),
+    transactionReference: z.string().max(100).optional().nullable(),
+    reason: z.string().min(3, 'Refund reason is mandatory').max(500),
+    notes: z.string().max(500).optional().nullable(),
+});
+
+export const updateRefundStatusSchema = z.object({
+    status: z.enum(['APPROVED', 'PAID', 'REJECTED']),
+    paymentMode: z.enum(['CASH', 'CHEQUE', 'BANK_TRANSFER', 'UPI']).optional(),
+    transactionReference: z.string().max(100).optional().nullable(),
+    notes: z.string().max(500).optional().nullable(),
+});
+
 
 
 

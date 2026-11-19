@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Receipt, Eye, IndianRupee } from 'lucide-react';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { DataTable, type Column } from '@/components/common/DataTable';
+import { usePermissions } from '@/store/hooks';
 import type { StudentInvoice } from '../api/feeApi';
 
 interface InvoicesTableProps {
@@ -22,6 +23,9 @@ export const InvoicesTable: React.FC<InvoicesTableProps> = ({
   onViewInvoiceDetails,
   onIssueInvoiceClick,
 }) => {
+  const { can } = usePermissions();
+  const canCollect = can('fees', 'collect');
+
   const columns: Column<StudentInvoice>[] = [
     {
       header: 'Invoice No.',
@@ -107,7 +111,7 @@ export const InvoicesTable: React.FC<InvoicesTableProps> = ({
         const balance = Number(inv.balanceAmount || 0);
         return (
           <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-            {balance > 0 && inv.status !== 'CANCELLED' && (
+            {canCollect && balance > 0 && inv.status !== 'CANCELLED' && (
               <Button
                 size="sm"
                 className="h-8 text-xs px-2.5 rounded-xl font-bold shadow-xs gap-1"
@@ -174,7 +178,7 @@ export const InvoicesTable: React.FC<InvoicesTableProps> = ({
         <div className="flex justify-between items-center pt-1">
           <span className="text-xs text-muted-foreground">Due: {inv.dueDate}</span>
           <div className="flex gap-2">
-            {balance > 0 && inv.status !== 'CANCELLED' && (
+            {canCollect && balance > 0 && inv.status !== 'CANCELLED' && (
               <Button
                 size="sm"
                 className="h-8 text-xs rounded-xl font-bold gap-1 shadow-xs"

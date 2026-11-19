@@ -2,14 +2,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { ResponsiveModal } from '@/components/common/ResponsiveModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,9 +17,19 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { AxiosError } from 'axios';
 import feeApi, { type StudentInvoice } from '../api/feeApi';
 import queryKeys from '@/lib/queryKeys';
-import { IndianRupee, Banknote, AlertTriangle, Layers } from 'lucide-react';
+import {
+  IndianRupee,
+  AlertTriangle,
+  Layers,
+  CreditCard,
+  QrCode,
+  Building2,
+  FileCheck2,
+  Sparkles,
+} from 'lucide-react';
 import { DatePicker } from '@/components/common/DatePicker';
 
 const paymentFormSchema = z.object({
@@ -44,7 +47,6 @@ const paymentFormSchema = z.object({
   cardLast4: z.string().optional(),
   authCode: z.string().optional(),
   notes: z.string().optional(),
-  // Below-minimum exception
   isBelowMinimum: z.boolean(),
   belowMinimumReasonCode: z.string().optional(),
   belowMinimumReasonText: z.string().optional(),
@@ -154,16 +156,12 @@ export const CollectPaymentDialog: React.FC<CollectPaymentDialogProps> = ({
         onSuccessPayment(payment.id);
       }
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ message?: string }>) => {
       toast.error(err?.response?.data?.message || 'Failed to record fee payment');
     },
   });
 
   const onSubmit = (values: PaymentFormValues) => {
-    if (isBelowMin && !values.belowMinimumReasonCode) {
-      toast.error(`Amount ₹${values.amount} is below the minimum required installment of ₹${minimumAmount}. A valid reason code must be specified.`);
-      return;
-    }
     mutation.mutate(values);
   };
 
@@ -174,302 +172,359 @@ export const CollectPaymentDialog: React.FC<CollectPaymentDialogProps> = ({
     ? `${studentUser.firstName || ''} ${studentUser.lastName || ''}`.trim()
     : 'Student';
 
+  const modes: Array<{ id: PaymentFormValues['paymentMode']; label: string; icon: React.ElementType }> = [
+    { id: 'CASH', label: 'Cash', icon: IndianRupee },
+    { id: 'UPI', label: 'UPI / QR', icon: QrCode },
+    { id: 'CARD', label: 'Card POS', icon: CreditCard },
+    { id: 'CHEQUE', label: 'Cheque', icon: FileCheck2 },
+    { id: 'BANK_TRANSFER', label: 'Bank Transfer', icon: Building2 },
+  ];
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center justify-between pr-6">
-            <DialogTitle className="text-lg sm:text-xl font-bold flex items-center gap-2">
-              <Banknote className="w-5 h-5 text-emerald-600" />
-              Collect Fee Payment
-            </DialogTitle>
-            <Badge variant="outline" className="font-mono text-xs">
-              {invoice.invoiceNumber}
-            </Badge>
+    <ResponsiveModal
+      open={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      maxWidth="sm:max-w-xl"
+      title={
+        <div className="flex items-center justify-between w-full pr-2">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+              <IndianRupee className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-foreground">Collect Fee Payment</h3>
+              <p className="text-xs text-muted-foreground font-normal">
+                {studentName} • Adm: {invoice.student?.admissionNumber || '—'}
+              </p>
+            </div>
           </div>
-          <DialogDescription className="text-slate-600 text-xs">
-            Record a partial, installment, or full payment for {studentName} ({invoice.student?.admissionNumber})
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Invoice Summary Box */}
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs flex justify-between items-center my-1">
-          <div>
-            <p className="font-semibold text-slate-800 line-clamp-1">{invoice.title}</p>
-            <p className="text-slate-500 mt-0.5">
-              Class: {invoice.classroom ? `${invoice.classroom.name} (${invoice.classroom.section})` : 'All'}
-            </p>
-          </div>
-          <div className="text-right">
-            <span className="text-slate-500">Current Due:</span>
-            <div className="text-sm sm:text-base font-bold font-mono text-amber-700">₹{balance.toLocaleString('en-IN')}</div>
-          </div>
+          <Badge variant="outline" className="font-mono text-[11px] rounded-lg">
+            {invoice.invoiceNumber}
+          </Badge>
         </div>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5">
-          {/* Allocation Strategy Selection */}
-          <div>
-            <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-indigo-600" />
-              Payment Allocation Rule
-            </Label>
-            <Select
-              value={selectedStrategy}
-              onValueChange={(val: any) => setValue('allocationStrategy', val)}
-            >
-              <SelectTrigger className="mt-1 h-9 text-xs">
-                <SelectValue placeholder="Select allocation" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="SELECTED_INVOICE" className="text-xs">
-                  Pay against this invoice only ({invoice.invoiceNumber})
-                </SelectItem>
-                <SelectItem value="FIFO_AUTO" className="text-xs">
-                  Auto FIFO Allocation (Clear oldest overdue installments first)
-                </SelectItem>
-              </SelectContent>
-            </Select>
+      }
+      footer={
+        <div className="flex w-full items-center justify-between gap-2">
+          <div className="text-left hidden sm:block">
+            <span className="text-[11px] text-muted-foreground block">Net to Collect</span>
+            <span className="font-mono font-bold text-sm text-foreground">₹{enteredAmount.toLocaleString('en-IN')}</span>
           </div>
-
-          {/* Amount & Date */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <div className="flex justify-between items-center">
-                <Label className="text-xs font-semibold text-slate-700">Amount (₹) *</Label>
-                {minimumAmount > 0 && (
-                  <span className="text-[10px] text-slate-400">Min: ₹{minimumAmount}</span>
-                )}
-              </div>
-              <div className="relative mt-1">
-                <IndianRupee className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                <Input
-                  type="number"
-                  step="any"
-                  className="pl-9 font-semibold text-xs h-9"
-                  {...register('amount', { valueAsNumber: true })}
-                />
-              </div>
-              {errors.amount && <p className="text-[11px] text-red-500 mt-1">{errors.amount.message}</p>}
-            </div>
-
-            <div>
-              <Label className="text-xs font-semibold text-slate-700">Payment Date *</Label>
-              <div className="mt-1">
-                <DatePicker
-                  value={watch('paymentDate')}
-                  onChange={(date) => setValue('paymentDate', date, { shouldValidate: true })}
-                  placeholder="Select payment date"
-                />
-              </div>
-              {errors.paymentDate && (
-                <p className="text-[11px] text-red-500 mt-1">{errors.paymentDate.message}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Below Minimum Rule Exception Warning & Reason Form */}
-          {isBelowMin && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2.5 text-xs text-amber-900">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold">Below-Minimum Installment Warning</span>
-                  <p className="text-[11px] text-amber-800 mt-0.5">
-                    Entered amount ₹{enteredAmount} is lower than standard policy minimum of ₹{minimumAmount}. An audit justification is required.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-amber-200/60">
-                <div>
-                  <Label className="text-[11px] font-semibold text-amber-900">Exception Reason Code *</Label>
-                  <Select
-                    value={belowMinReasonCode}
-                    onValueChange={(val: any) => setValue('belowMinimumReasonCode', val)}
-                  >
-                    <SelectTrigger className="mt-1 h-8 text-[11px] bg-white border-amber-300">
-                      <SelectValue placeholder="Select reason" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="FINANCIAL_HARDSHIP" className="text-xs">Financial Hardship</SelectItem>
-                      <SelectItem value="MANAGEMENT_APPROVAL" className="text-xs">Principal / Management Approval</SelectItem>
-                      <SelectItem value="STAFF_CONCESSION" className="text-xs">Staff Concession / Token Payment</SelectItem>
-                      <SelectItem value="SYSTEM_ADJUSTMENT" className="text-xs">Installment Adjustment</SelectItem>
-                      <SelectItem value="OTHER" className="text-xs">Other Special Reason</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-[11px] font-semibold text-amber-900">Remarks / Approval Ref</Label>
-                  <Input
-                    placeholder="e.g. Approved by Director via note #42"
-                    className="mt-1 h-8 text-xs bg-white border-amber-300"
-                    {...register('belowMinimumReasonText')}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Payment Tender / Mode */}
-          <div>
-            <Label className="text-xs font-semibold text-slate-700">Payment Tender / Mode *</Label>
-            <Select
-              value={selectedMode}
-              onValueChange={(val: any) => setValue('paymentMode', val)}
-            >
-              <SelectTrigger className="mt-1 h-9 text-xs">
-                <SelectValue placeholder="Select mode" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CASH">Cash Counter</SelectItem>
-                <SelectItem value="UPI">UPI / QR Code</SelectItem>
-                <SelectItem value="BANK_TRANSFER">Bank IMPS / NEFT / RTGS</SelectItem>
-                <SelectItem value="CHEQUE">Bank Cheque</SelectItem>
-                <SelectItem value="CARD">POS Debit / Credit Card</SelectItem>
-                <SelectItem value="DEMAND_DRAFT">Demand Draft (DD)</SelectItem>
-                <SelectItem value="OTHER">Other / Voucher</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Conditional Fields based on Payment Mode */}
-          {selectedMode === 'UPI' && (
-            <div className="grid grid-cols-2 gap-3 p-3 bg-indigo-50/50 border border-indigo-100 rounded-lg">
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">UPI Ref / UTR No. *</Label>
-                <Input
-                  placeholder="e.g. 432109876543"
-                  className="mt-1 bg-white font-mono text-xs h-8"
-                  {...register('transactionReference')}
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">UPI ID / Number (Optional)</Label>
-                <Input
-                  placeholder="e.g. mobile@upi"
-                  className="mt-1 bg-white text-xs h-8"
-                  {...register('upiId')}
-                />
-              </div>
-              <div className="col-span-2">
-                <Label className="text-xs font-semibold text-slate-700">Payer Name (Optional)</Label>
-                <Input
-                  placeholder="e.g. Rajesh Kumar"
-                  className="mt-1 bg-white text-xs h-8"
-                  {...register('payerName')}
-                />
-              </div>
-            </div>
-          )}
-
-          {selectedMode === 'BANK_TRANSFER' && (
-            <div className="grid grid-cols-2 gap-3 p-3 bg-sky-50/50 border border-sky-100 rounded-lg">
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">IMPS / NEFT / UTR Ref *</Label>
-                <Input
-                  placeholder="e.g. SBIN12345678"
-                  className="mt-1 bg-white font-mono text-xs h-8"
-                  {...register('transactionReference')}
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">Remitter Bank Name</Label>
-                <Input
-                  placeholder="e.g. State Bank of India"
-                  className="mt-1 bg-white text-xs h-8"
-                  {...register('bankName')}
-                />
-              </div>
-            </div>
-          )}
-
-          {['CHEQUE', 'DEMAND_DRAFT'].includes(selectedMode) && (
-            <div className="grid grid-cols-3 gap-2 p-3 bg-amber-50/50 border border-amber-100 rounded-lg">
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">Cheque / DD No. *</Label>
-                <Input placeholder="123456" className="mt-1 bg-white font-mono text-xs h-8" {...register('chequeNumber')} />
-              </div>
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">Cheque / DD Date</Label>
-                <div className="mt-1">
-                  <DatePicker
-                    value={watch('chequeDate')}
-                    onChange={(date) => setValue('chequeDate', date)}
-                    placeholder="Select cheque date"
-                    className="h-8"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">Bank Name</Label>
-                <Input placeholder="e.g. HDFC Bank" className="mt-1 bg-white text-xs h-8" {...register('bankName')} />
-              </div>
-            </div>
-          )}
-
-          {selectedMode === 'CARD' && (
-            <div className="grid grid-cols-3 gap-2 p-3 bg-purple-50/50 border border-purple-100 rounded-lg">
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">Txn / RRN Ref</Label>
-                <Input placeholder="e.g. 9876543210" className="mt-1 bg-white font-mono text-xs h-8" {...register('transactionReference')} />
-              </div>
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">Card Last 4 Digits</Label>
-                <Input placeholder="4321" maxLength={4} className="mt-1 bg-white font-mono text-xs h-8" {...register('cardLast4')} />
-              </div>
-              <div>
-                <Label className="text-xs font-semibold text-slate-700">Auth Code</Label>
-                <Input placeholder="e.g. 543210" className="mt-1 bg-white text-xs h-8" {...register('authCode')} />
-              </div>
-            </div>
-          )}
-
-          <div>
-            <Label className="text-xs font-semibold text-slate-700">Receipt Remarks / Notes</Label>
-            <Textarea
-              placeholder="e.g. Term installment 2, paid cash at desk"
-              rows={2}
-              className="mt-1 text-xs"
-              {...register('notes')}
-            />
-          </div>
-
-          {/* Remaining Balance or Advance Credit Preview */}
-          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center text-xs">
-            <span className="text-slate-600">
-              {enteredAmount > balance ? 'Advance credit to next cycle:' : 'Remaining balance after payment:'}
-            </span>
-            <span className={`font-bold font-mono ${enteredAmount > balance ? 'text-indigo-700' : 'text-emerald-700'}`}>
-              ₹{enteredAmount > balance
-                ? (enteredAmount - balance).toLocaleString('en-IN')
-                : Math.max(0, balance - enteredAmount).toLocaleString('en-IN')}
-            </span>
-          </div>
-
-          <DialogFooter className="pt-2 border-t border-border flex justify-end gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={onClose}
               disabled={mutation.isPending}
-              className="rounded-xl text-xs font-semibold"
+              className="rounded-xl text-xs font-semibold flex-1 sm:flex-initial"
             >
               Cancel
             </Button>
             <Button
-              type="submit"
+              type="button"
               size="sm"
-              className="rounded-xl text-xs font-bold shadow-xs gap-1.5"
+              onClick={handleSubmit(onSubmit)}
+              className="rounded-xl text-xs font-bold shadow-xs gap-1.5 flex-1 sm:flex-initial"
               disabled={mutation.isPending}
             >
-              {mutation.isPending ? 'Processing...' : 'Confirm & Generate Receipt'}
+              {mutation.isPending ? 'Processing...' : 'Confirm & Receipt'}
             </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </div>
+        </div>
+      }
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-1">
+        {/* Compact Student & Invoice Financial Summary Card */}
+        <div className="p-3 bg-muted/40 border border-border/80 rounded-xl space-y-2">
+          <div className="flex justify-between items-start text-xs">
+            <div>
+              <span className="font-semibold text-foreground line-clamp-1">{invoice.title}</span>
+              <span className="text-muted-foreground text-[11px]">
+                Class: {invoice.classroom ? `${invoice.classroom.name} (${invoice.classroom.section})` : 'All'} • Due: {invoice.dueDate}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] uppercase font-semibold text-muted-foreground block">Current Due</span>
+              <span className="text-base font-bold font-mono text-amber-700 dark:text-amber-400">
+                ₹{balance.toLocaleString('en-IN')}
+              </span>
+            </div>
+          </div>
+
+          {/* Quick Preset Amount Buttons */}
+          <div className="flex items-center gap-1.5 pt-1 border-t border-border/60">
+            <span className="text-[11px] text-muted-foreground mr-1">Presets:</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-6 text-[11px] rounded-lg px-2 font-medium bg-background"
+              onClick={() => setValue('amount', balance, { shouldValidate: true })}
+            >
+              Full (₹{balance.toLocaleString('en-IN')})
+            </Button>
+            {balance > 2000 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-6 text-[11px] rounded-lg px-2 font-medium bg-background"
+                onClick={() => setValue('amount', Math.round(balance / 2), { shouldValidate: true })}
+              >
+                Half (₹{Math.round(balance / 2).toLocaleString('en-IN')})
+              </Button>
+            )}
+            {minimumAmount > 0 && balance > minimumAmount && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-6 text-[11px] rounded-lg px-2 font-medium bg-background"
+                onClick={() => setValue('amount', minimumAmount, { shouldValidate: true })}
+              >
+                Min (₹{minimumAmount})
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Amount & Date Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <Label className="text-xs font-semibold text-foreground">Amount to Tender (₹) *</Label>
+              {minimumAmount > 0 && (
+                <span className="text-[10px] text-muted-foreground">Min limit: ₹{minimumAmount}</span>
+              )}
+            </div>
+            <div className="relative">
+              <IndianRupee className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+              <Input
+                type="number"
+                step="any"
+                className="pl-9 font-mono font-bold text-sm h-9 rounded-xl"
+                {...register('amount', { valueAsNumber: true })}
+              />
+            </div>
+            {errors.amount && <p className="text-[11px] text-destructive mt-1">{errors.amount.message}</p>}
+          </div>
+
+          <div>
+            <Label className="text-xs font-semibold text-foreground mb-1 block">Collection Date *</Label>
+            <DatePicker
+              value={watch('paymentDate')}
+              onChange={(date) => setValue('paymentDate', date, { shouldValidate: true })}
+              placeholder="Select payment date"
+              className="h-9 rounded-xl text-xs"
+            />
+            {errors.paymentDate && (
+              <p className="text-[11px] text-destructive mt-1">{errors.paymentDate.message}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Payment Tender Selection - Segmented Style */}
+        <div>
+          <Label className="text-xs font-semibold text-foreground mb-1.5 block">Payment Tender Mode *</Label>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+            {modes.map((m) => {
+              const Icon = m.icon;
+              const isSelected = selectedMode === m.id;
+              return (
+                <button
+                  type="button"
+                  key={m.id}
+                  onClick={() => setValue('paymentMode', m.id)}
+                  className={`flex flex-col items-center justify-center p-2 rounded-xl border text-xs transition-all ${
+                    isSelected
+                      ? 'border-primary bg-primary/10 text-primary font-bold shadow-xs'
+                      : 'border-border/80 bg-background text-muted-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 mb-1" />
+                  <span className="text-[11px]">{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Allocation Strategy Dropdown */}
+        <div>
+          <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-1">
+            <Layers className="w-3.5 h-3.5 text-primary" />
+            Allocation Strategy
+          </Label>
+          <Select
+            value={selectedStrategy}
+            onValueChange={(val: 'SELECTED_INVOICE' | 'FIFO_AUTO') => setValue('allocationStrategy', val)}
+          >
+            <SelectTrigger className="h-9 text-xs rounded-xl">
+              <SelectValue placeholder="Select allocation rule" />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl">
+              <SelectItem value="SELECTED_INVOICE" className="text-xs">
+                Apply to this invoice only ({invoice.invoiceNumber})
+              </SelectItem>
+              <SelectItem value="FIFO_AUTO" className="text-xs">
+                FIFO Cascade (Clears oldest unpaid arrears first)
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Below Minimum Rule Exception Warning & Reason Form */}
+        {isBelowMin && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2 text-xs text-amber-900 dark:text-amber-200">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Below-Minimum Installment Warning</span>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Tender amount ₹{enteredAmount} is lower than standard threshold of ₹{minimumAmount}. Please provide audit concession details.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-amber-500/20">
+              <div>
+                <Label className="text-[11px] font-semibold">Concession Code *</Label>
+                <Select
+                  value={belowMinReasonCode}
+                  onValueChange={(val: string) => setValue('belowMinimumReasonCode', val)}
+                >
+                  <SelectTrigger className="mt-1 h-8 text-[11px] bg-background rounded-lg border-amber-500/30">
+                    <SelectValue placeholder="Select reason" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="FINANCIAL_HARDSHIP" className="text-xs">Financial Hardship</SelectItem>
+                    <SelectItem value="MANAGEMENT_APPROVAL" className="text-xs">Principal / Director Note</SelectItem>
+                    <SelectItem value="STAFF_CONCESSION" className="text-xs">Staff Concession / Token</SelectItem>
+                    <SelectItem value="SYSTEM_ADJUSTMENT" className="text-xs">Installment Adjustment</SelectItem>
+                    <SelectItem value="OTHER" className="text-xs">Other Special Reason</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[11px] font-semibold">Approval Reference</Label>
+                <Input
+                  placeholder="e.g. Note signed by Principal"
+                  className="mt-1 h-8 text-xs bg-background rounded-lg border-amber-500/30"
+                  {...register('belowMinimumReasonText')}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mode Dependent Fields with Progressive Disclosure */}
+        {selectedMode === 'UPI' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 bg-muted/30 border border-border/80 rounded-xl">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">UPI Ref / UTR No. *</Label>
+              <Input
+                placeholder="e.g. 432109876543"
+                className="mt-1 font-mono text-xs h-8 rounded-lg"
+                {...register('transactionReference')}
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-foreground">UPI ID / Mobile</Label>
+              <Input
+                placeholder="e.g. parent@upi"
+                className="mt-1 text-xs h-8 rounded-lg"
+                {...register('upiId')}
+              />
+            </div>
+          </div>
+        )}
+
+        {selectedMode === 'CARD' && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-muted/30 border border-border/80 rounded-xl">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Txn / RRN Ref</Label>
+              <Input placeholder="e.g. 9876543210" className="mt-1 font-mono text-xs h-8 rounded-lg" {...register('transactionReference')} />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Card Last 4</Label>
+              <Input placeholder="4321" maxLength={4} className="mt-1 font-mono text-xs h-8 rounded-lg" {...register('cardLast4')} />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Auth Code</Label>
+              <Input placeholder="e.g. 543210" className="mt-1 text-xs h-8 rounded-lg" {...register('authCode')} />
+            </div>
+          </div>
+        )}
+
+        {['CHEQUE', 'DEMAND_DRAFT'].includes(selectedMode) && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-muted/30 border border-border/80 rounded-xl">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Cheque / DD No. *</Label>
+              <Input placeholder="123456" className="mt-1 font-mono text-xs h-8 rounded-lg" {...register('chequeNumber')} />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Cheque Date</Label>
+              <div className="mt-1">
+                <DatePicker
+                  value={watch('chequeDate')}
+                  onChange={(date) => setValue('chequeDate', date)}
+                  placeholder="Select date"
+                  className="h-8 rounded-lg text-xs"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Bank Name</Label>
+              <Input placeholder="e.g. HDFC Bank" className="mt-1 text-xs h-8 rounded-lg" {...register('bankName')} />
+            </div>
+          </div>
+        )}
+
+        {selectedMode === 'BANK_TRANSFER' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 bg-muted/30 border border-border/80 rounded-xl">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">IMPS / NEFT / UTR *</Label>
+              <Input
+                placeholder="e.g. SBIN12345678"
+                className="mt-1 font-mono text-xs h-8 rounded-lg"
+                {...register('transactionReference')}
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Remitter Bank</Label>
+              <Input
+                placeholder="e.g. State Bank of India"
+                className="mt-1 text-xs h-8 rounded-lg"
+                {...register('bankName')}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Live Remaining Balance Projection Bar */}
+        <div className="p-3 rounded-xl bg-muted/40 border border-border/80 flex justify-between items-center text-xs">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            <span>{enteredAmount > balance ? 'Advance Credit Generated:' : 'Projected Balance Post-Payment:'}</span>
+          </div>
+          <span className={`font-bold font-mono text-sm ${enteredAmount > balance ? 'text-primary' : 'text-emerald-600 dark:text-emerald-400'}`}>
+            ₹{enteredAmount > balance
+              ? (enteredAmount - balance).toLocaleString('en-IN')
+              : Math.max(0, balance - enteredAmount).toLocaleString('en-IN')}
+          </span>
+        </div>
+
+        <div>
+          <Label className="text-xs font-semibold text-foreground mb-1 block">Notes / Counter Remarks (Optional)</Label>
+          <Textarea
+            placeholder="e.g. Quarter 2 installment paid by father"
+            rows={2}
+            className="text-xs rounded-xl"
+            {...register('notes')}
+          />
+        </div>
+      </form>
+    </ResponsiveModal>
   );
 };
 

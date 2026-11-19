@@ -613,7 +613,7 @@ const getStudentAcademicHistory = async (req, res, next) => {
         const studentId = req.params.id;
         const student = await Student.findByPk(studentId, {
             attributes: ['id', 'studentId', 'admissionNumber', 'grade', 'section', 'status'],
-            include: [studentWithAccount]
+            ...studentWithAccount
         });
         if (!student) return error(res, 'Student not found', 404);
 

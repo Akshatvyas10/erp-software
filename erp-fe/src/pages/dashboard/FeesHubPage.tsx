@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollableTabsList } from '@/components/common/ScrollableTabsList';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import feeApi, { type StudentInvoice } from '@/features/fees/api/feeApi';
@@ -16,10 +17,34 @@ import GenerateBulkInvoiceModal from '@/features/fees/components/GenerateBulkInv
 import FeeStructuresTab from '@/features/fees/components/FeeStructuresTab';
 import FeeHeadsTab from '@/features/fees/components/FeeHeadsTab';
 import FeeRemindersTab from '@/features/fees/components/FeeRemindersTab';
+import DefaultersTab from '@/features/fees/components/DefaultersTab';
+import FeeReportsTab from '@/features/fees/components/FeeReportsTab';
+import FeeRefundsTab from '@/features/fees/components/FeeRefundsTab';
+import PaymentReversalsTab from '@/features/fees/components/PaymentReversalsTab';
+import CounterHistoryTab from '@/features/fees/components/CounterHistoryTab';
 import PrintReceiptModal from '@/features/fees/components/PrintReceiptModal';
-import { Receipt, Plus, Layers, Tag, BellRing } from 'lucide-react';
+import { usePermissions } from '@/store/hooks';
+import {
+  Receipt,
+  Plus,
+  Layers,
+  Tag,
+  BellRing,
+  AlertOctagon,
+  BarChart3,
+  RotateCcw,
+  ShieldAlert,
+  Coins,
+} from 'lucide-react';
 
 export const FeesHubPage: React.FC = () => {
+  const { can } = usePermissions();
+
+  const canManageFees = can('fees', 'manage');
+  const canCreateFees = can('fees', 'create') || canManageFees;
+  const canAdjustFees = can('fees', 'adjust') || canManageFees;
+  const canRefundFees = can('fees', 'refund') || canManageFees;
+
   // Query Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -104,46 +129,84 @@ export const FeesHubPage: React.FC = () => {
         title="Fees & Billing Management"
         description="Collect school fees, issue itemized invoices, configure fee tiers and audit student accounts."
       >
-        <Button
-          size="sm"
-          className="rounded-xl font-bold shadow-xs gap-1.5 text-xs"
-          onClick={() => setIsBulkInvoiceOpen(true)}
-        >
-          <Plus className="w-4 h-4" /> Issue Class Invoices
-        </Button>
+        {canCreateFees && (
+          <Button
+            size="sm"
+            className="rounded-xl font-bold shadow-xs gap-1.5 text-xs"
+            onClick={() => setIsBulkInvoiceOpen(true)}
+          >
+            <Plus className="w-4 h-4" /> Issue Class Invoices
+          </Button>
+        )}
       </PageHeader>
 
       {/* KPI Stats Overview using standardized StatCards */}
       <FeeSummaryCards stats={stats} isLoading={isStatsLoading} />
 
-      {/* Main Tabs matching ClassroomDetails executive tabs standard */}
+      {/* Main Tabs matching ClassroomDetails executive tabs standard with custom multi-device scrollbar */}
       <Tabs defaultValue="invoices" className="w-full space-y-4">
-        <TabsList className="w-full justify-start overflow-x-auto flex-nowrap whitespace-nowrap scrollbar-none bg-muted/40 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl h-auto border border-border/70 gap-1 sm:gap-1.5">
-          <TabsTrigger
-            value="invoices"
-            className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs"
-          >
-            <Receipt className="h-3.5 w-3.5 text-primary" /> Invoices & Dues
-          </TabsTrigger>
-          <TabsTrigger
-            value="structures"
-            className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs"
-          >
-            <Layers className="h-3.5 w-3.5 text-primary" /> Fee Structures
-          </TabsTrigger>
-          <TabsTrigger
-            value="heads"
-            className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs"
-          >
-            <Tag className="h-3.5 w-3.5 text-primary" /> Fee Heads Catalog
-          </TabsTrigger>
-          <TabsTrigger
-            value="reminders"
-            className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs"
-          >
-            <BellRing className="h-3.5 w-3.5 text-primary" /> Fee Reminders
-          </TabsTrigger>
-        </TabsList>
+        <ScrollableTabsList>
+          <TabsList className="inline-flex w-max justify-start flex-nowrap whitespace-nowrap bg-muted/50 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl h-auto border border-border/80 gap-1 sm:gap-1.5 shadow-2xs">
+            <TabsTrigger
+              value="invoices"
+              className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 transition-all"
+            >
+              <Receipt className="h-4 w-4 text-primary" /> Invoices & Dues
+            </TabsTrigger>
+            <TabsTrigger
+              value="structures"
+              className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 transition-all"
+            >
+              <Layers className="h-4 w-4 text-primary" /> Fee Structures
+            </TabsTrigger>
+            <TabsTrigger
+              value="heads"
+              className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 transition-all"
+            >
+              <Tag className="h-4 w-4 text-primary" /> Fee Heads Catalog
+            </TabsTrigger>
+            <TabsTrigger
+              value="reminders"
+              className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 transition-all"
+            >
+              <BellRing className="h-4 w-4 text-primary" /> Reminders
+            </TabsTrigger>
+            <TabsTrigger
+              value="defaulters"
+              className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 transition-all"
+            >
+              <AlertOctagon className="h-4 w-4 text-rose-600" /> Defaulters
+            </TabsTrigger>
+            <TabsTrigger
+              value="reports"
+              className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 transition-all"
+            >
+              <BarChart3 className="h-4 w-4 text-primary" /> Reports
+            </TabsTrigger>
+            {canRefundFees && (
+              <TabsTrigger
+                value="refunds"
+                className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 transition-all"
+              >
+                <RotateCcw className="h-4 w-4 text-primary" /> Refunds
+              </TabsTrigger>
+            )}
+            {canAdjustFees && (
+              <TabsTrigger
+                value="reversals"
+                className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 transition-all"
+              >
+                <ShieldAlert className="h-4 w-4 text-rose-600" /> Reversals Log
+              </TabsTrigger>
+            )}
+            <TabsTrigger
+              value="counter-history"
+              className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 transition-all"
+            >
+              <Coins className="h-4 w-4 text-emerald-600" /> Counter History
+            </TabsTrigger>
+          </TabsList>
+        </ScrollableTabsList>
 
         {/* Tab 1: Invoices */}
         <TabsContent value="invoices" className="space-y-4 mt-4">
@@ -214,6 +277,39 @@ export const FeesHubPage: React.FC = () => {
           <FeeRemindersTab
             classrooms={classrooms}
             onOpenLedger={(sId) => setLedgerStudentId(sId)}
+          />
+        </TabsContent>
+
+        {/* Tab 5: Defaulters Workspace */}
+        <TabsContent value="defaulters" className="mt-4">
+          <DefaultersTab
+            classrooms={classrooms}
+            onViewLedger={(sId) => setLedgerStudentId(sId)}
+            onCollectPayment={(sId) => setLedgerStudentId(sId)}
+          />
+        </TabsContent>
+
+        {/* Tab 6: Reports & Financial Analytics */}
+        <TabsContent value="reports" className="mt-4">
+          <FeeReportsTab onViewLedger={(sId) => setLedgerStudentId(sId)} />
+        </TabsContent>
+
+        {/* Tab 7: Refunds Management */}
+        <TabsContent value="refunds" className="mt-4">
+          <FeeRefundsTab />
+        </TabsContent>
+
+        {/* Tab 8: Reversed Payments Audit Log */}
+        <TabsContent value="reversals" className="mt-4">
+          <PaymentReversalsTab />
+        </TabsContent>
+
+        {/* Tab 9: Cashier Counter History */}
+        <TabsContent value="counter-history" className="mt-4">
+          <CounterHistoryTab
+            classrooms={classrooms}
+            onPrintReceipt={(receiptId) => setPrintReceiptId(receiptId)}
+            onViewLedger={(sId) => setLedgerStudentId(sId)}
           />
         </TabsContent>
       </Tabs>

@@ -48,11 +48,17 @@ export const validateEnv = () => {
             errors.push('REDIS_URL is strictly required in production to ensure distributed session and token revocation consistency');
         }
         if (!process.env.ALLOWED_ORIGINS) {
-            warnings.push('ALLOWED_ORIGINS is not set in production; defaulting to restricted localhost origin');
+            errors.push('ALLOWED_ORIGINS must be explicitly configured in production (e.g. https://school.example.com)');
+        }
+        if (!process.env.BIOMETRIC_DEVICE_KEY) {
+            warnings.push('BIOMETRIC_DEVICE_KEY not set. Physical attendance device webhook will reject incoming punches.');
         }
     } else {
         if (!process.env.REDIS_URL) {
             warnings.push('REDIS_URL not set. Running in local mode with memory fallback (allowed for development only)');
+        }
+        if (!process.env.BIOMETRIC_DEVICE_KEY) {
+            warnings.push('BIOMETRIC_DEVICE_KEY not set. Set this to test POST /api/attendance/biometric.');
         }
     }
 

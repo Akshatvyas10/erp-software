@@ -36,6 +36,7 @@ const StudentInvoiceItem = sequelize.define('StudentInvoiceItem', {
 }, {
     tableName: 'student_invoice_items',
     timestamps: true,
+    underscored: true,
     indexes: [
         {
             fields: ['student_invoice_id'],

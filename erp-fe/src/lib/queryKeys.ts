@@ -43,6 +43,11 @@ export const queryKeys = {
     remindersEligible: (params?: Record<string, unknown>) => ['fees', 'reminders', 'eligible', params] as const,
     reminderLogs: (params?: Record<string, unknown>) => ['fees', 'reminders', 'logs', params] as const,
     reminderSettings: () => ['fees', 'reminders', 'settings'] as const,
+    defaulters: (params?: Record<string, unknown>) => ['fees', 'defaulters', params] as const,
+    reversalsLog: (params?: Record<string, unknown>) => ['fees', 'reversals', params] as const,
+    refunds: (params?: Record<string, unknown>) => ['fees', 'refunds', params] as const,
+    reports: (params?: Record<string, unknown>) => ['fees', 'reports', params] as const,
+    counterHistory: (params?: Record<string, unknown>) => ['fees', 'counter-history', params] as const,
   },
 } as const;
 

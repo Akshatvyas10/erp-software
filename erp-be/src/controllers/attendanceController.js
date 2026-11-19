@@ -62,28 +62,45 @@ const markAttendance = async (req, res, next) => {
     } catch (err) { next(err); }
 };
 
-// ─── POST /api/attendance/biometric — biometric device hook (future) ─────────
+// ─── POST /api/attendance/biometric — biometric device hook ─────────────────
 /**
- * Endpoint for biometric device to push entry/exit times.
+ * Endpoint for authenticated biometric devices to push entry/exit times.
  * Device sends: { deviceId, employeeCode, timestamp, type: 'in'|'out' }
  */
 const biometricEntry = async (req, res, next) => {
     try {
-        const { employeeCode, timestamp, type } = req.body;
+        const { deviceId, employeeCode, timestamp, type } = req.body;
 
         const teacher = await Teacher.findOne({
             where: { employeeNumber: employeeCode },
             attributes: ['id', 'dailyWorkingHours'],
         });
-        if (!teacher) return error(res, `No teacher found with employee code: ${employeeCode}`, 404);
+        if (!teacher) {
+            logger.warn(`[BIOMETRIC] Ingestion failed: No teacher found with employeeCode ${employeeCode} on device ${deviceId || 'N/A'}`);
+            return error(res, `No teacher found with employee code: ${employeeCode}`, 404);
+        }
 
         const dt = new Date(timestamp);
+        if (isNaN(dt.getTime())) {
+            return error(res, 'Invalid timestamp provided', 400);
+        }
+
         const date = dt.toISOString().split('T')[0];
         const time = dt.toTimeString().split(' ')[0]; // HH:MM:SS
 
         const existing = await TeacherAttendance.findOne({ where: { teacherId: teacher.id, date } });
 
         if (type === 'in') {
+            // Deduplicate: If already checked in within last 2 minutes, ignore bounce
+            if (existing && existing.checkIn) {
+                const [ih, im, isec] = existing.checkIn.split(':').map(Number);
+                const [nh, nm, nsec] = time.split(':').map(Number);
+                const diffSecs = Math.abs((nh * 3600 + nm * 60 + (nsec || 0)) - (ih * 3600 + im * 60 + (isec || 0)));
+                if (diffSecs < 120) {
+                    return success(res, { record: existing }, 'Check-in duplicate ignored (bounced punch)');
+                }
+            }
+
             const [record] = await TeacherAttendance.upsert({
                 teacherId: teacher.id,
                 date,
@@ -92,11 +109,15 @@ const biometricEntry = async (req, res, next) => {
                 source: 'biometric',
                 leaveType: 'none',
             }, { returning: true });
-            return success(res, { record }, 'Check-in recorded');
+            
+            logger.info(`[BIOMETRIC] Teacher ${employeeCode} checked in at ${time} on ${date} (Device: ${deviceId || 'default'})`);
+            return success(res, { record }, 'Check-in recorded successfully');
         }
 
         if (type === 'out') {
-            if (!existing) return error(res, 'No check-in found for this date', 422);
+            if (!existing) {
+                return error(res, 'No check-in record found for this date. Check-in must precede check-out.', 422);
+            }
 
             let hoursWorked = null;
             if (existing.checkIn) {
@@ -107,7 +128,8 @@ const biometricEntry = async (req, res, next) => {
             }
 
             await existing.update({ checkOut: time, hoursWorked, source: 'biometric' });
-            return success(res, { record: existing }, 'Check-out recorded');
+            logger.info(`[BIOMETRIC] Teacher ${employeeCode} checked out at ${time} on ${date} (Hours: ${hoursWorked})`);
+            return success(res, { record: existing }, 'Check-out recorded successfully');
         }
 
         return error(res, 'type must be "in" or "out"', 422);

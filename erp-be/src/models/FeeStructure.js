@@ -71,6 +71,7 @@ const FeeStructure = sequelize.define('FeeStructure', {
     tableName: 'fee_structures',
     timestamps: true,
     paranoid: true,
+    underscored: true,
     indexes: [
         {
             fields: ['academic_year_id'],

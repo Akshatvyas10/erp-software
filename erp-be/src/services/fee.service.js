@@ -20,6 +20,8 @@ const {
     User,
     FeeReminderLog,
     SchoolConfig,
+    FeePaymentReversal,
+    FeeRefund,
 } = db;
 import { enqueueEmailJob } from '../queues/email.queue.js';
 import { sendFeeReminderDirect } from './email.service.js';
@@ -300,6 +302,40 @@ class FeeService {
         });
     }
 
+    async updateFeeStructureStatus(id, status, userId) {
+        if (!['ACTIVE', 'INACTIVE'].includes(status)) {
+            throw new ApiError(400, 'Invalid status. Must be ACTIVE or INACTIVE.');
+        }
+
+        const structure = await FeeStructure.findByPk(id);
+        if (!structure) throw new ApiError(404, 'Fee Structure not found');
+
+        await structure.update({ status, updatedById: userId });
+        logger.info(`[FeeStructure] Status updated for template "${structure.name}" (${id}) to ${status} by user ${userId}`);
+        return structure;
+    }
+
+    async deleteFeeStructure(id, userId) {
+        const structure = await FeeStructure.findByPk(id);
+        if (!structure) throw new ApiError(404, 'Fee Structure not found');
+
+        // Check if any invoices have been issued referencing this fee structure
+        const invoiceCount = await StudentInvoice.count({
+            where: { feeStructureId: id },
+        });
+
+        if (invoiceCount > 0) {
+            throw new ApiError(
+                400,
+                `Cannot delete Fee Structure template because it is IN USE by ${invoiceCount} invoice(s). You can safely deactivate it instead.`
+            );
+        }
+
+        logger.info(`[FeeStructure] Template "${structure.name}" (${id}) deleted by user ${userId}`);
+        await structure.destroy();
+        return { message: 'Fee structure deleted successfully' };
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
     // STUDENT INVOICES
     // ══════════════════════════════════════════════════════════════════════════
@@ -472,6 +508,9 @@ class FeeService {
             ],
         });
         if (!feeStructure) throw new ApiError(404, 'Fee Structure not found');
+        if (feeStructure.status === 'INACTIVE') {
+            throw new ApiError(400, `Cannot generate invoices using inactive Fee Structure template "${feeStructure.name}". Please activate it first.`);
+        }
 
         // Check if classroom has enrolled students
         const classroom = await Classroom.findByPk(classroomId);
@@ -623,6 +662,9 @@ class FeeService {
                 transaction: t,
             });
             if (!feeStructure) throw new ApiError(404, 'Fee Structure not found');
+            if (feeStructure.status === 'INACTIVE') {
+                throw new ApiError(400, `Cannot generate invoices using inactive Fee Structure template "${feeStructure.name}". Please activate it first.`);
+            }
 
             // Find enrolled students in this classroom
             const classroomStudents = await ClassroomStudent.findAll({
@@ -761,11 +803,13 @@ class FeeService {
 
         const { count, rows } = await StudentInvoice.findAndCountAll({
             where,
+            subQuery: false,
+            distinct: true,
             include: [
                 {
                     model: Student,
                     as: 'student',
-                    attributes: ['id', 'admissionNumber', 'status'],
+                    attributes: ['id', 'admissionNumber', 'status', 'userId'],
                     include: [
                         {
                             model: User,
@@ -1371,10 +1415,12 @@ class FeeService {
      * Dispatches bulk fee reminders via BullMQ queue (with dev fallback)
      * and logs audit history into fee_reminder_logs.
      */
-    async sendBulkFeeReminders({ studentIds, periodKey, dueDate, customNote }, userId = null) {
+    async sendBulkFeeReminders({ studentIds, periodKey, dueDate, customNote, administrativeNote }, userId = null) {
         if (!Array.isArray(studentIds) || studentIds.length === 0) {
             throw new ApiError(400, 'Please select at least one student to send fee reminders.');
         }
+
+        const effectiveNote = administrativeNote || customNote || null;
 
         // Fetch eligible records for target students
         const eligibleList = await this.getEligibleReminderStudents({ periodKey, asOfDate: dueDate });
@@ -1462,7 +1508,10 @@ class FeeService {
                 status: 'QUEUED',
                 sentById: userId,
                 sentAt: null,
-                metadata: { note: customNote },
+                metadata: {
+                    note: effectiveNote,
+                    administrativeNote: effectiveNote,
+                },
             });
 
             // Enqueue Job into BullMQ Email Queue
@@ -1478,6 +1527,7 @@ class FeeService {
                     arrears: studentInfo.arrears,
                     advanceCredit: studentInfo.advanceCredit,
                     payableAmount: studentInfo.totalPayable,
+                    administrativeNote: effectiveNote,
                     schoolNameOverride: schoolName,
                 };
 
@@ -1630,15 +1680,682 @@ class FeeService {
         }
 
         logger.info(`[Scheduled Fee Reminder] Running automated dispatch for ${targetStudentIds.length} candidate students.`);
+        const defaultNote = settings.defaultAdministrativeNote || 'Scheduled automated reminder as per school fee calendar policy.';
         const dispatchResult = await this.sendBulkFeeReminders(
             {
                 studentIds: targetStudentIds,
-                customNote: 'Scheduled automated reminder as per school fee calendar policy.',
+                customNote: defaultNote,
+                administrativeNote: defaultNote,
             },
             null // system automated
         );
 
         return { executed: true, ...dispatchResult };
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // DEFAULTERS MANAGEMENT
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Lists students with overdue outstanding balances, categorized by aging bracket.
+     */
+    async getDefaulters({ classroomId, agingBracket, minAmount, maxAmount, search, limit = 50, offset = 0 } = {}) {
+        const today = new Date().toISOString().split('T')[0];
+
+        // 1. Fetch overdue invoices
+        const invoiceWhere = {
+            dueDate: { [Op.lt]: today },
+            balanceAmount: { [Op.gt]: 0 },
+            status: { [Op.ne]: 'CANCELLED' },
+        };
+        if (classroomId && classroomId !== 'ALL') {
+            invoiceWhere.classroomId = classroomId;
+        }
+
+        const overdueInvoices = await StudentInvoice.findAll({
+            where: invoiceWhere,
+            include: [
+                {
+                    model: Student,
+                    as: 'student',
+                    attributes: ['id', 'admissionNumber', 'guardianPhone', 'guardianEmail', 'feeQuota', 'feeAdvanceCredit'],
+                    include: [
+                        { model: User, as: 'account', attributes: ['firstName', 'lastName', 'email', 'phone'] },
+                    ],
+                },
+                {
+                    model: Classroom,
+                    as: 'classroom',
+                    attributes: ['id', 'name', 'section'],
+                },
+            ],
+            order: [['dueDate', 'ASC']],
+        });
+
+        // 2. Aggregate per student
+        const studentMap = new Map();
+        for (const inv of overdueInvoices) {
+            if (!inv.student) continue;
+
+            const studentId = inv.studentId;
+            const dueDate = new Date(inv.dueDate);
+            const todayDate = new Date(today);
+            const daysOverdue = Math.max(0, Math.floor((todayDate - dueDate) / (1000 * 60 * 60 * 24)));
+
+            if (!studentMap.has(studentId)) {
+                const s = inv.student;
+                const studentName = s.account
+                    ? `${s.account.firstName} ${s.account.lastName || ''}`.trim()
+                    : `Student (${s.admissionNumber || s.id.slice(0, 8)})`;
+
+                studentMap.set(studentId, {
+                    studentId,
+                    admissionNumber: s.admissionNumber,
+                    studentName,
+                    guardianPhone: s.guardianPhone || s.account?.phone || null,
+                    guardianEmail: s.guardianEmail || s.account?.email || null,
+                    classroomId: inv.classroomId,
+                    classroomName: inv.classroom ? `${inv.classroom.name} (${inv.classroom.section})` : 'Unassigned',
+                    feeQuota: s.feeQuota || 'REGULAR',
+                    overdueInvoicesCount: 0,
+                    oldestDueDate: inv.dueDate,
+                    maxDaysOverdue: daysOverdue,
+                    arrearsAmount: 0,
+                    currentDueAmount: 0,
+                    totalOutstanding: 0,
+                    advanceCredit: Number(s.feeAdvanceCredit || 0),
+                    lastPaymentDate: null,
+                });
+            }
+
+            const record = studentMap.get(studentId);
+            const balance = Number(inv.balanceAmount || 0);
+
+            record.overdueInvoicesCount += 1;
+            record.totalOutstanding += balance;
+            if (daysOverdue > 30) {
+                record.arrearsAmount += balance;
+            } else {
+                record.currentDueAmount += balance;
+            }
+
+            if (daysOverdue > record.maxDaysOverdue) {
+                record.maxDaysOverdue = daysOverdue;
+                record.oldestDueDate = inv.dueDate;
+            }
+        }
+
+        let defaulters = Array.from(studentMap.values());
+
+        // 3. Filter by Aging Bracket (0-30, 31-60, 61-90, 90+)
+        if (agingBracket && agingBracket !== 'ALL') {
+            defaulters = defaulters.filter((d) => {
+                if (agingBracket === '1-30') return d.maxDaysOverdue <= 30;
+                if (agingBracket === '31-60') return d.maxDaysOverdue > 30 && d.maxDaysOverdue <= 60;
+                if (agingBracket === '61-90') return d.maxDaysOverdue > 60 && d.maxDaysOverdue <= 90;
+                if (agingBracket === '90+') return d.maxDaysOverdue > 90;
+                return true;
+            });
+        }
+
+        // 4. Filter by Amount Range
+        if (minAmount) {
+            defaulters = defaulters.filter((d) => d.totalOutstanding >= Number(minAmount));
+        }
+        if (maxAmount) {
+            defaulters = defaulters.filter((d) => d.totalOutstanding <= Number(maxAmount));
+        }
+
+        // 5. Filter by Search Query
+        if (search) {
+            const q = search.toLowerCase();
+            defaulters = defaulters.filter(
+                (d) =>
+                    d.studentName.toLowerCase().includes(q) ||
+                    (d.admissionNumber || '').toLowerCase().includes(q) ||
+                    (d.guardianEmail || '').toLowerCase().includes(q)
+            );
+        }
+
+        // Sort by highest overdue days and total amount
+        defaulters.sort((a, b) => b.maxDaysOverdue - a.maxDaysOverdue || b.totalOutstanding - a.totalOutstanding);
+
+        const totalCount = defaulters.length;
+        const pagedDefaulters = defaulters.slice(Number(offset), Number(offset) + Number(limit));
+
+        return {
+            total: totalCount,
+            items: pagedDefaulters,
+            limit: Number(limit),
+            offset: Number(offset),
+        };
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // PAYMENT REVERSALS
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Reverses a fee payment safely inside a database transaction.
+     * Restores invoice balance and creates an audit record.
+     */
+    async reversePayment({ paymentId, reason, bouncePenaltyAmount = 0 }, authorizedUserId) {
+        if (!paymentId) throw new ApiError(400, 'Payment ID is required for reversal');
+        if (!reason) throw new ApiError(400, 'A reason is mandatory for reversing a payment');
+
+        return await sequelize.transaction(async (t) => {
+            const payment = await FeePayment.findByPk(paymentId, {
+                include: [{ model: StudentInvoice, as: 'invoice' }],
+                transaction: t,
+            });
+
+            if (!payment) throw new ApiError(404, 'Payment record not found');
+            if (payment.isReversed) throw new ApiError(400, 'This payment has already been reversed');
+
+            const invoice = payment.invoice;
+            if (!invoice) throw new ApiError(404, 'Linked invoice for this payment not found');
+
+            const reversedAmount = Number(payment.amountPaid || 0);
+
+            // Generate unique reversal receipt number
+            const reversalReceiptNumber = `REV-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+
+            // 1. Create Reversal Audit Record
+            const reversal = await FeePaymentReversal.create(
+                {
+                    paymentId: payment.id,
+                    reversalReceiptNumber,
+                    reversedAmount,
+                    bouncePenaltyAmount: Number(bouncePenaltyAmount || 0),
+                    reason,
+                    authorizedById: authorizedUserId,
+                },
+                { transaction: t }
+            );
+
+            // 2. Mark Payment as Reversed (No hard delete)
+            await payment.update(
+                {
+                    isReversed: true,
+                    reversedAt: new Date(),
+                    reversedById: authorizedUserId,
+                    reversalReason: reason,
+                },
+                { transaction: t }
+            );
+
+            // 3. Rollback Invoice Financials
+            const newPaid = Math.max(0, Number(invoice.paidAmount || 0) - reversedAmount);
+            const penalty = Number(bouncePenaltyAmount || 0);
+            const newFine = Number(invoice.fineAmount || 0) + penalty;
+            const newBalance = Math.max(0, Number(invoice.balanceAmount || 0) + reversedAmount + penalty);
+
+            let newStatus = 'PARTIAL';
+            if (newPaid === 0) newStatus = 'ISSUED';
+            if (new Date(invoice.dueDate) < new Date() && newBalance > 0) newStatus = 'OVERDUE';
+
+            await invoice.update(
+                {
+                    paidAmount: newPaid,
+                    fineAmount: newFine,
+                    balanceAmount: newBalance,
+                    status: newStatus,
+                },
+                { transaction: t }
+            );
+
+            logger.info(`[Payment Reversal] Payment ${payment.id} reversed by user ${authorizedUserId}. Invoice ${invoice.id} restored by ₹${reversedAmount}`);
+
+            return {
+                reversal,
+                updatedInvoice: invoice,
+            };
+        });
+    }
+
+    /**
+     * Retrieves paginated list of reversed payments audit logs.
+     */
+    async getReversedPaymentsLog({ limit = 50, offset = 0 } = {}) {
+        const { count, rows } = await FeePaymentReversal.findAndCountAll({
+            include: [
+                {
+                    model: FeePayment,
+                    as: 'payment',
+                    include: [
+                        {
+                            model: Student,
+                            as: 'student',
+                            attributes: ['id', 'admissionNumber'],
+                            include: [{ model: User, as: 'account', attributes: ['firstName', 'lastName'] }],
+                        },
+                        {
+                            model: StudentInvoice,
+                            as: 'invoice',
+                            attributes: ['id', 'invoiceNumber', 'title'],
+                        },
+                    ],
+                },
+                {
+                    model: User,
+                    as: 'authorizedBy',
+                    attributes: ['id', 'firstName', 'lastName', 'email'],
+                },
+            ],
+            order: [['createdAt', 'DESC']],
+            limit: Number(limit),
+            offset: Number(offset),
+        });
+
+        return {
+            total: count,
+            items: rows,
+            limit: Number(limit),
+            offset: Number(offset),
+        };
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // LATE FINE & WAIVERS
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Waives late fine on an invoice with authorization.
+     */
+    async waiveLateFine({ invoiceId, waiveAmount, reason }, authorizedUserId) {
+        if (!invoiceId) throw new ApiError(400, 'Invoice ID is required');
+        const amountToWaive = Number(waiveAmount || 0);
+        if (amountToWaive <= 0) throw new ApiError(400, 'Waiver amount must be greater than 0');
+        if (!reason) throw new ApiError(400, 'Waiver justification reason is required');
+
+        return await sequelize.transaction(async (t) => {
+            const invoice = await StudentInvoice.findByPk(invoiceId, { transaction: t });
+            if (!invoice) throw new ApiError(404, 'Invoice not found');
+
+            const currentFine = Number(invoice.fineAmount || 0);
+            if (amountToWaive > currentFine) {
+                throw new ApiError(400, `Cannot waive ₹${amountToWaive}. Maximum fine applied is ₹${currentFine}`);
+            }
+
+            const updatedFine = Math.max(0, currentFine - amountToWaive);
+            const updatedWaived = Number(invoice.lateFineWaived || 0) + amountToWaive;
+            const updatedTotal = Math.max(0, Number(invoice.totalAmount || 0) - amountToWaive);
+            const updatedBalance = Math.max(0, Number(invoice.balanceAmount || 0) - amountToWaive);
+
+            let newStatus = invoice.status;
+            if (updatedBalance <= 0) newStatus = 'PAID';
+
+            await invoice.update(
+                {
+                    fineAmount: updatedFine,
+                    lateFineWaived: updatedWaived,
+                    fineWaiverReason: reason,
+                    fineWaivedById: authorizedUserId,
+                    totalAmount: updatedTotal,
+                    balanceAmount: updatedBalance,
+                    status: newStatus,
+                },
+                { transaction: t }
+            );
+
+            logger.info(`[Fine Waiver] User ${authorizedUserId} waived ₹${amountToWaive} on invoice ${invoice.id}. Reason: ${reason}`);
+            return invoice;
+        });
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // REFUND MANAGEMENT
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Creates a new fee refund request.
+     */
+    async requestRefund(data, requestedUserId) {
+        const student = await Student.findByPk(data.studentId);
+        if (!student) throw new ApiError(404, 'Student not found');
+
+        const voucherNumber = `REF-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+
+        const refund = await FeeRefund.create({
+            refundVoucherNumber: voucherNumber,
+            studentId: data.studentId,
+            paymentId: data.paymentId || null,
+            refundType: data.refundType || 'OTHER',
+            amount: Number(data.amount),
+            status: 'REQUESTED',
+            paymentMode: data.paymentMode || 'BANK_TRANSFER',
+            transactionReference: data.transactionReference || null,
+            reason: data.reason,
+            requestedById: requestedUserId,
+            notes: data.notes || null,
+        });
+
+        logger.info(`[Refund Request] Voucher ${voucherNumber} requested for student ${student.id} for ₹${data.amount}`);
+        return refund;
+    }
+
+    /**
+     * Updates refund status (APPROVE / PAY / REJECT).
+     */
+    async updateRefundStatus({ refundId, status, paymentMode, transactionReference, notes }, authorizedUserId) {
+        const refund = await FeeRefund.findByPk(refundId);
+        if (!refund) throw new ApiError(404, 'Refund voucher not found');
+
+        const updates = { status };
+        if (status === 'APPROVED' || status === 'PAID') {
+            updates.approvedById = authorizedUserId;
+        }
+        if (status === 'PAID') {
+            updates.disbursedAt = new Date().toISOString().split('T')[0];
+            if (paymentMode) updates.paymentMode = paymentMode;
+            if (transactionReference) updates.transactionReference = transactionReference;
+        }
+        if (notes) updates.notes = notes;
+
+        await refund.update(updates);
+        logger.info(`[Refund Status] Voucher ${refund.refundVoucherNumber} marked as ${status} by user ${authorizedUserId}`);
+        return refund;
+    }
+
+    /**
+     * Lists paginated refund requests.
+     */
+    async getRefunds({ status, studentId, limit = 50, offset = 0 } = {}) {
+        const where = {};
+        if (status && status !== 'ALL') where.status = status;
+        if (studentId) where.studentId = studentId;
+
+        const { count, rows } = await FeeRefund.findAndCountAll({
+            where,
+            subQuery: false,
+            distinct: true,
+            include: [
+                {
+                    model: Student,
+                    as: 'student',
+                    attributes: ['id', 'admissionNumber', 'userId'],
+                    include: [{ model: User, as: 'account', attributes: ['id', 'firstName', 'lastName', 'email', 'phone'] }],
+                },
+                {
+                    model: User,
+                    as: 'requestedBy',
+                    attributes: ['id', 'firstName', 'lastName'],
+                },
+                {
+                    model: User,
+                    as: 'approvedBy',
+                    attributes: ['id', 'firstName', 'lastName'],
+                },
+            ],
+            order: [['createdAt', 'DESC']],
+            limit: Number(limit),
+            offset: Number(offset),
+        });
+
+        return {
+            total: count,
+            items: rows,
+            limit: Number(limit),
+            offset: Number(offset),
+        };
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // FINANCIAL REPORTS & ANALYTICS
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Generates executive collection intelligence across date ranges, modes, and classes.
+     */
+    async getFinancialReports({ startDate, endDate, classroomId } = {}) {
+        const dateWhere = {};
+        if (startDate && endDate) {
+            dateWhere.paymentDate = { [Op.between]: [startDate, endDate] };
+        } else if (startDate) {
+            dateWhere.paymentDate = { [Op.gte]: startDate };
+        } else if (endDate) {
+            dateWhere.paymentDate = { [Op.lte]: endDate };
+        }
+
+        // 1. Payment mode breakup
+        const modeBreakup = await FeePayment.findAll({
+            where: {
+                ...dateWhere,
+                isReversed: false,
+                status: 'SUCCESS',
+            },
+            attributes: [
+                'paymentMode',
+                [sequelize.fn('COUNT', sequelize.col('id')), 'transactionCount'],
+                [sequelize.fn('SUM', sequelize.col('amount_paid')), 'totalAmount'],
+            ],
+            group: ['paymentMode'],
+            raw: true,
+        });
+
+        // 2. Daily collection register (recent records)
+        const dailyRegister = await FeePayment.findAll({
+            where: {
+                ...dateWhere,
+                isReversed: false,
+            },
+            include: [
+                {
+                    model: Student,
+                    as: 'student',
+                    attributes: ['id', 'admissionNumber'],
+                    include: [{ model: User, as: 'account', attributes: ['firstName', 'lastName'] }],
+                },
+                {
+                    model: StudentInvoice,
+                    as: 'invoice',
+                    attributes: ['id', 'invoiceNumber', 'title'],
+                },
+                {
+                    model: User,
+                    as: 'collectedBy',
+                    attributes: ['id', 'firstName', 'lastName'],
+                },
+            ],
+            order: [['paymentDate', 'DESC'], ['createdAt', 'DESC']],
+            limit: 100,
+        });
+
+        // 3. Class-wise collection efficiency
+        const [classEfficiency] = await sequelize.query(`
+            SELECT 
+                c.id AS "classroomId",
+                c.name AS "classroomName",
+                c.section AS "section",
+                COALESCE(SUM(inv.total_amount), 0) AS "totalBilled",
+                COALESCE(SUM(inv.paid_amount), 0) AS "totalCollected",
+                COALESCE(SUM(inv.balance_amount), 0) AS "totalPending"
+            FROM classrooms c
+            LEFT JOIN student_invoices inv ON inv.classroom_id = c.id AND inv.status != 'CANCELLED' AND inv.deleted_at IS NULL
+            WHERE c.deleted_at IS NULL
+            GROUP BY c.id, c.name, c.section
+            ORDER BY "totalBilled" DESC
+        `);
+
+        return {
+            modeBreakup,
+            dailyRegister,
+            classEfficiency,
+        };
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // COUNTER HISTORY & CASHIER COLLECTION VIEW
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Retrieves cashier counter collections with aggregates, cashier filters, and mode breakdowns.
+     */
+    async getCounterHistory({
+        startDate,
+        endDate,
+        collectedById,
+        paymentMode,
+        classroomId,
+        search,
+        includeReversed = false,
+        limit = 50,
+        offset = 0,
+    } = {}, currentUser = null) {
+        const where = {};
+
+        // Scope check: Cashier only sees own collection unless user has 'fees:manage' or admin role
+        const isAdminOrAccountant = currentUser?.roles?.some((r) =>
+            ['admin', 'super_admin', 'accountant', 'principal'].includes(r.name?.toLowerCase())
+        );
+        if (!isAdminOrAccountant && currentUser?.id) {
+            where.collectedById = currentUser.id;
+        } else if (collectedById && collectedById !== 'ALL') {
+            where.collectedById = collectedById;
+        }
+
+        // Date range
+        if (startDate && endDate) {
+            where.paymentDate = { [Op.between]: [startDate, endDate] };
+        } else if (startDate) {
+            where.paymentDate = { [Op.gte]: startDate };
+        } else if (endDate) {
+            where.paymentDate = { [Op.lte]: endDate };
+        }
+
+        // Payment mode
+        if (paymentMode && paymentMode !== 'ALL') {
+            where.paymentMode = paymentMode;
+        }
+
+        // Exclude reversed payments by default
+        if (String(includeReversed) !== 'true') {
+            where.isReversed = false;
+        }
+
+        // Student and classroom association filters
+        const studentWhere = {};
+        const classroomEnrollmentWhere = {};
+        if (classroomId && classroomId !== 'ALL') {
+            classroomEnrollmentWhere.classroomId = classroomId;
+        }
+
+        const invoiceWhere = {};
+        if (search) {
+            const q = search.trim();
+            where[Op.or] = [
+                { receiptNumber: { [Op.iLike]: `%${q}%` } },
+                { referenceNumber: { [Op.iLike]: `%${q}%` } },
+                { '$student.admission_number$': { [Op.iLike]: `%${q}%` } },
+                { '$student.account.first_name$': { [Op.iLike]: `%${q}%` } },
+                { '$student.account.last_name$': { [Op.iLike]: `%${q}%` } },
+            ];
+        }
+
+        const { count, rows } = await FeePayment.findAndCountAll({
+            where,
+            subQuery: false,
+            distinct: true,
+            include: [
+                {
+                    model: Student,
+                    as: 'student',
+                    attributes: ['id', 'admissionNumber', 'userId'],
+                    include: [
+                        { model: User, as: 'account', attributes: ['id', 'firstName', 'lastName', 'email', 'phone'] },
+                        {
+                            model: ClassroomStudent,
+                            as: 'classroomEnrollments',
+                            where: classroomEnrollmentWhere,
+                            required: Boolean(classroomId && classroomId !== 'ALL'),
+                            include: [{ model: Classroom, as: 'classroom', attributes: ['id', 'name', 'section'] }],
+                        },
+                    ],
+                },
+                {
+                    model: StudentInvoice,
+                    as: 'invoice',
+                    attributes: ['id', 'invoiceNumber', 'title', 'periodKey', 'dueDate'],
+                },
+                {
+                    model: User,
+                    as: 'collectedBy',
+                    attributes: ['id', 'firstName', 'lastName', 'email'],
+                },
+            ],
+            order: [['paymentDate', 'DESC'], ['createdAt', 'DESC']],
+            limit: Number(limit),
+            offset: Number(offset),
+        });
+
+        // Calculate summary aggregates for the same filtered set (excluding reversed)
+        const summaryWhere = { ...where, isReversed: false };
+        const summaryQuery = await FeePayment.findAll({
+            where: summaryWhere,
+            attributes: [
+                'paymentMode',
+                [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+                [sequelize.fn('SUM', sequelize.col('amount_paid')), 'totalAmount'],
+            ],
+            group: ['paymentMode'],
+            raw: true,
+        });
+
+        let totalCollected = 0;
+        let cashTotal = 0;
+        let upiTotal = 0;
+        let chequeTotal = 0;
+        let cardTotal = 0;
+        let receiptsCount = 0;
+
+        for (const s of summaryQuery) {
+            const amt = Number(s.totalAmount || 0);
+            const cnt = Number(s.count || 0);
+            totalCollected += amt;
+            receiptsCount += cnt;
+
+            if (s.paymentMode === 'CASH') cashTotal += amt;
+            else if (s.paymentMode === 'UPI' || s.paymentMode === 'ONLINE') upiTotal += amt;
+            else if (s.paymentMode === 'CHEQUE') chequeTotal += amt;
+            else if (s.paymentMode === 'CARD') cardTotal += amt;
+        }
+
+        // Top collectors breakdown
+        const collectorsSummary = await FeePayment.findAll({
+            where: summaryWhere,
+            attributes: [
+                'collectedById',
+                [sequelize.fn('COUNT', sequelize.col('FeePayment.id')), 'txCount'],
+                [sequelize.fn('SUM', sequelize.col('FeePayment.amount_paid')), 'totalCollected'],
+            ],
+            include: [
+                {
+                    model: User,
+                    as: 'collectedBy',
+                    attributes: ['id', 'firstName', 'lastName'],
+                },
+            ],
+            group: ['collectedById', 'collectedBy.id', 'collectedBy.first_name', 'collectedBy.last_name'],
+            raw: true,
+            nest: true,
+        });
+
+        return {
+            total: count,
+            items: rows,
+            summary: {
+                totalCollected,
+                cashTotal,
+                upiTotal,
+                chequeTotal,
+                cardTotal,
+                receiptsCount,
+                collectors: collectorsSummary,
+            },
+            limit: Number(limit),
+            offset: Number(offset),
+        };
     }
 }
 

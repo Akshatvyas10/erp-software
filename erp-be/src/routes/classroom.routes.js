@@ -176,12 +176,14 @@ router.post('/:classroomId/remarks',
         body('type').optional().isIn(['Homework', 'Academic', 'Behavior', 'General'])
     ],
     validate,
+    requirePermission('classrooms', 'update'),
     createClassroomRemark
 );
 
 router.delete('/:classroomId/remarks/:id',
     [isUUID('classroomId'), isUUID('id')],
     validate,
+    requirePermission('classrooms', 'update'),
     deleteClassroomRemark
 );
 

@@ -62,6 +62,8 @@ export const PERMISSIONS = {
         UPDATE: "fees:update",
         DELETE: "fees:delete",
         COLLECT: "fees:collect",
+        ADJUST: "fees:adjust",
+        REFUND: "fees:refund",
         MANAGE: "fees:manage",
     },
     ALL: {
@@ -78,4 +80,5 @@ export type PermissionKey =
     | typeof PERMISSIONS.DEPARTMENTS[keyof typeof PERMISSIONS.DEPARTMENTS]
     | typeof PERMISSIONS.TEACHERS[keyof typeof PERMISSIONS.TEACHERS]
     | typeof PERMISSIONS.DOCUMENT_TEMPLATES[keyof typeof PERMISSIONS.DOCUMENT_TEMPLATES]
+    | typeof PERMISSIONS.FEES[keyof typeof PERMISSIONS.FEES]
     | typeof PERMISSIONS.ALL[keyof typeof PERMISSIONS.ALL];

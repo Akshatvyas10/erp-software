@@ -8,10 +8,19 @@ const { getTeacherAttendance, markAttendance, biometricEntry, getTodayAttendance
 import authenticate from '../middlewares/authenticate.js';
 import { requirePermission } from '../middlewares/authorize.js';
 import validate from '../middlewares/validate.js';
+import validateZod from '../middlewares/zodValidator.js';
+import { biometricLimiter } from '../middlewares/rateLimiter.js';
+import verifyBiometricDeviceKey from '../middlewares/biometricAuth.js';
+import { biometricEntrySchema } from '../schemas/biometric.schema.js';
 
-// Biometric device webhook — no JWT (secured by device API key in future)
-// For now kept open for testing; add IP allowlist in production
-router.post('/biometric', biometricEntry);
+// Biometric device webhook — Authenticated strictly via Device API Key and rate-limited
+router.post(
+    '/biometric',
+    biometricLimiter,
+    verifyBiometricDeviceKey,
+    validateZod({ body: biometricEntrySchema }),
+    biometricEntry
+);
 
 router.use(authenticate);
 

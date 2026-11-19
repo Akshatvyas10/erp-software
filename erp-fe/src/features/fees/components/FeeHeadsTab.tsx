@@ -16,8 +16,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { AxiosError } from 'axios';
 import feeApi, { type FeeHead } from '../api/feeApi';
 import queryKeys from '@/lib/queryKeys';
+import { usePermissions } from '@/store/hooks';
 import { toast } from 'sonner';
 import { Plus, Tag } from 'lucide-react';
 
@@ -28,6 +30,8 @@ interface FeeHeadsTabProps {
 
 export const FeeHeadsTab: React.FC<FeeHeadsTabProps> = ({ feeHeads }) => {
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
+  const canManage = can('fees', 'manage');
   const [isOpen, setIsOpen] = useState(false);
 
   const [name, setName] = useState('');
@@ -43,7 +47,7 @@ export const FeeHeadsTab: React.FC<FeeHeadsTabProps> = ({ feeHeads }) => {
       toast.success(`Refundable set to ${vars.isRefundable ? 'Yes' : 'No'}`);
       queryClient.invalidateQueries({ queryKey: queryKeys.fees.heads() });
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ message?: string }>) => {
       toast.error(err?.response?.data?.message || 'Failed to update refundable status');
     },
   });
@@ -68,7 +72,7 @@ export const FeeHeadsTab: React.FC<FeeHeadsTabProps> = ({ feeHeads }) => {
       setDescription('');
       setIsRefundable(false);
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ message?: string }>) => {
       toast.error(err?.response?.data?.message || 'Failed to create Fee Head');
     },
   });
@@ -82,13 +86,15 @@ export const FeeHeadsTab: React.FC<FeeHeadsTabProps> = ({ feeHeads }) => {
             Define individual fee components (e.g. Tuition, Science Lab, Examination, Annual Activity)
           </p>
         </div>
-        <Button
-          size="sm"
-          className="rounded-xl font-bold gap-1.5 text-xs shadow-xs self-start sm:self-auto"
-          onClick={() => setIsOpen(true)}
-        >
-          <Plus className="w-3.5 h-3.5" /> Add Fee Head
-        </Button>
+        {canManage && (
+          <Button
+            size="sm"
+            className="rounded-xl font-bold gap-1.5 text-xs shadow-xs self-start sm:self-auto"
+            onClick={() => setIsOpen(true)}
+          >
+            <Plus className="w-3.5 h-3.5" /> Add Fee Head
+          </Button>
+        )}
       </div>
 
       <div className="rounded-2xl border border-border/80 overflow-hidden bg-card shadow-xs">
@@ -119,7 +125,7 @@ export const FeeHeadsTab: React.FC<FeeHeadsTabProps> = ({ feeHeads }) => {
                         onCheckedChange={(checked) =>
                           toggleRefundableMutation.mutate({ id: h.id, isRefundable: checked })
                         }
-                        disabled={toggleRefundableMutation.isPending}
+                        disabled={!canManage || toggleRefundableMutation.isPending}
                       />
                       <span className={`text-[11px] font-semibold ${h.isRefundable ? 'text-primary' : 'text-muted-foreground'}`}>
                         {h.isRefundable ? 'Yes' : 'No'}
@@ -161,7 +167,10 @@ export const FeeHeadsTab: React.FC<FeeHeadsTabProps> = ({ feeHeads }) => {
 
             <div>
               <Label className="text-xs font-semibold text-foreground">Category *</Label>
-              <Select value={category} onValueChange={(val: any) => setCategory(val)}>
+              <Select
+                value={category}
+                onValueChange={(val: string) => setCategory(val as FeeHead['category'])}
+              >
                 <SelectTrigger className="mt-1 h-9 rounded-xl text-xs bg-background">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>

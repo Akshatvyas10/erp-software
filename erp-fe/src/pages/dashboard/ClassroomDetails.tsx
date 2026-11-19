@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ScrollableTabsList } from "@/components/common/ScrollableTabsList";
 import { ClassroomDetailsSkeleton } from "@/components/common/skeletons/ClassroomDetailsSkeleton";
 import AccessDenied from "@/components/auth/AccessDenied";
 import PermissionGate from "@/components/auth/PermissionGate";
@@ -526,55 +527,57 @@ export default function ClassroomDetails() {
 
             {/* ── 4. Interactive Tabs Navigation (Horizontally Scrollable on Mobile) ─── */}
             <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as ActiveTab)} className="space-y-4">
-                <TabsList className="w-full justify-start overflow-x-auto flex-nowrap whitespace-nowrap scrollbar-none bg-muted/40 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl h-auto border border-border/70 gap-1 sm:gap-1.5">
-                    {scope.canAccessOverview && (
-                        <TabsTrigger value="overview" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs">
-                            <Sparkles className="h-3.5 w-3.5 text-primary" /> Overview
-                        </TabsTrigger>
-                    )}
+                <ScrollableTabsList>
+                    <TabsList className="inline-flex w-max justify-start flex-nowrap whitespace-nowrap bg-muted/50 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl h-auto border border-border/80 gap-1 sm:gap-1.5 shadow-2xs">
+                        {scope.canAccessOverview && (
+                            <TabsTrigger value="overview" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                                <Sparkles className="h-4 w-4 text-primary" /> Overview
+                            </TabsTrigger>
+                        )}
 
-                    {scope.canAccessRoster && (
-                        <TabsTrigger value="roster" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs">
-                            <Users className="h-3.5 w-3.5 text-primary" /> Students
-                            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-[11px] font-black px-1.5 py-0 rounded-full bg-primary/15 text-primary">
-                                {studentCount}
-                            </Badge>
-                        </TabsTrigger>
-                    )}
+                        {scope.canAccessRoster && (
+                            <TabsTrigger value="roster" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                                <Users className="h-4 w-4 text-primary" /> Students
+                                <Badge variant="secondary" className="ml-1 text-[10px] sm:text-[11px] font-black px-1.5 py-0 rounded-full bg-primary/15 text-primary">
+                                    {studentCount}
+                                </Badge>
+                            </TabsTrigger>
+                        )}
 
-                    {scope.canAccessTimetable && (
-                        <TabsTrigger value="timetable" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs">
-                            <LayoutGrid className="h-3.5 w-3.5 text-primary" /> Timetable
-                            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-[11px] font-black px-1.5 py-0 rounded-full bg-primary/15 text-primary">
-                                {subjects.length}
-                            </Badge>
-                        </TabsTrigger>
-                    )}
+                        {scope.canAccessTimetable && (
+                            <TabsTrigger value="timetable" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                                <LayoutGrid className="h-4 w-4 text-primary" /> Timetable
+                                <Badge variant="secondary" className="ml-1 text-[10px] sm:text-[11px] font-black px-1.5 py-0 rounded-full bg-primary/15 text-primary">
+                                    {subjects.length}
+                                </Badge>
+                            </TabsTrigger>
+                        )}
 
-                    {scope.canAccessHomework && (
-                        <TabsTrigger value="homework" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs">
-                            <FileText className="h-3.5 w-3.5 text-primary" /> Homework
-                        </TabsTrigger>
-                    )}
+                        {scope.canAccessHomework && (
+                            <TabsTrigger value="homework" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                                <FileText className="h-4 w-4 text-primary" /> Homework
+                            </TabsTrigger>
+                        )}
 
-                    {scope.canAccessGradebook && (
-                        <TabsTrigger value="gradebook" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs">
-                            <BookOpen className="h-3.5 w-3.5 text-primary" /> Gradebook
-                        </TabsTrigger>
-                    )}
+                        {scope.canAccessGradebook && (
+                            <TabsTrigger value="gradebook" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                                <BookOpen className="h-4 w-4 text-primary" /> Gradebook
+                            </TabsTrigger>
+                        )}
 
-                    {scope.canAccessAttendance && (
-                        <TabsTrigger value="attendance" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs">
-                            <ClipboardCheck className="h-3.5 w-3.5 text-primary" /> Attendance
-                        </TabsTrigger>
-                    )}
+                        {scope.canAccessAttendance && (
+                            <TabsTrigger value="attendance" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                                <ClipboardCheck className="h-4 w-4 text-primary" /> Attendance
+                            </TabsTrigger>
+                        )}
 
-                    {scope.canAccessRemarks && (
-                        <TabsTrigger value="remarks" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs">
-                            <MessageSquare className="h-3.5 w-3.5 text-primary" /> Remarks
-                        </TabsTrigger>
-                    )}
-                </TabsList>
+                        {scope.canAccessRemarks && (
+                            <TabsTrigger value="remarks" className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4">
+                                <MessageSquare className="h-4 w-4 text-primary" /> Remarks
+                            </TabsTrigger>
+                        )}
+                    </TabsList>
+                </ScrollableTabsList>
 
                 {/* Tab 1: Overview */}
                 <TabsContent value="overview" className="outline-none focus:outline-none">

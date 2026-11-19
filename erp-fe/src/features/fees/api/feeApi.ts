@@ -114,6 +114,20 @@ export interface FeePayment {
   paymentDetails?: FeePaymentDetails | null;
   collectedBy?: { id: string; firstName: string; lastName: string; email?: string };
   invoice?: StudentInvoice;
+  isReversed?: boolean;
+  reversedAt?: string | null;
+  reversedById?: string | null;
+  reversalReason?: string | null;
+  student?: {
+    id: string;
+    admissionNumber: string;
+    account?: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone?: string;
+    };
+  };
   createdAt: string;
 }
 
@@ -134,6 +148,8 @@ export interface StudentInvoice {
   paidAmount: number;
   balanceAmount: number;
   status: 'DRAFT' | 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED';
+  periodKey?: string | null;
+  frequency?: string | null;
   issuedDate: string;
   notes?: string | null;
   student?: {
@@ -324,6 +340,16 @@ export const feeApi = {
     return res.data.data;
   },
 
+  updateFeeStructureStatus: async (id: string, status: 'ACTIVE' | 'INACTIVE'): Promise<FeeStructure> => {
+    const res = await api.patch(`/fees/structures/${id}/status`, { status });
+    return res.data.data;
+  },
+
+  deleteFeeStructure: async (id: string): Promise<{ message: string }> => {
+    const res = await api.delete(`/fees/structures/${id}`);
+    return res.data.data;
+  },
+
   // Invoices
   getInvoices: async (params?: {
     studentId?: string;
@@ -434,6 +460,7 @@ export const feeApi = {
     periodKey?: string;
     dueDate?: string;
     customNote?: string;
+    administrativeNote?: string;
   }): Promise<{
     totalSelected: number;
     sentCount: number;
@@ -489,13 +516,234 @@ export const feeApi = {
     const res = await api.post('/fees/reminders/trigger-scheduled');
     return res.data.data;
   },
+
+  // ─── Phase 1: Defaulters, Reversals, Refunds, and Reports ────────────────────
+
+  getDefaulters: async (params?: {
+    classroomId?: string;
+    agingBracket?: string;
+    minAmount?: number;
+    maxAmount?: number;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    total: number;
+    items: FeeDefaulter[];
+    limit: number;
+    offset: number;
+  }> => {
+    const res = await api.get('/fees/defaulters', { params });
+    return res.data.data;
+  },
+
+  reversePayment: async (paymentId: string, payload: {
+    reason: string;
+    bouncePenaltyAmount?: number;
+  }): Promise<{
+    reversal: FeePaymentReversal;
+    updatedInvoice: StudentInvoice;
+  }> => {
+    const res = await api.post(`/fees/payments/${paymentId}/reverse`, payload);
+    return res.data.data;
+  },
+
+  getReversedPaymentsLog: async (params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    total: number;
+    items: FeePaymentReversal[];
+    limit: number;
+    offset: number;
+  }> => {
+    const res = await api.get('/fees/payments-reversals', { params });
+    return res.data.data;
+  },
+
+  waiveLateFine: async (invoiceId: string, payload: {
+    waiveAmount: number;
+    reason: string;
+  }): Promise<StudentInvoice> => {
+    const res = await api.post(`/fees/invoices/${invoiceId}/waive-fine`, payload);
+    return res.data.data;
+  },
+
+  getRefunds: async (params?: {
+    status?: string;
+    studentId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    total: number;
+    items: FeeRefund[];
+    limit: number;
+    offset: number;
+  }> => {
+    const res = await api.get('/fees/refunds', { params });
+    return res.data.data;
+  },
+
+  requestRefund: async (payload: {
+    studentId: string;
+    paymentId?: string | null;
+    refundType: string;
+    amount: number;
+    paymentMode?: string;
+    transactionReference?: string | null;
+    reason: string;
+    notes?: string | null;
+  }): Promise<FeeRefund> => {
+    const res = await api.post('/fees/refunds', payload);
+    return res.data.data;
+  },
+
+  updateRefundStatus: async (refundId: string, payload: {
+    status: 'APPROVED' | 'PAID' | 'REJECTED';
+    paymentMode?: string;
+    transactionReference?: string | null;
+    notes?: string | null;
+  }): Promise<FeeRefund> => {
+    const res = await api.patch(`/fees/refunds/${refundId}/status`, payload);
+    return res.data.data;
+  },
+
+  getFinancialReports: async (params?: {
+    startDate?: string;
+    endDate?: string;
+    classroomId?: string;
+  }): Promise<{
+    modeBreakup: Array<{ paymentMode: string; transactionCount: number; totalAmount: number }>;
+    dailyRegister: FeePayment[];
+    classEfficiency: Array<{
+      classroomId: string;
+      classroomName: string;
+      section: string;
+      totalBilled: number;
+      totalCollected: number;
+      totalPending: number;
+    }>;
+  }> => {
+    const res = await api.get('/fees/reports', { params });
+    return res.data.data;
+  },
+
+  getCounterHistory: async (params?: {
+    startDate?: string;
+    endDate?: string;
+    collectedById?: string;
+    paymentMode?: string;
+    classroomId?: string;
+    search?: string;
+    includeReversed?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    total: number;
+    items: FeePayment[];
+    summary: {
+      totalCollected: number;
+      cashTotal: number;
+      upiTotal: number;
+      chequeTotal: number;
+      cardTotal: number;
+      receiptsCount: number;
+      collectors: Array<{
+        collectedById: string;
+        txCount: number;
+        totalCollected: number;
+        collectedBy: { id: string; firstName: string; lastName: string };
+      }>;
+    };
+    limit: number;
+    offset: number;
+  }> => {
+    const res = await api.get('/fees/counter-history', { params });
+    return res.data.data;
+  },
 };
+
+export interface FeeDefaulter {
+  studentId: string;
+  admissionNumber: string;
+  studentName: string;
+  guardianPhone: string | null;
+  guardianEmail: string | null;
+  classroomId: string | null;
+  classroomName: string;
+  feeQuota: string;
+  overdueInvoicesCount: number;
+  oldestDueDate: string;
+  maxDaysOverdue: number;
+  arrearsAmount: number;
+  currentDueAmount: number;
+  totalOutstanding: number;
+  advanceCredit: number;
+  lastPaymentDate: string | null;
+}
+
+export interface FeePaymentReversal {
+  id: string;
+  paymentId: string;
+  reversalReceiptNumber: string;
+  reversedAmount: number;
+  bouncePenaltyAmount: number;
+  reason: string;
+  authorizedById: string;
+  createdAt: string;
+  payment?: FeePayment;
+  authorizedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+}
+
+export interface FeeRefund {
+  id: string;
+  refundVoucherNumber: string;
+  studentId: string;
+  paymentId: string | null;
+  refundType: 'ADMISSION_CANCEL' | 'SECURITY_DEPOSIT' | 'EXCESS_PAYMENT' | 'SCHOLARSHIP_RETRO' | 'OTHER';
+  amount: number;
+  status: 'REQUESTED' | 'APPROVED' | 'PAID' | 'REJECTED';
+  paymentMode: 'CASH' | 'CHEQUE' | 'BANK_TRANSFER' | 'UPI';
+  transactionReference: string | null;
+  reason: string;
+  requestedById: string;
+  approvedById: string | null;
+  disbursedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  student?: {
+    id: string;
+    admissionNumber: string;
+    account?: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone: string;
+    };
+  };
+  requestedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+  approvedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+}
 
 export interface FeeReminderSettings {
   enabled: boolean;
   daysBeforeDue: number[];
   remindBeforeExam: boolean;
   maxRemindersPerDay: number;
+  defaultAdministrativeNote?: string | null;
 }
 
 export interface EligibleReminderStudent {

@@ -2,6 +2,7 @@ import { useSearchParams } from "react-router-dom";
 import { usePermissions, useAuth } from "@/store/hooks";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ScrollableTabsList } from "@/components/common/ScrollableTabsList";
 import MyLeavesPage from "@/pages/dashboard/leaves/MyLeavesPage";
 import LeaveApprovalsPage from "@/pages/dashboard/leaves/LeaveApprovalsPage";
 import { LeaveRulesTab } from "@/components/leaves/LeaveRulesTab";
@@ -85,22 +86,24 @@ export default function TeacherLeavesHubPage() {
                 className="w-full space-y-6"
             >
                 {allowedTabs.length > 1 && (
-                    <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                        <TabsList className="h-11 bg-muted/60 p-1 rounded-xl">
-                            {allowedTabs.map((tab) => {
-                                const Icon = tab.icon;
-                                return (
-                                    <TabsTrigger
-                                        key={tab.id}
-                                        value={tab.id}
-                                        className="rounded-lg text-xs font-semibold data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-xs px-3.5 py-1.5 flex items-center gap-2"
-                                    >
-                                        <Icon className="h-3.5 w-3.5 text-primary" />
-                                        {tab.label}
-                                    </TabsTrigger>
-                                );
-                            })}
-                        </TabsList>
+                    <div className="border-b border-border/60 pb-3">
+                        <ScrollableTabsList>
+                            <TabsList className="inline-flex w-max justify-start flex-nowrap whitespace-nowrap bg-muted/50 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl h-auto border border-border/80 gap-1 sm:gap-1.5 shadow-2xs">
+                                {allowedTabs.map((tab) => {
+                                    const Icon = tab.icon;
+                                    return (
+                                        <TabsTrigger
+                                            key={tab.id}
+                                            value={tab.id}
+                                            className="rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold px-3.5 py-1.5 sm:py-2 flex items-center gap-1.5 sm:gap-2 shrink-0"
+                                        >
+                                            <Icon className="h-4 w-4 text-primary" />
+                                            {tab.label}
+                                        </TabsTrigger>
+                                    );
+                                })}
+                            </TabsList>
+                        </ScrollableTabsList>
                     </div>
                 )}
 
