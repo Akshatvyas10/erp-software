@@ -398,6 +398,10 @@ function App() {
                                 </PermissionRoute>
                             }
                         />
+                        <Route
+                            path="/fees/management"
+                            element={<Navigate to="/dashboard/fees" replace />}
+                        />
                     </Route>
 
                     {/* Student & Parent Portal Layout Group */}

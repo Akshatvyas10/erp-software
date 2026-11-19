@@ -6,6 +6,7 @@ import { logout as logoutAction } from "./slices/authSlice";
 import { clearPermissions, permissionInitialState } from "./slices/permissionSlice";
 import type { PermissionState, PermissionMap } from "./slices/permissionSlice";
 import api from "@/lib/api";
+import { buildLoginUrlWithReturn } from "@/lib/authRedirect";
 
 export const useAppDispatch = () => useDispatch<AppDispatch>();
 export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
@@ -21,7 +22,15 @@ export const useAuth = () => {
     const user = useAppSelector((s) => s.auth?.user ?? null);
     const isAuthenticated = !!token;
 
-    const logout = useCallback(async () => {
+    const logout = useCallback(async (customReturnUrl?: string): Promise<string> => {
+        // Capture current protected page URL (including search query) if not explicitly provided
+        let targetPath = customReturnUrl;
+        if (!targetPath && typeof window !== "undefined" && window.location) {
+            targetPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        }
+
+        const loginUrlWithReturn = buildLoginUrlWithReturn(targetPath);
+
         try {
             if (token) await api.post("/auth/logout");
         } catch { /* still clear */ }
@@ -29,6 +38,8 @@ export const useAuth = () => {
             dispatch(logoutAction());
             dispatch(clearPermissions());
         }
+
+        return loginUrlWithReturn;
     }, [dispatch, token]);
 
     return { user, token, isAuthenticated, logout };

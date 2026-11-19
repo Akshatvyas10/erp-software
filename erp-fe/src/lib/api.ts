@@ -2,6 +2,7 @@ import axios from "axios";
 import { store } from "@/store";
 import { updateToken, logout } from "@/store/slices/authSlice";
 import { clearPermissions } from "@/store/slices/permissionSlice";
+import { buildLoginUrlWithReturn } from "@/lib/authRedirect";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
@@ -67,6 +68,13 @@ api.interceptors.response.use(
                 return api(orig);
             } catch (refreshError) {
                 flushQueue(refreshError, null);
+
+                // Preserve current protected path on session expiration before clearing credentials
+                if (typeof window !== "undefined" && window.location) {
+                    const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+                    buildLoginUrlWithReturn(currentPath);
+                }
+
                 store.dispatch(logout());
                 store.dispatch(clearPermissions());
                 return Promise.reject(refreshError);

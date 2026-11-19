@@ -78,8 +78,9 @@ export default function Sidebar({ mobileOpen, onMobileClose, isCollapsed }: Side
     const roleName = userRec?.Roles?.[0]?.name?.replace(/_/g, " ") || "No Role";
     const fullName = `${String(userRec?.firstName || "")} ${String(userRec?.lastName || "")}`;
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        const loginUrl = await logout();
+        navigate(loginUrl);
     };
 
     return (

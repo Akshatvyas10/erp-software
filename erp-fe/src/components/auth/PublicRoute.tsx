@@ -1,9 +1,11 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useSearchParams } from "react-router-dom";
 import { useAppSelector } from "@/store/hooks";
 import { Loader2 } from "lucide-react";
+import { resolvePostLoginDestination } from "@/lib/authRedirect";
 
 export default function PublicRoute() {
-  const { token, isInitializing } = useAppSelector((state) => state.auth);
+  const { token, user, isInitializing } = useAppSelector((state) => state.auth);
+  const [searchParams] = useSearchParams();
 
   if (isInitializing) {
     return (
@@ -13,9 +15,10 @@ export default function PublicRoute() {
     );
   }
 
-  // If user is already logged in, prevent them from accessing public routes (like login)
+  // If user is already logged in, redirect them to their intended previous page or default dashboard
   if (token) {
-    return <Navigate to="/dashboard" replace />;
+    const destination = resolvePostLoginDestination(user, searchParams);
+    return <Navigate to={destination} replace />;
   }
 
   // Otherwise, render the public route

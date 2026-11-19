@@ -35,14 +35,17 @@ export default function HomeworkPage() {
             if (statusFilter) params.append("status", statusFilter);
             if (subjectFilter) params.append("subjectId", subjectFilter);
             const res = await api.get(`/homeworks?${params.toString()}`);
-            return res.data;
+            const rawData = res.data?.data?.homeworks ?? res.data?.data ?? res.data?.homeworks ?? res.data;
+            return Array.isArray(rawData) ? rawData : [];
         },
         enabled: can("homework", "read")
     });
 
-    const filteredHomeworks = homeworks.filter(h =>
+    const safeHomeworks = Array.isArray(homeworks) ? homeworks : [];
+
+    const filteredHomeworks = safeHomeworks.filter(h =>
         h.title.toLowerCase().includes(search.toLowerCase()) ||
-        h.subject?.name.toLowerCase().includes(search.toLowerCase())
+        h.subject?.name?.toLowerCase().includes(search.toLowerCase())
     );
 
     const getStatusColor = (status: string) => {

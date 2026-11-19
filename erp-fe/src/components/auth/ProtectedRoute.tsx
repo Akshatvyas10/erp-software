@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAppSelector } from "@/store/hooks";
 import { Loader2 } from "lucide-react";
+import { buildLoginUrlWithReturn } from "@/lib/authRedirect";
 
 export default function ProtectedRoute() {
   const { token, isInitializing } = useAppSelector((state) => state.auth);
@@ -20,9 +21,11 @@ export default function ProtectedRoute() {
     );
   }
 
-  // If there's no token after initialization, redirect to login and preserve intended destination
+  // If there's no token after initialization, redirect to login with encrypted return URL in query param
   if (!token) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    const fullPath = `${location.pathname}${location.search}${location.hash}`;
+    const loginUrl = buildLoginUrlWithReturn(fullPath);
+    return <Navigate to={loginUrl} state={{ from: location }} replace />;
   }
 
   // If token exists, render child routes

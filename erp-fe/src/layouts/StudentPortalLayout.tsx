@@ -44,8 +44,8 @@ export default function StudentPortalLayout() {
         .slice(0, 2) || "ST";
 
     const handleLogout = async () => {
-        await logout();
-        navigate("/login");
+        const loginUrl = await logout();
+        navigate(loginUrl);
     };
 
     return (

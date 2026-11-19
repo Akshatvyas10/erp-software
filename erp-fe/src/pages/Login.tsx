@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { toast } from "sonner";
 
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { Eye, EyeOff, User, Lock, Loader2, ArrowRight } from "lucide-react";
 import api from "@/lib/api";
 import { useAppDispatch } from "@/store/hooks";
 import { loginSuccess } from "@/store/slices/authSlice";
+import { resolvePostLoginDestination } from "@/lib/authRedirect";
 
 const loginSchema = z.object({
   userId: z.string().min(1, "User ID or Email is required"),
@@ -30,6 +31,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 export default function Login() {
   const [showPw, setShowPw] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
 
   const form = useForm<LoginFormValues>({
@@ -46,22 +48,18 @@ export default function Login() {
       });
 
       // ── Store ONLY token + safe user — no permissions in Redux from login ──
+      toast.success(`Welcome back, ${data.data.user.firstName}!`);
+
+      // Determine landing route using safe encrypted return URL in searchParams or role-based default
+      const destination = resolvePostLoginDestination(data.data.user, searchParams);
+
+      // Dispatch loginSuccess after resolving destination
       dispatch(loginSuccess({
         token: data.data.accessToken,
         user: data.data.user,
       }));
 
-      toast.success(`Welcome back, ${data.data.user.firstName}!`);
-
-      // Determine landing route by role (Students/Parents go directly to /portal)
-      const userRoles = (data.data.user.Roles || []).map((r: any) => String(r?.name || r).toLowerCase());
-      const isStudentOnly = userRoles.includes("student") && !userRoles.some((r: string) => ["admin", "super_admin", "teacher", "principal"].includes(r));
-
-      if (isStudentOnly) {
-        navigate("/portal");
-      } else {
-        navigate("/dashboard");
-      }
+      navigate(destination, { replace: true });
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message

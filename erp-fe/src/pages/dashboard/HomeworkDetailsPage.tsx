@@ -46,14 +46,17 @@ export default function HomeworkDetailsPage() {
         }
     });
 
-    const { data: submissions = [] } = useQuery<HomeworkSubmission[]>({
+    const { data: rawSubmissions = [] } = useQuery<HomeworkSubmission[]>({
         queryKey: ["homework-submissions", id],
         queryFn: async () => {
             const res = await api.get(`/homeworks/${id}/submissions`);
-            return res.data;
+            const raw = res.data?.data?.submissions ?? res.data?.data ?? res.data?.submissions ?? res.data;
+            return Array.isArray(raw) ? raw : [];
         },
         enabled: !!details && canManageHomework
     });
+
+    const submissions = Array.isArray(rawSubmissions) ? rawSubmissions : [];
 
     const studentSubmitMutation = useMutation({
         mutationFn: async (submissionId: string) => {
