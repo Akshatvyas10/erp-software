@@ -66,11 +66,37 @@ const FeePayment = sequelize.define('FeePayment', {
     status: {
         type: DataTypes.STRING(20),
         defaultValue: 'SUCCESS',
-        validate: { isIn: [['SUCCESS', 'BOUNCED', 'REVERSED']] },
+        validate: { isIn: [['SUCCESS', 'BOUNCED', 'REVERSED', 'CANCELLED']] },
+    },
+    isBelowMinimum: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        field: 'is_below_minimum',
+    },
+    belowMinimumReasonCode: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        field: 'below_minimum_reason_code',
+    },
+    belowMinimumReasonText: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        field: 'below_minimum_reason_text',
+    },
+    advanceCreditAmount: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 0.00,
+        field: 'advance_credit_amount',
     },
     notes: {
         type: DataTypes.TEXT,
         allowNull: true,
+    },
+    paymentDetails: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+        defaultValue: {},
+        field: 'payment_details',
     },
 }, {
     tableName: 'fee_payments',

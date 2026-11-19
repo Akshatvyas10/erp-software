@@ -4,6 +4,7 @@ import authenticate from '../middlewares/authenticate.js';
 import { requirePermission } from '../middlewares/authorize.js';
 import validateZod from '../middlewares/zodValidator.js';
 import {
+    bulkClassInvoicePreviewSchema,
     bulkClassInvoiceSchema,
     collectPaymentSchema,
     feeHeadSchema,
@@ -11,6 +12,8 @@ import {
     feeStructureSchema,
     feeStructureUpdateSchema,
     singleInvoiceSchema,
+    bulkFeeReminderSchema,
+    feeReminderSettingsSchema,
 } from '../schemas/fee.schema.js';
 
 const router = express.Router();
@@ -99,6 +102,13 @@ router.post(
 );
 
 router.post(
+    '/invoices/bulk-preview',
+    requirePermission('fees', 'read'),
+    validateZod({ body: bulkClassInvoicePreviewSchema }),
+    feeController.previewBulkClassInvoices
+);
+
+router.post(
     '/invoices/bulk-class',
     requirePermission('fees', 'create'),
     validateZod({ body: bulkClassInvoiceSchema }),
@@ -124,6 +134,45 @@ router.get(
     '/ledger/:studentId',
     requirePermission('fees', 'read'),
     feeController.getStudentFeeLedger
+);
+
+// ─── Fee Reminders Workflow ───────────────────────────────────────────────────
+router.get(
+    '/reminders/eligible',
+    requirePermission('fees', 'read'),
+    feeController.getEligibleReminderStudents
+);
+
+router.post(
+    '/reminders/bulk-send',
+    requirePermission('fees', 'collect'),
+    validateZod({ body: bulkFeeReminderSchema }),
+    feeController.sendBulkFeeReminders
+);
+
+router.get(
+    '/reminders/logs',
+    requirePermission('fees', 'read'),
+    feeController.getFeeReminderLogs
+);
+
+router.get(
+    '/reminder-settings',
+    requirePermission('fees', 'read'),
+    feeController.getFeeReminderSettings
+);
+
+router.put(
+    '/reminder-settings',
+    requirePermission('fees', 'collect'),
+    validateZod({ body: feeReminderSettingsSchema }),
+    feeController.updateFeeReminderSettings
+);
+
+router.post(
+    '/reminders/trigger-scheduled',
+    requirePermission('fees', 'collect'),
+    feeController.triggerScheduledReminders
 );
 
 export default router;

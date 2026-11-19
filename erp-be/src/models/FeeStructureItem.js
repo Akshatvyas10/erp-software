@@ -29,14 +29,26 @@ const FeeStructureItem = sequelize.define('FeeStructureItem', {
         defaultValue: 0.00,
         validate: { min: 0 },
     },
+    frequency: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        defaultValue: 'MONTHLY',
+    },
+    isEnabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+        field: 'is_enabled',
+    },
 }, {
     tableName: 'fee_structure_items',
     timestamps: true,
     indexes: [
         {
             unique: true,
-            fields: ['fee_structure_id', 'fee_head_id'],
-            name: 'unique_structure_head',
+            fields: ['fee_structure_id', 'fee_head_id', 'frequency'],
+            name: 'unique_structure_head_frequency',
+            where: { deleted_at: null },
         },
     ],
 });

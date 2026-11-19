@@ -117,6 +117,11 @@ const Student = sequelize.define(
             allowNull: false,
             defaultValue: 'REGULAR',
         },
+        feeAdvanceCredit: {
+            type: DataTypes.DECIMAL(10, 2),
+            defaultValue: 0.00,
+            field: 'fee_advance_credit',
+        },
         previousSchoolDetails: {
             type: DataTypes.TEXT,
             allowNull: true,

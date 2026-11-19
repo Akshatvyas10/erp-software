@@ -40,6 +40,9 @@ export const queryKeys = {
     invoiceDetail: (id: string) => ['fees', 'invoices', id] as const,
     receiptDetail: (id: string) => ['fees', 'receipts', id] as const,
     studentLedger: (studentId: string) => ['fees', 'ledger', studentId] as const,
+    remindersEligible: (params?: Record<string, unknown>) => ['fees', 'reminders', 'eligible', params] as const,
+    reminderLogs: (params?: Record<string, unknown>) => ['fees', 'reminders', 'logs', params] as const,
+    reminderSettings: () => ['fees', 'reminders', 'settings'] as const,
   },
 } as const;
 

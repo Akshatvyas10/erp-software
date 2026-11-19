@@ -42,6 +42,11 @@ const StudentInvoice = sequelize.define('StudentInvoice', {
         references: { model: 'fee_structures', key: 'id' },
         onDelete: 'SET NULL',
     },
+    periodKey: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        field: 'period_key',
+    },
     title: {
         type: DataTypes.STRING(120),
         allowNull: false,

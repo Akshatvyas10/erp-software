@@ -48,9 +48,11 @@ import IssuedDocument from './IssuedDocument.js';
 import FeeHead from './FeeHead.js';
 import FeeStructure from './FeeStructure.js';
 import FeeStructureItem from './FeeStructureItem.js';
+import FeeStructureDiscount from './FeeStructureDiscount.js';
 import StudentInvoice from './StudentInvoice.js';
 import StudentInvoiceItem from './StudentInvoiceItem.js';
 import FeePayment from './FeePayment.js';
+import FeeReminderLog from './FeeReminderLog.js';
 
 const PermissionAuditLog = PermissionAuditLogInit(sequelize);
 
@@ -359,6 +361,9 @@ FeeStructureItem.belongsTo(FeeStructure, { foreignKey: 'feeStructureId', as: 'st
 FeeStructureItem.belongsTo(FeeHead, { foreignKey: 'feeHeadId', as: 'feeHead' });
 FeeHead.hasMany(FeeStructureItem, { foreignKey: 'feeHeadId', as: 'structureItems' });
 
+FeeStructure.hasMany(FeeStructureDiscount, { foreignKey: 'feeStructureId', as: 'discounts', onDelete: 'CASCADE' });
+FeeStructureDiscount.belongsTo(FeeStructure, { foreignKey: 'feeStructureId', as: 'structure' });
+
 StudentInvoice.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
 Student.hasMany(StudentInvoice, { foreignKey: 'studentId', as: 'invoices' });
 
@@ -377,6 +382,11 @@ StudentInvoice.hasMany(FeePayment, { foreignKey: 'studentInvoiceId', as: 'paymen
 FeePayment.belongsTo(StudentInvoice, { foreignKey: 'studentInvoiceId', as: 'invoice' });
 FeePayment.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
 FeePayment.belongsTo(User, { foreignKey: 'collectedById', as: 'collectedBy' });
+
+FeeReminderLog.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
+Student.hasMany(FeeReminderLog, { foreignKey: 'studentId', as: 'feeReminders' });
+FeeReminderLog.belongsTo(Classroom, { foreignKey: 'classroomId', as: 'classroom' });
+FeeReminderLog.belongsTo(User, { foreignKey: 'sentById', as: 'sentBy' });
 
 const db = {
     sequelize,
@@ -427,9 +437,11 @@ const db = {
     FeeHead,
     FeeStructure,
     FeeStructureItem,
+    FeeStructureDiscount,
     StudentInvoice,
     StudentInvoiceItem,
-    FeePayment
+    FeePayment,
+    FeeReminderLog
 };
 
 export default db;
@@ -482,7 +494,9 @@ export {
     FeeHead,
     FeeStructure,
     FeeStructureItem,
+    FeeStructureDiscount,
     StudentInvoice,
     StudentInvoiceItem,
-    FeePayment
+    FeePayment,
+    FeeReminderLog
 };

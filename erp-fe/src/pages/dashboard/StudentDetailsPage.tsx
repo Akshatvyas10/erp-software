@@ -25,6 +25,7 @@ import type { Student, StudentStatus, TransportMode, FeeQuota, StudentAcademicHi
 import { SectionCard, DetailRow } from "@/components/shared/DetailCards";
 import { ProfilePageSkeleton } from "@/components/common/skeletons/ProfilePageSkeleton";
 import { useNavigate, useParams } from "react-router-dom";
+import StudentFeeSummarySection from "@/features/fees/components/StudentFeeSummarySection";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/api$/, "") ?? "http://localhost:5000";
@@ -1032,6 +1033,22 @@ export default function StudentDetailsPage() {
                     <h2 className="text-lg font-bold text-foreground tracking-tight">Daily Attendance</h2>
                 </div>
                 <StudentAttendanceCard studentId={id as string} />
+            </Card>
+
+            {/* ── 7. Fees, Invoices & Financial Dues ───────────────────────── */}
+            <Card className="border border-border/60 rounded-2xl overflow-hidden shadow-sm bg-card">
+                <div className="px-6 py-4 border-b border-border/60 bg-muted/10 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+                            <BadgeDollarSign className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-foreground tracking-tight">Fees & Financial Ledger</h2>
+                            <p className="text-xs text-muted-foreground">Invoices, collection history, and outstanding student balance</p>
+                        </div>
+                    </div>
+                </div>
+                <StudentFeeSummarySection studentId={id as string} />
             </Card>
 
             {/* ── Edit dialog ─────────────────────────────────────────────── */}

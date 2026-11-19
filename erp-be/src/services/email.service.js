@@ -111,6 +111,7 @@ export const emailProcessors = {
     ACCOUNT_ACTIVATED: async (p) => sendAccountActivatedDirect(p.email, p.userName),
     PERMISSION_UPDATED: async (p) => sendPermissionUpdatedDirect(p.email, p.userName, p.assignedRoles),
     SYSTEM_NOTIFICATION: async (p) => sendSystemNotificationDirect(p.email, p.userName, p.title, p.bodyText, p.actionUrl),
+    FEE_REMINDER: async (p) => sendFeeReminderDirect(p),
     RAW_EMAIL: async (p) => sendRawEmailDirect(p.to, p.subject, p.html, p.text),
 };
 
@@ -901,7 +902,85 @@ export const sendTeacherLeaveDecidedDirect = async ({ teacherEmail, teacherName,
 };
 
 /**
- * 15. Generic Raw Email Dispatcher
+ * 15. Fee Due / Installment Reminder Dispatcher
+ */
+export const sendFeeReminderDirect = async ({
+    recipientEmail,
+    studentName,
+    admissionNumber,
+    classroomName,
+    periodKey,
+    dueDate,
+    installmentDue,
+    arrears,
+    advanceCredit,
+    payableAmount,
+    schoolNameOverride,
+}) => {
+    if (!recipientEmail) return;
+    const ctx = await getSchoolContext();
+    const effectiveSchoolName = schoolNameOverride || ctx.schoolName;
+    const headerColor = '#2563EB'; // Primary indigo/blue
+    const subject = `Fee Payment Reminder: ${studentName} - Due ₹${Number(payableAmount).toLocaleString('en-IN')}`;
+
+    const formattedInstallment = Number(installmentDue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    const formattedArrears = Number(arrears || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    const formattedAdvance = Number(advanceCredit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    const formattedPayable = Number(payableAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    const formattedDueDate = dueDate ? new Date(dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Immediate';
+
+    const contentHtml = `
+      <h2 style="margin: 0 0 14px 0; color: #0F172A; font-size: 20px; font-weight: 700;">
+        Fee Installment & Arrears Statement
+      </h2>
+      <p style="margin: 0 0 16px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Dear Parent / Guardian of <strong>${studentName}</strong> (Adm No: <strong>${admissionNumber || 'N/A'}</strong>, Class: <strong>${classroomName || 'N/A'}</strong>),
+      </p>
+      <p style="margin: 0 0 20px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        This is a friendly notification regarding the upcoming school fee cycle <strong>${periodKey ? `(${periodKey})` : ''}</strong>. 
+        Please find the itemized balance breakdown below:
+      </p>
+
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; margin-bottom: 24px; border-collapse: separate;">
+        <tr>
+          <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; color: #64748B; font-size: 14px;">Current Installment Due:</td>
+          <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; color: #0F172A; font-size: 14px; font-weight: 600; text-align: right;">₹${formattedInstallment}</td>
+        </tr>
+        ${Number(arrears) > 0 ? `
+        <tr>
+          <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; color: #DC2626; font-size: 14px; font-weight: 600;">Previous Arrears / Unpaid Balance:</td>
+          <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; color: #DC2626; font-size: 14px; font-weight: 700; text-align: right;">₹${formattedArrears}</td>
+        </tr>
+        ` : ''}
+        ${Number(advanceCredit) > 0 ? `
+        <tr>
+          <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; color: #059669; font-size: 14px;">Advance Credit Adjusted:</td>
+          <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; color: #059669; font-size: 14px; font-weight: 600; text-align: right;">-₹${formattedAdvance}</td>
+        </tr>
+        ` : ''}
+        <tr style="background-color: #EEF2F6;">
+          <td style="padding: 14px 16px; color: #0F172A; font-size: 15px; font-weight: 800;">Total Payable Amount:</td>
+          <td style="padding: 14px 16px; color: #2563EB; font-size: 18px; font-weight: 800; text-align: right;">₹${formattedPayable}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 16px; color: #64748B; font-size: 13px;">Due Date:</td>
+          <td style="padding: 10px 16px; color: #0F172A; font-size: 13px; font-weight: 600; text-align: right;">${formattedDueDate}</td>
+        </tr>
+      </table>
+
+      <div style="background-color: #EFF6FF; border-left: 4px solid #3B82F6; padding: 14px 16px; border-radius: 4px; margin-bottom: 24px;">
+        <p style="margin: 0; color: #1E40AF; font-size: 13px; line-height: 1.5;">
+          <strong>Payment Note:</strong> You may pay fees online through the student portal, via UPI, net banking, or at the school fee counter during working hours. If you have already deposited this payment in the last 24 hours, kindly disregard this notice.
+        </p>
+      </div>
+    `;
+
+    const html = getEmailWrapper(effectiveSchoolName, headerColor, contentHtml, ctx);
+    return sendEmail(recipientEmail, subject, html);
+};
+
+/**
+ * 16. Generic Raw Email Dispatcher
  */
 export const sendRawEmailDirect = async (to, subject, html, text = '') => {
     return sendEmail(to, subject, html);

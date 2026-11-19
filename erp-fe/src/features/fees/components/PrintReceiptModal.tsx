@@ -12,6 +12,7 @@ import feeApi from '../api/feeApi';
 import queryKeys from '@/lib/queryKeys';
 import { Printer, CheckCircle2 } from 'lucide-react';
 import type { StudentInvoiceItem } from '../api/feeApi';
+import { formatMoney, toMoney } from '../utils/moneyUtils';
 
 interface PrintReceiptModalProps {
   receiptId: string | null;
@@ -40,6 +41,9 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
 
   const invoice = receipt?.invoice;
   const student = invoice?.student;
+  const paidAmount = toMoney(receipt?.amountPaid ?? receipt?.amount);
+  const totalBilled = toMoney(invoice?.totalAmount);
+  const balanceRemaining = toMoney(invoice?.balanceAmount);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -81,17 +85,42 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
                 <div>
                   <p className="text-slate-500">Student Name:</p>
                   <p className="font-bold text-slate-800">
-                    {student?.user ? `${student.user.firstName} ${student.user.lastName}` : 'Student'}
+                    {student?.user
+                      ? `${student.user.firstName} ${student.user.lastName}`
+                      : student?.account
+                      ? `${student.account.firstName} ${student.account.lastName}`
+                      : 'Student'}
                   </p>
-                  <p className="text-slate-500 mt-1">Admission No: <span className="font-medium text-slate-700">{student?.admissionNumber}</span></p>
+                  <p className="text-slate-500 mt-1">Admission No: <span className="font-medium text-slate-700">{student?.admissionNumber || '—'}</span></p>
                   <p className="text-slate-500">Class: <span className="font-medium text-slate-700">{invoice?.classroom?.name || '—'}</span></p>
                 </div>
                 <div>
-                  <p className="text-slate-500">Invoice Number: <span className="font-mono font-medium text-slate-700">{invoice?.invoiceNumber}</span></p>
+                  <p className="text-slate-500">Invoice Number: <span className="font-mono font-medium text-slate-700">{invoice?.invoiceNumber || '—'}</span></p>
                   <p className="text-slate-500">Payment Mode: <span className="font-semibold text-slate-800">{receipt.paymentMode}</span></p>
-                  {receipt.transactionReference && (
-                    <p className="text-slate-500">Ref / Txn ID: <span className="font-mono text-slate-700">{receipt.transactionReference}</span></p>
+                  
+                  {/* Mode-specific receipt details */}
+                  {receipt.paymentDetails?.upiId && (
+                    <p className="text-slate-500">UPI ID: <span className="font-mono text-slate-700">{receipt.paymentDetails.upiId}</span></p>
                   )}
+                  {(receipt.referenceNumber || receipt.transactionReference || receipt.paymentDetails?.transactionReference) && (
+                    <p className="text-slate-500">Ref / UTR / Txn ID: <span className="font-mono text-slate-700">{receipt.referenceNumber || receipt.transactionReference || receipt.paymentDetails?.transactionReference}</span></p>
+                  )}
+                  {(receipt.chequeNumber || receipt.paymentDetails?.chequeNumber) && (
+                    <p className="text-slate-500">Cheque/DD No: <span className="font-mono text-slate-700">{receipt.chequeNumber || receipt.paymentDetails?.chequeNumber}</span></p>
+                  )}
+                  {(receipt.bankName || receipt.paymentDetails?.chequeBank || receipt.paymentDetails?.bankName) && (
+                    <p className="text-slate-500">Bank: <span className="text-slate-700">{receipt.bankName || receipt.paymentDetails?.chequeBank || receipt.paymentDetails?.bankName}</span></p>
+                  )}
+                  {(receipt.chequeDate || receipt.paymentDetails?.chequeDate) && (
+                    <p className="text-slate-500">Cheque Date: <span className="text-slate-700">{receipt.chequeDate || receipt.paymentDetails?.chequeDate}</span></p>
+                  )}
+                  {receipt.paymentDetails?.cardLast4 && (
+                    <p className="text-slate-500">Card: <span className="font-mono text-slate-700">•••• {receipt.paymentDetails.cardLast4}</span></p>
+                  )}
+                  {receipt.paymentDetails?.payerName && (
+                    <p className="text-slate-500">Payer Name: <span className="text-slate-700">{receipt.paymentDetails.payerName}</span></p>
+                  )}
+                  
                   <p className="text-slate-500 mt-1">Cashier / Staff: <span className="text-slate-700">{receipt.collectedBy?.firstName} {receipt.collectedBy?.lastName}</span></p>
                 </div>
               </div>
@@ -105,23 +134,34 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {invoice?.items?.map((it: StudentInvoiceItem, idx: number) => (
-                    <tr key={idx} className="border-b">
-                      <td className="p-2">{it.title}</td>
-                      <td className="p-2 text-right">₹{Number(it.netAmount).toLocaleString('en-IN')}</td>
+                  {(invoice?.items && invoice.items.length > 0) ? (
+                    invoice.items.map((it: StudentInvoiceItem, idx: number) => {
+                      const itemName = it.headName || it.title || it.feeHead?.name || 'Fee Item';
+                      const itemAmount = toMoney(it.amount ?? it.netAmount);
+                      return (
+                        <tr key={idx} className="border-b">
+                          <td className="p-2">{itemName}</td>
+                          <td className="p-2 text-right">{formatMoney(itemAmount)}</td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr className="border-b">
+                      <td className="p-2">{invoice?.title || 'Consolidated Tuition & School Fees'}</td>
+                      <td className="p-2 text-right">{formatMoney(totalBilled)}</td>
                     </tr>
-                  ))}
+                  )}
                   <tr className="bg-slate-50 font-semibold">
                     <td className="p-2 text-right">Invoice Total Billed:</td>
-                    <td className="p-2 text-right">₹{Number(invoice?.totalAmount).toLocaleString('en-IN')}</td>
+                    <td className="p-2 text-right">{formatMoney(totalBilled)}</td>
                   </tr>
                   <tr className="bg-emerald-50 text-emerald-800 font-bold text-sm">
                     <td className="p-2 text-right">Amount Received:</td>
-                    <td className="p-2 text-right">₹{Number(receipt.amount).toLocaleString('en-IN')}</td>
+                    <td className="p-2 text-right">{formatMoney(paidAmount)}</td>
                   </tr>
                   <tr className="bg-amber-50 text-amber-800 font-medium">
                     <td className="p-2 text-right">Remaining Balance:</td>
-                    <td className="p-2 text-right">₹{Number(invoice?.balanceAmount).toLocaleString('en-IN')}</td>
+                    <td className="p-2 text-right">{formatMoney(balanceRemaining)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -138,11 +178,11 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
               </div>
             </div>
 
-            <DialogFooter className="mt-4">
-              <Button variant="outline" onClick={onClose}>
+            <DialogFooter className="mt-4 pt-3 border-t border-border flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={onClose} className="rounded-xl text-xs font-semibold">
                 Close
               </Button>
-              <Button className="bg-slate-900 hover:bg-slate-800 text-white gap-1" onClick={handlePrint}>
+              <Button size="sm" className="rounded-xl text-xs font-bold gap-1 shadow-xs" onClick={handlePrint}>
                 <Printer className="w-4 h-4" /> Print Receipt
               </Button>
             </DialogFooter>

@@ -23,6 +23,7 @@ export const EmailJobTypeEnum = z.enum([
     'ACCOUNT_ACTIVATED',
     'PERMISSION_UPDATED',
     'SYSTEM_NOTIFICATION',
+    'FEE_REMINDER',
     'RAW_EMAIL'
 ]);
 

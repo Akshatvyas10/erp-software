@@ -19,55 +19,99 @@ export interface FeeStructureItem {
   feeStructureId?: string;
   feeHeadId: string;
   amount: number;
-  isMandatory: boolean;
-  notes?: string | null;
+  frequency?: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'TERM' | 'ONE_TIME';
+  isEnabled?: boolean;
   feeHead?: FeeHead;
+}
+
+export interface FeeStructureDiscount {
+  id?: string;
+  feeStructureId?: string;
+  quota: 'GENERAL' | 'STAFF_CHILD' | 'SCHOLARSHIP_HALF' | 'SCHOLARSHIP_FULL' | 'SIBLING_DISCOUNT' | 'RTE' | 'OTHER';
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discountValue: number;
+  scope: 'ALL_HEADS' | 'SPECIFIC_HEADS';
+  applicableFeeHeadIds?: string[];
 }
 
 export interface FeeStructure {
   id: string;
   name: string;
   academicYearId: string;
+  academicClassId?: string;
   classroomId?: string | null;
-  quota: 'GENERAL' | 'STAFF_CHILD' | 'SCHOLARSHIP' | 'SIBLING_DISCOUNT' | 'RTE' | 'OTHER';
-  frequency: 'MONTHLY' | 'QUARTERLY' | 'TERMLY' | 'HALF_YEARLY' | 'ANNUALLY' | 'ONE_TIME';
-  totalAmount: number;
-  dueDayOfMonth: number;
-  lateFineAmount: number;
-  lateFineGraceDays: number;
-  isActive: boolean;
-  academicYear?: { id: string; name: string; code: string; isCurrent: boolean };
+  activeFrequencies?: string[];
+  frequency?: string;
+  totalAmount?: number;
+  dueDayOfMonth?: number;
+  lateFinePerDay?: number;
+  lateFineAmount?: number;
+  minimumPaymentAmount?: number;
+  allowBelowMinimum?: boolean;
+  status: 'ACTIVE' | 'INACTIVE';
+  isActive?: boolean;
+  academicYear?: { id: string; name: string; isCurrent: boolean };
+  academicClass?: { id: string; name: string; code: string; orderIndex: number };
   classroom?: { id: string; name: string; grade: number; section: string };
   items?: FeeStructureItem[];
+  discounts?: FeeStructureDiscount[];
   createdAt: string;
   updatedAt: string;
 }
 
 export interface StudentInvoiceItem {
   id: string;
-  invoiceId: string;
-  feeHeadId: string;
-  title: string;
+  studentInvoiceId?: string;
+  feeHeadId?: string;
+  headName?: string;
+  title?: string;
   amount: number;
-  discountAmount: number;
-  netAmount: number;
+  discountAmount?: number;
+  netAmount?: number;
   notes?: string | null;
   feeHead?: FeeHead;
+}
+
+export interface FeePaymentDetails {
+  paymentMode?: string;
+  upiId?: string | null;
+  payerName?: string | null;
+  transactionReference?: string | null;
+  chequeNumber?: string | null;
+  chequeDate?: string | null;
+  chequeBank?: string | null;
+  chequeStatus?: string | null;
+  bankName?: string | null;
+  transferDate?: string | null;
+  cardRef?: string | null;
+  cardLast4?: string | null;
+  authCode?: string | null;
+  notes?: string | null;
+  [key: string]: unknown;
 }
 
 export interface FeePayment {
   id: string;
   receiptNumber: string;
-  invoiceId: string;
+  studentInvoiceId?: string;
+  invoiceId?: string;
   studentId: string;
-  amount: number;
-  paymentMode: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CHEQUE' | 'CARD' | 'DEMAND_DRAFT' | 'OTHER';
+  amountPaid?: number;
+  amount?: number;
+  paymentMode: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CHEQUE' | 'CARD' | 'DEMAND_DRAFT' | 'ONLINE' | 'OTHER';
   paymentDate: string;
+  status?: 'SUCCESS' | 'BOUNCED' | 'REVERSED' | 'CANCELLED';
+  isBelowMinimum?: boolean;
+  belowMinimumReasonCode?: string | null;
+  belowMinimumReasonText?: string | null;
+  advanceCreditAmount?: number;
+  referenceNumber?: string | null;
   transactionReference?: string | null;
   chequeNumber?: string | null;
   chequeDate?: string | null;
   bankName?: string | null;
   notes?: string | null;
+  paymentDetails?: FeePaymentDetails | null;
   collectedBy?: { id: string; firstName: string; lastName: string; email?: string };
   invoice?: StudentInvoice;
   createdAt: string;
@@ -97,6 +141,7 @@ export interface StudentInvoice {
     admissionNumber: string;
     rollNumber: string;
     user?: { id: string; firstName: string; lastName: string; email: string; avatar?: string };
+    account?: { id: string; firstName: string; lastName: string; email: string; avatar?: string };
   };
   classroom?: { id: string; name: string; grade: number; section: string };
   academicYear?: { id: string; name: string; code: string; isCurrent: boolean };
@@ -129,6 +174,15 @@ export interface StudentLedgerData {
     user?: { firstName: string; lastName: string; email: string; phone?: string; avatar?: string };
     classroom?: { id: string; name: string; grade: number; section: string };
   };
+  assignedStructure?: {
+    id: string;
+    name: string;
+    className?: string;
+    monthlyDues: number;
+    quarterlyDues: number;
+    annualDues: number;
+    headsCount: number;
+  } | null;
   summary: {
     totalBilled: number;
     totalPaid: number;
@@ -138,6 +192,63 @@ export interface StudentLedgerData {
   };
   invoices: StudentInvoice[];
   payments: FeePayment[];
+}
+
+export interface BulkClassInvoicePreviewStudent {
+  studentId: string;
+  name: string;
+  admissionNumber: string;
+  rollNumber: string;
+  quota: string;
+  subtotal: number;
+  discount: number;
+  netPayable: number;
+  eligible: boolean;
+  skipReason?: string | null;
+  existingInvoice?: { id: string; number: string } | null;
+  lineItems: Array<{ feeHeadId: string; headName: string; amount: number; discountAmount: number; netAmount: number }>;
+}
+
+export interface BulkClassInvoicePreviewResponse {
+  structure: {
+    id: string;
+    name: string;
+    frequency: string;
+    periodLabel: string;
+    activeFrequencies?: string[];
+    chargedHeads: Array<{ feeHeadId: string; name: string; code?: string; amount: number }>;
+    discounts?: FeeStructureDiscount[];
+  };
+  students: BulkClassInvoicePreviewStudent[];
+  summary: {
+    totalStudents: number;
+    eligibleCount: number;
+    skippedCount: number;
+    totalGross: number;
+    totalDiscount: number;
+    totalNet: number;
+  };
+}
+
+export interface BulkClassInvoicePayload {
+  classroomId: string;
+  academicYearId: string;
+  feeStructureId: string;
+  frequency: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'TERM' | 'ONE_TIME';
+  periodLabel?: string;
+  title: string;
+  description?: string;
+  dueDate: string;
+  notes?: string;
+  selectedStudentIds?: string[];
+}
+
+export interface BulkClassInvoiceResult {
+  message: string;
+  count: number;
+  skippedCount: number;
+  createdInvoices: Array<{ id: string; invoiceNumber: string; studentId: string; amount: number }>;
+  skippedStudents: Array<{ studentId?: string; reason: string }>;
 }
 
 export const feeApi = {
@@ -182,14 +293,27 @@ export const feeApi = {
   createFeeStructure: async (payload: {
     name: string;
     academicYearId: string;
+    academicClassId?: string;
     classroomId?: string | null;
     quota?: string;
     frequency?: string;
+    activeFrequencies?: string[];
     dueDayOfMonth?: number;
+    lateFinePerDay?: number;
     lateFineAmount?: number;
     lateFineGraceDays?: number;
+    minimumPaymentAmount?: number;
+    allowBelowMinimum?: boolean;
+    status?: 'ACTIVE' | 'INACTIVE';
     isActive?: boolean;
-    items: Array<{ feeHeadId: string; amount: number; isMandatory?: boolean; notes?: string }>;
+    items: Array<{ feeHeadId: string; amount: number; frequency?: string; isEnabled?: boolean; isMandatory?: boolean; notes?: string }>;
+    discounts?: Array<{
+      quota: string;
+      discountType: string;
+      discountValue: number;
+      scope: string;
+      applicableFeeHeadIds?: string[];
+    }>;
   }): Promise<FeeStructure> => {
     const res = await api.post('/fees/structures', payload);
     return res.data.data;
@@ -238,15 +362,18 @@ export const feeApi = {
     return res.data.data;
   },
 
-  generateBulkClassInvoices: async (payload: {
+  previewBulkClassInvoices: async (payload: {
     classroomId: string;
     academicYearId: string;
     feeStructureId: string;
-    title: string;
-    description?: string;
-    dueDate: string;
-    notes?: string;
-  }): Promise<{ message: string; count: number; invoiceIds: string[] }> => {
+    frequency: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'TERM' | 'ONE_TIME';
+    periodLabel?: string;
+  }): Promise<BulkClassInvoicePreviewResponse> => {
+    const res = await api.post('/fees/invoices/bulk-preview', payload);
+    return res.data.data;
+  },
+
+  generateBulkClassInvoices: async (payload: BulkClassInvoicePayload): Promise<BulkClassInvoiceResult> => {
     const res = await api.post('/fees/invoices/bulk-class', payload);
     return res.data.data;
   },
@@ -262,6 +389,19 @@ export const feeApi = {
     chequeDate?: string;
     bankName?: string;
     notes?: string;
+    upiId?: string;
+    payerName?: string;
+    cardRef?: string;
+    cardLast4?: string;
+    authCode?: string;
+    transferDate?: string;
+    chequeStatus?: string;
+    paymentDetails?: Record<string, unknown>;
+    isBelowMinimum?: boolean;
+    belowMinimumReasonCode?: string;
+    belowMinimumReasonText?: string;
+    allocationStrategy?: 'SELECTED_INVOICE' | 'FIFO_AUTO';
+    studentId?: string;
   }): Promise<FeePayment> => {
     const res = await api.post('/fees/payments/collect', payload);
     return res.data.data;
@@ -277,6 +417,148 @@ export const feeApi = {
     const res = await api.get(`/fees/ledger/${studentId}`);
     return res.data.data;
   },
+
+  // Fee Reminders Workflow
+  getEligibleReminders: async (params?: {
+    classroomId?: string;
+    periodKey?: string;
+    asOfDate?: string;
+    academicYearId?: string;
+  }): Promise<EligibleReminderStudent[]> => {
+    const res = await api.get('/fees/reminders/eligible', { params });
+    return res.data.data;
+  },
+
+  sendBulkReminders: async (payload: {
+    studentIds: string[];
+    periodKey?: string;
+    dueDate?: string;
+    customNote?: string;
+  }): Promise<{
+    totalSelected: number;
+    sentCount: number;
+    skippedCount: number;
+    failedCount: number;
+    details: Array<{
+      studentId: string;
+      studentName?: string;
+      status: 'SENT' | 'SKIPPED' | 'FAILED';
+      skipReason?: string;
+      payableAmount?: number;
+      errorMessage?: string;
+    }>;
+  }> => {
+    const res = await api.post('/fees/reminders/bulk-send', payload);
+    return res.data.data;
+  },
+
+  getReminderLogs: async (params?: {
+    studentId?: string;
+    periodKey?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    total: number;
+    items: FeeReminderLog[];
+    limit: number;
+    offset: number;
+  }> => {
+    const res = await api.get('/fees/reminders/logs', { params });
+    return res.data.data;
+  },
+
+  getReminderSettings: async (): Promise<FeeReminderSettings> => {
+    const res = await api.get('/fees/reminder-settings');
+    return res.data.data;
+  },
+
+  updateReminderSettings: async (settings: Partial<FeeReminderSettings>): Promise<FeeReminderSettings> => {
+    const res = await api.put('/fees/reminder-settings', settings);
+    return res.data.data;
+  },
+
+  triggerScheduledReminders: async (): Promise<{
+    executed: boolean;
+    reason?: string;
+    targetCount?: number;
+    sentCount?: number;
+    skippedCount?: number;
+    failedCount?: number;
+  }> => {
+    const res = await api.post('/fees/reminders/trigger-scheduled');
+    return res.data.data;
+  },
 };
+
+export interface FeeReminderSettings {
+  enabled: boolean;
+  daysBeforeDue: number[];
+  remindBeforeExam: boolean;
+  maxRemindersPerDay: number;
+}
+
+export interface EligibleReminderStudent {
+  studentId: string;
+  admissionNumber: string;
+  studentName: string;
+  parentName: string;
+  parentEmail: string | null;
+  parentPhone: string | null;
+  classroomId: string | null;
+  classroomName: string;
+  academicClassName: string;
+  feeQuota: string;
+  periodKey: string;
+  targetInvoiceId: string | null;
+  targetInvoiceNumber: string | null;
+  dueDate: string;
+  installmentDue: number;
+  arrears: number;
+  advanceCredit: number;
+  totalPayable: number;
+  totalOutstanding: number;
+  isEligible: boolean;
+  skipReason: 'CURRENT_PAID' | 'FULLY_PAID' | 'NO_DUE' | 'INACTIVE' | 'ALREADY_REMINDED_TODAY' | 'NO_EMAIL' | null;
+  lastRemindedToday: boolean;
+}
+
+export interface FeeReminderLog {
+  id: string;
+  studentId: string;
+  classroomId: string | null;
+  periodKey: string | null;
+  dueDate: string | null;
+  installmentDue: number;
+  arrears: number;
+  advanceCredit: number;
+  payableAmount: number;
+  channel: 'EMAIL' | 'SMS' | 'WHATSAPP';
+  recipientEmail: string | null;
+  status: 'QUEUED' | 'SENT' | 'SKIPPED' | 'FAILED';
+  skipReason: string | null;
+  sentById: string | null;
+  sentAt: string | null;
+  errorMessage: string | null;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  student?: {
+    id: string;
+    admissionNumber: string;
+    firstName: string;
+    lastName: string;
+    parentEmail?: string;
+    parentPhone?: string;
+  };
+  classroom?: {
+    id: string;
+    name: string;
+  };
+  sentBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
 
 export default feeApi;

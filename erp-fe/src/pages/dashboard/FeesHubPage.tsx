@@ -15,8 +15,9 @@ import StudentLedgerDrawer from '@/features/fees/components/StudentLedgerDrawer'
 import GenerateBulkInvoiceModal from '@/features/fees/components/GenerateBulkInvoiceModal';
 import FeeStructuresTab from '@/features/fees/components/FeeStructuresTab';
 import FeeHeadsTab from '@/features/fees/components/FeeHeadsTab';
+import FeeRemindersTab from '@/features/fees/components/FeeRemindersTab';
 import PrintReceiptModal from '@/features/fees/components/PrintReceiptModal';
-import { Receipt, Plus, Layers, Tag } from 'lucide-react';
+import { Receipt, Plus, Layers, Tag, BellRing } from 'lucide-react';
 
 export const FeesHubPage: React.FC = () => {
   // Query Filters
@@ -36,7 +37,15 @@ export const FeesHubPage: React.FC = () => {
     queryFn: feeApi.getSummaryStats,
   });
 
-  // 2. Classrooms & Academic Years list
+  // 2. Academic Classes, Classrooms & Academic Years list
+  const { data: academicClasses = [] } = useQuery({
+    queryKey: ['academic-classes'],
+    queryFn: async () => {
+      const res = await api.get('/classes');
+      return res.data.data?.classes || res.data.data || [];
+    },
+  });
+
   const { data: classrooms = [] } = useQuery({
     queryKey: queryKeys.classrooms.list(),
     queryFn: async () => {
@@ -97,7 +106,7 @@ export const FeesHubPage: React.FC = () => {
       >
         <Button
           size="sm"
-          className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 text-xs font-semibold shadow-xs"
+          className="rounded-xl font-bold shadow-xs gap-1.5 text-xs"
           onClick={() => setIsBulkInvoiceOpen(true)}
         >
           <Plus className="w-4 h-4" /> Issue Class Invoices
@@ -107,17 +116,32 @@ export const FeesHubPage: React.FC = () => {
       {/* KPI Stats Overview using standardized StatCards */}
       <FeeSummaryCards stats={stats} isLoading={isStatsLoading} />
 
-      {/* Main Tabs */}
-      <Tabs defaultValue="invoices" className="w-full">
-        <TabsList className="bg-muted p-1 rounded-xl border border-border/60">
-          <TabsTrigger value="invoices" className="text-xs flex items-center gap-1.5 font-medium">
-            <Receipt className="w-3.5 h-3.5" /> Invoices & Dues
+      {/* Main Tabs matching ClassroomDetails executive tabs standard */}
+      <Tabs defaultValue="invoices" className="w-full space-y-4">
+        <TabsList className="w-full justify-start overflow-x-auto flex-nowrap whitespace-nowrap scrollbar-none bg-muted/40 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl h-auto border border-border/70 gap-1 sm:gap-1.5">
+          <TabsTrigger
+            value="invoices"
+            className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs"
+          >
+            <Receipt className="h-3.5 w-3.5 text-primary" /> Invoices & Dues
           </TabsTrigger>
-          <TabsTrigger value="structures" className="text-xs flex items-center gap-1.5 font-medium">
-            <Layers className="w-3.5 h-3.5" /> Fee Structures
+          <TabsTrigger
+            value="structures"
+            className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs"
+          >
+            <Layers className="h-3.5 w-3.5 text-primary" /> Fee Structures
           </TabsTrigger>
-          <TabsTrigger value="heads" className="text-xs flex items-center gap-1.5 font-medium">
-            <Tag className="w-3.5 h-3.5" /> Fee Heads Catalog
+          <TabsTrigger
+            value="heads"
+            className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs"
+          >
+            <Tag className="h-3.5 w-3.5 text-primary" /> Fee Heads Catalog
+          </TabsTrigger>
+          <TabsTrigger
+            value="reminders"
+            className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 data-state=active:bg-background data-state=active:shadow-xs"
+          >
+            <BellRing className="h-3.5 w-3.5 text-primary" /> Fee Reminders
           </TabsTrigger>
         </TabsList>
 
@@ -176,13 +200,21 @@ export const FeesHubPage: React.FC = () => {
             structures={feeStructures}
             feeHeads={feeHeads}
             academicYears={academicYears}
-            classrooms={classrooms}
+            academicClasses={academicClasses}
           />
         </TabsContent>
 
         {/* Tab 3: Fee Heads */}
         <TabsContent value="heads" className="mt-4">
           <FeeHeadsTab feeHeads={feeHeads} />
+        </TabsContent>
+
+        {/* Tab 4: Fee Reminders Automation */}
+        <TabsContent value="reminders" className="mt-4">
+          <FeeRemindersTab
+            classrooms={classrooms}
+            onOpenLedger={(sId) => setLedgerStudentId(sId)}
+          />
         </TabsContent>
       </Tabs>
 

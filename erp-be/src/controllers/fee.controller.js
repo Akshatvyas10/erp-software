@@ -144,6 +144,15 @@ export const generateSingleInvoice = async (req, res, next) => {
     }
 };
 
+export const previewBulkClassInvoices = async (req, res, next) => {
+    try {
+        const preview = await feeService.previewBulkClassInvoices(req.body);
+        return success(res, preview, 'Bulk class invoices preview generated successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
 export const generateBulkClassInvoices = async (req, res, next) => {
     try {
         const result = await feeService.generateBulkClassInvoices(req.body, req.user.id);
@@ -207,3 +216,77 @@ export const getFeeSummaryStats = async (req, res, next) => {
         next(err);
     }
 };
+
+// ─── Fee Reminders Workflow ───────────────────────────────────────────────────
+export const getEligibleReminderStudents = async (req, res, next) => {
+    try {
+        const { classroomId, periodKey, asOfDate, academicYearId } = req.query;
+        const students = await feeService.getEligibleReminderStudents({
+            classroomId,
+            periodKey,
+            asOfDate,
+            academicYearId,
+        });
+        return success(res, students, 'Eligible fee reminder students retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const sendBulkFeeReminders = async (req, res, next) => {
+    try {
+        const { studentIds, periodKey, dueDate, customNote } = req.body;
+        const result = await feeService.sendBulkFeeReminders(
+            { studentIds, periodKey, dueDate, customNote },
+            req.user?.id
+        );
+        return success(res, result, 'Fee reminders dispatched successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const getFeeReminderLogs = async (req, res, next) => {
+    try {
+        const { studentId, periodKey, status, limit, offset } = req.query;
+        const logs = await feeService.getFeeReminderLogs({
+            studentId,
+            periodKey,
+            status,
+            limit,
+            offset,
+        });
+        return success(res, logs, 'Fee reminder logs retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const getFeeReminderSettings = async (req, res, next) => {
+    try {
+        const settings = await feeService.getFeeReminderSettings();
+        return success(res, settings, 'Fee reminder settings retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const updateFeeReminderSettings = async (req, res, next) => {
+    try {
+        const settings = await feeService.updateFeeReminderSettings(req.body);
+        return success(res, settings, 'Fee reminder settings updated successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const triggerScheduledReminders = async (req, res, next) => {
+    try {
+        const result = await feeService.runScheduledFeeReminders();
+        return success(res, result, 'Automated fee reminder run completed');
+    } catch (err) {
+        next(err);
+    }
+};
+
+

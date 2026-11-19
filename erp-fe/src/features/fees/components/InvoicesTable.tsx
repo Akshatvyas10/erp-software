@@ -1,12 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Receipt, UserCheck, Eye, IndianRupee } from 'lucide-react';
+import { Receipt, Eye, IndianRupee } from 'lucide-react';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import type { StudentInvoice } from '../api/feeApi';
@@ -40,9 +34,10 @@ export const InvoicesTable: React.FC<InvoicesTableProps> = ({
     {
       header: 'Student',
       cell: (inv) => {
-        const studentName = inv.student?.user
-          ? `${inv.student.user.firstName} ${inv.student.user.lastName}`
-          : 'Unknown Student';
+        const studentUser = inv.student?.user || inv.student?.account;
+        const studentName = studentUser
+          ? `${studentUser.firstName || ''} ${studentUser.lastName || ''}`.trim()
+          : (inv.student as any)?.name || 'Unknown Student';
         const admNo = inv.student?.admissionNumber || '—';
         return (
           <div>
@@ -107,36 +102,33 @@ export const InvoicesTable: React.FC<InvoicesTableProps> = ({
     },
     {
       header: 'Actions',
-      className: 'text-right',
+      className: 'text-right min-w-[140px]',
       cell: (inv) => {
         const balance = Number(inv.balanceAmount || 0);
         return (
-          <div className="flex items-center justify-end gap-1">
+          <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
             {balance > 0 && inv.status !== 'CANCELLED' && (
               <Button
                 size="sm"
-                className="h-7 text-xs px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 shadow-xs"
+                className="h-8 text-xs px-2.5 rounded-xl font-bold shadow-xs gap-1"
                 onClick={() => onCollectPayment(inv)}
               >
                 <IndianRupee className="w-3.5 h-3.5" />
                 Collect
               </Button>
             )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="text-xs">
-                <DropdownMenuItem onClick={() => onViewInvoiceDetails(inv)}>
-                  <Eye className="w-3.5 h-3.5 mr-2" /> View Details
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onViewLedger(inv.studentId)}>
-                  <UserCheck className="w-3.5 h-3.5 mr-2" /> View Student Ledger
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
+              onClick={() => {
+                if (onViewInvoiceDetails) onViewInvoiceDetails(inv);
+                else onViewLedger(inv.studentId);
+              }}
+              title="View Invoice & Ledger Details"
+            >
+              <Eye className="w-4 h-4" />
+            </Button>
           </div>
         );
       },
@@ -145,9 +137,10 @@ export const InvoicesTable: React.FC<InvoicesTableProps> = ({
 
   // Mobile card view representation
   const renderMobileCard = (inv: StudentInvoice) => {
-    const studentName = inv.student?.user
-      ? `${inv.student.user.firstName} ${inv.student.user.lastName}`
-      : 'Unknown Student';
+    const studentUser = inv.student?.user || inv.student?.account;
+    const studentName = studentUser
+      ? `${studentUser.firstName || ''} ${studentUser.lastName || ''}`.trim()
+      : (inv.student as any)?.name || 'Unknown Student';
     const balance = Number(inv.balanceAmount || 0);
 
     return (
@@ -184,7 +177,7 @@ export const InvoicesTable: React.FC<InvoicesTableProps> = ({
             {balance > 0 && inv.status !== 'CANCELLED' && (
               <Button
                 size="sm"
-                className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="h-8 text-xs rounded-xl font-bold gap-1 shadow-xs"
                 onClick={() => onCollectPayment(inv)}
               >
                 Collect
@@ -193,7 +186,7 @@ export const InvoicesTable: React.FC<InvoicesTableProps> = ({
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-xs"
+              className="h-8 text-xs rounded-xl font-semibold"
               onClick={() => onViewLedger(inv.studentId)}
             >
               Ledger

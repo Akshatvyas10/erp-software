@@ -160,7 +160,18 @@ const SchoolConfig = sequelize.define(
             type: DataTypes.STRING,
             allowNull: true,
             field: 'stamp_url',
-        }
+        },
+        feeReminderSettings: {
+            type: DataTypes.JSONB,
+            allowNull: true,
+            field: 'fee_reminder_settings',
+            defaultValue: {
+                enabled: false,
+                daysBeforeDue: [7, 3, 1],
+                remindBeforeExam: false,
+                maxRemindersPerDay: 1,
+            },
+        },
     },
     {
         tableName: 'school_configs',

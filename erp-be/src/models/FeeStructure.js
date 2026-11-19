@@ -35,7 +35,11 @@ const FeeStructure = sequelize.define('FeeStructure', {
     frequency: {
         type: DataTypes.STRING(20),
         defaultValue: 'MONTHLY',
-        validate: { isIn: [['ONE_TIME', 'MONTHLY', 'QUARTERLY', 'TERM_WISE', 'ANNUAL']] },
+    },
+    activeFrequencies: {
+        type: DataTypes.ARRAY(DataTypes.STRING),
+        defaultValue: ['MONTHLY', 'QUARTERLY', 'ANNUAL'],
+        field: 'active_frequencies',
     },
     dueDayOfMonth: {
         type: DataTypes.INTEGER,
@@ -47,6 +51,16 @@ const FeeStructure = sequelize.define('FeeStructure', {
         type: DataTypes.DECIMAL(10, 2),
         defaultValue: 0.00,
         field: 'late_fine_per_day',
+    },
+    minimumPaymentAmount: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 0.00,
+        field: 'minimum_payment_amount',
+    },
+    allowBelowMinimum: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        field: 'allow_below_minimum',
     },
     status: {
         type: DataTypes.STRING(20),
