@@ -150,6 +150,9 @@ export const CollectPaymentDialog: React.FC<CollectPaymentDialogProps> = ({
     onSuccess: (payment) => {
       toast.success(`Payment of ₹${payment.amountPaid ?? payment.amount} recorded! Receipt: ${payment.receiptNumber}`);
       queryClient.invalidateQueries({ queryKey: queryKeys.fees.all });
+      if (invoice?.studentId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.fees.studentLedger(invoice.studentId) });
+      }
       reset();
       onClose();
       if (onSuccessPayment) {

@@ -59,7 +59,7 @@ export const FeeReportsTab: React.FC<FeeReportsTabProps> = () => {
     const rows = dailyRegister.map((p: FeePayment) => [
       p.receiptNumber,
       p.paymentDate,
-      p.student ? `${(p.student as any).account?.firstName || ''} ${(p.student as any).account?.lastName || ''}`.trim() : 'N/A',
+      p.student ? `${p.student.account?.firstName || ''} ${p.student.account?.lastName || ''}`.trim() : 'N/A',
       p.student?.admissionNumber || 'N/A',
       p.invoice?.invoiceNumber || 'N/A',
       p.amountPaid,
@@ -266,7 +266,7 @@ export const FeeReportsTab: React.FC<FeeReportsTabProps> = () => {
                       <div className="text-[10px] text-muted-foreground">{p.paymentDate}</div>
                     </TableCell>
                     <TableCell className="py-2.5 font-semibold">
-                      {p.student ? `${(p.student as any).account?.firstName || ''} ${(p.student as any).account?.lastName || ''}`.trim() : 'Unknown'}
+                      {p.student ? `${p.student.account?.firstName || ''} ${p.student.account?.lastName || ''}`.trim() : 'Unknown'}
                       <span className="block text-[10px] text-muted-foreground font-mono font-normal">
                         {p.student?.admissionNumber || ''}
                       </span>

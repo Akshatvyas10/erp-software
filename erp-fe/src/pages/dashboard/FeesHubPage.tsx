@@ -9,6 +9,7 @@ import queryKeys from '@/lib/queryKeys';
 import api from '@/lib/api';
 import { PageHeader } from '@/components/common/PageHeader';
 import FilterBar from '@/components/common/FilterBar';
+import ClassroomSelect from '@/components/common/ClassroomSelect';
 import FeeSummaryCards from '@/features/fees/components/FeeSummaryCards';
 import InvoicesTable from '@/features/fees/components/InvoicesTable';
 import CollectPaymentDialog from '@/features/fees/components/CollectPaymentDialog';
@@ -177,12 +178,14 @@ export const FeesHubPage: React.FC = () => {
             >
               <AlertOctagon className="h-4 w-4 text-rose-600" /> Defaulters
             </TabsTrigger>
-            <TabsTrigger
-              value="reports"
-              className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 transition-all"
-            >
-              <BarChart3 className="h-4 w-4 text-primary" /> Reports
-            </TabsTrigger>
+            {canManageFees && (
+              <TabsTrigger
+                value="reports"
+                className="shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 transition-all"
+              >
+                <BarChart3 className="h-4 w-4 text-primary" /> Reports
+              </TabsTrigger>
+            )}
             {canRefundFees && (
               <TabsTrigger
                 value="refunds"
@@ -231,19 +234,11 @@ export const FeesHubPage: React.FC = () => {
               </SelectContent>
             </Select>
 
-            <Select value={classroomFilter} onValueChange={setClassroomFilter}>
-              <SelectTrigger className="w-44 h-9 text-xs bg-background">
-                <SelectValue placeholder="Classroom" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Classrooms</SelectItem>
-                {classrooms.map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name} (Grade {c.grade})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ClassroomSelect
+              value={classroomFilter}
+              onValueChange={setClassroomFilter}
+              classrooms={classrooms}
+            />
           </FilterBar>
 
           {/* Reusable DataTable with Shared EmptyState & Mobile Cards */}
@@ -290,9 +285,11 @@ export const FeesHubPage: React.FC = () => {
         </TabsContent>
 
         {/* Tab 6: Reports & Financial Analytics */}
-        <TabsContent value="reports" className="mt-4">
-          <FeeReportsTab onViewLedger={(sId) => setLedgerStudentId(sId)} />
-        </TabsContent>
+        {canManageFees && (
+          <TabsContent value="reports" className="mt-4">
+            <FeeReportsTab onViewLedger={(sId) => setLedgerStudentId(sId)} />
+          </TabsContent>
+        )}
 
         {/* Tab 7: Refunds Management */}
         <TabsContent value="refunds" className="mt-4">

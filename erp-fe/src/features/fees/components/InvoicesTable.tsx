@@ -41,7 +41,7 @@ export const InvoicesTable: React.FC<InvoicesTableProps> = ({
         const studentUser = inv.student?.user || inv.student?.account;
         const studentName = studentUser
           ? `${studentUser.firstName || ''} ${studentUser.lastName || ''}`.trim()
-          : (inv.student as any)?.name || 'Unknown Student';
+          : (inv.student?.admissionNumber ? `Student (${inv.student.admissionNumber})` : 'Unknown Student');
         const admNo = inv.student?.admissionNumber || '—';
         return (
           <div>
@@ -144,7 +144,7 @@ export const InvoicesTable: React.FC<InvoicesTableProps> = ({
     const studentUser = inv.student?.user || inv.student?.account;
     const studentName = studentUser
       ? `${studentUser.firstName || ''} ${studentUser.lastName || ''}`.trim()
-      : (inv.student as any)?.name || 'Unknown Student';
+      : (inv.student?.admissionNumber ? `Student (${inv.student.admissionNumber})` : 'Unknown Student');
     const balance = Number(inv.balanceAmount || 0);
 
     return (

@@ -65,7 +65,10 @@ export const StudentLedgerDrawer: React.FC<StudentLedgerDrawerProps> = ({
       toast.success('Payment successfully reversed and invoice balance restored');
       setReversalPayment(null);
       setReversalReason('');
-      queryClient.invalidateQueries({ queryKey: ['fees'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.fees.all });
+      if (studentId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.fees.studentLedger(studentId) });
+      }
     },
     onError: (err: unknown) => {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to reverse payment';

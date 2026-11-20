@@ -19,6 +19,9 @@ import {
     waiveFineSchema,
     requestRefundSchema,
     updateRefundStatusSchema,
+    feeStructureStatusSchema,
+    invoiceQuerySchema,
+    defaultersQuerySchema,
 } from '../schemas/fee.schema.js';
 
 const router = express.Router();
@@ -89,6 +92,7 @@ router.put(
 router.patch(
     '/structures/:id/status',
     requirePermission('fees', 'manage'),
+    validateZod({ body: feeStructureStatusSchema }),
     feeController.updateFeeStructureStatus
 );
 
@@ -102,6 +106,7 @@ router.delete(
 router.get(
     '/invoices',
     requirePermission('fees', 'read'),
+    validateZod({ query: invoiceQuerySchema }),
     feeController.getInvoices
 );
 
@@ -209,6 +214,7 @@ router.post(
 router.get(
     '/defaulters',
     requirePermission('fees', 'read'),
+    validateZod({ query: defaultersQuerySchema }),
     feeController.getDefaulters
 );
 
@@ -254,7 +260,7 @@ router.patch(
 
 router.get(
     '/reports',
-    requirePermission('fees', 'read'),
+    requirePermission('fees', 'manage'),
     feeController.getFinancialReports
 );
 

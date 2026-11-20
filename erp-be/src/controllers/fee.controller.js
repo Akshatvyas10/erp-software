@@ -184,7 +184,7 @@ export const generateBulkClassInvoices = async (req, res, next) => {
 // ─── Fee Payments & Receipts ──────────────────────────────────────────────────
 export const collectPayment = async (req, res, next) => {
     try {
-        const payment = await feeService.collectPayment(req.body, req.user.id);
+        const payment = await feeService.collectPayment(req.body, req.user.id, req.user);
         return success(res, payment, 'Payment recorded successfully', 201);
     } catch (err) {
         next(err);
@@ -215,21 +215,30 @@ export const getStudentFeeLedger = async (req, res, next) => {
     try {
         let studentId = req.params.studentId;
 
-        // IDOR protection
-        if (req.user?.roles?.some((r) => r.name === 'student') && req.user?.studentProfile?.id) {
+        // IDOR protection: only override if the user exclusively has the student role
+        const roleNames = (req.user?.roles || []).map((r) => (typeof r === 'string' ? r : r.name || '').toLowerCase());
+        const isStudentOnly = roleNames.includes('student') && !roleNames.some((r) => ['admin', 'super_admin', 'superadmin', 'accountant', 'faculty'].includes(r));
+        if (isStudentOnly && req.user?.studentProfile?.id) {
             studentId = req.user.studentProfile.id;
         }
 
         const ledger = await feeService.getStudentFeeLedger(studentId);
         return success(res, ledger, 'Student fee ledger retrieved successfully');
     } catch (err) {
+        console.error("getStudentFeeLedger failed:", {
+            message: err.message,
+            pgCode: err.original?.code,
+            pgDetail: err.original?.detail,
+            sql: err.sql,
+        });
         next(err);
     }
 };
 
 export const getFeeSummaryStats = async (req, res, next) => {
     try {
-        const stats = await feeService.getFeeSummaryStats();
+        const { academicYearId } = req.query;
+        const stats = await feeService.getFeeSummaryStats({ academicYearId });
         return success(res, stats, 'Fee summary statistics retrieved successfully');
     } catch (err) {
         next(err);
@@ -277,6 +286,12 @@ export const getFeeReminderLogs = async (req, res, next) => {
         });
         return success(res, logs, 'Fee reminder logs retrieved successfully');
     } catch (err) {
+        console.error("getFeeReminderLogs failed:", {
+            message: err.message,
+            pgCode: err.original?.code,
+            pgDetail: err.original?.detail,
+            sql: err.sql,
+        });
         next(err);
     }
 };
@@ -322,6 +337,9 @@ export const getDefaulters = async (req, res, next) => {
             limit,
             offset,
         });
+
+        logger.info(`[Defaulters Access] User ${req.user?.id || 'unknown'} queried fee defaulters (count: ${defaulters.items?.length || 0}/${defaulters.total || 0})`);
+
         return success(res, defaulters, 'Fee defaulters retrieved successfully');
     } catch (err) {
         next(err);

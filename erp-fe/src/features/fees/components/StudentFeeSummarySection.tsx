@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Progress } from '@/components/ui/progress';
 import { useQuery } from '@tanstack/react-query';
 import feeApi from '@/features/fees/api/feeApi';
 import queryKeys from '@/lib/queryKeys';
-import { Receipt, CheckCircle2, AlertTriangle, ArrowUpRight, Layers, Printer } from 'lucide-react';
+import { Receipt, CheckCircle2, AlertTriangle, ArrowUpRight, Layers, Printer, Wallet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney, toMoney } from '../utils/moneyUtils';
 import PrintReceiptModal from './PrintReceiptModal';
@@ -32,46 +33,68 @@ export const StudentFeeSummarySection: React.FC<StudentFeeSummarySectionProps> =
     );
   }
 
-  const summary = data?.summary || { totalBilled: 0, totalPaid: 0, outstandingBalance: 0, invoicesCount: 0, paymentsCount: 0 };
+  const summary = data?.summary || {
+    totalBilled: 0,
+    totalPaid: 0,
+    outstandingBalance: 0,
+    advanceCredit: 0,
+    paymentRatio: 0,
+    invoicesCount: 0,
+    paymentsCount: 0,
+  };
   const assignedStructure = data?.assignedStructure;
   const invoices = data?.invoices || [];
   const payments = data?.payments || [];
+  const paymentRatio = typeof summary.paymentRatio === 'number'
+    ? summary.paymentRatio
+    : (summary.totalBilled > 0 ? Math.min(100, Math.round((summary.totalPaid / summary.totalBilled) * 100)) : 0);
 
   return (
     <div className="p-6 space-y-6">
       {/* Assigned Class Fee Structure Banner */}
       {assignedStructure && (
-        <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-primary text-primary-foreground shrink-0">
-              <Layers className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-foreground flex items-center gap-2">
-                <span>Class Structure: {assignedStructure.name}</span>
-                <Badge variant="outline" className="text-[10px] bg-background">
-                  {assignedStructure.headsCount} Heads Active
-                </Badge>
+        <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-primary text-primary-foreground shrink-0">
+                <Layers className="w-5 h-5" />
               </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">
-                Standard Monthly: <strong className="text-foreground">{formatMoney(assignedStructure.monthlyDues)}</strong> • Quarterly: <strong className="text-foreground">{formatMoney(assignedStructure.quarterlyDues)}</strong> • Annual: <strong className="text-foreground">{formatMoney(assignedStructure.annualDues)}</strong>
+              <div>
+                <div className="text-xs font-bold text-foreground flex items-center gap-2">
+                  <span>Class Structure: {assignedStructure.name}</span>
+                  <Badge variant="outline" className="text-[10px] bg-background">
+                    {assignedStructure.headsCount} Heads Active
+                  </Badge>
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  Standard Monthly: <strong className="text-foreground">{formatMoney(assignedStructure.monthlyDues)}</strong> • Quarterly: <strong className="text-foreground">{formatMoney(assignedStructure.quarterlyDues)}</strong> • Annual: <strong className="text-foreground">{formatMoney(assignedStructure.annualDues)}</strong>
+                </div>
               </div>
             </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs h-8 rounded-xl font-semibold gap-1.5 shrink-0"
+              onClick={() => navigate('/dashboard/fees')}
+            >
+              <span>Issue Class Invoice</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </Button>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-xs h-8 rounded-xl font-semibold gap-1.5 shrink-0"
-            onClick={() => navigate('/dashboard/fees')}
-          >
-            <span>Issue Class Invoice</span>
-            <ArrowUpRight className="w-3.5 h-3.5" />
-          </Button>
+
+          {/* Payment Progress Bar */}
+          <div className="pt-2 border-t border-primary/10">
+            <div className="flex justify-between items-center text-xs mb-1.5">
+              <span className="font-semibold text-muted-foreground">Session Payment Completion</span>
+              <span className="font-bold font-mono text-foreground">{paymentRatio}%</span>
+            </div>
+            <Progress value={paymentRatio} className="h-2 rounded-full" />
+          </div>
         </div>
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
         <div className="bg-muted/30 border border-border/80 rounded-xl p-3.5 flex items-center justify-between">
           <div>
             <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total Invoiced</div>
@@ -118,6 +141,19 @@ export const StudentFeeSummarySection: React.FC<StudentFeeSummarySectionProps> =
             toMoney(summary.outstandingBalance) > 0 ? 'bg-amber-500/10 text-amber-600' : 'bg-muted text-muted-foreground'
           }`}>
             <AlertTriangle className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-3.5 flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-semibold text-purple-700 dark:text-purple-400 uppercase tracking-wider">Advance Credit</div>
+            <div className="text-lg font-bold font-mono text-purple-600 mt-0.5">
+              {formatMoney(summary.advanceCredit || data?.student?.feeAdvanceCredit || 0)}
+            </div>
+            <div className="text-[10px] text-purple-600/80 mt-0.5">Prepaid credit balance</div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-600">
+            <Wallet className="w-5 h-5" />
           </div>
         </div>
       </div>

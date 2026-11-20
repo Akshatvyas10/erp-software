@@ -23,6 +23,7 @@ const {
     FeePaymentReversal,
     FeeRefund,
 } = db;
+import { hasPermission } from './permissionService.js';
 import { enqueueEmailJob } from '../queues/email.queue.js';
 import { sendFeeReminderDirect } from './email.service.js';
 
@@ -361,7 +362,13 @@ class FeeService {
     async generateSingleInvoice(data, userId) {
         return await sequelize.transaction(async (t) => {
             const student = await Student.findByPk(data.studentId, {
-                include: [{ model: Classroom, as: 'classroom' }],
+                include: [
+                    {
+                        model: ClassroomStudent,
+                        as: 'classroomEnrollments',
+                        include: [{ model: Classroom, as: 'classroom' }],
+                    },
+                ],
                 transaction: t,
             });
             if (!student) throw new ApiError(404, 'Student not found');
@@ -377,11 +384,16 @@ class FeeService {
             const fineAmount = Number(data.fineAmount) || 0;
             const netAmount = Math.max(0, itemsTotal - discountAmount + fineAmount);
 
+            const resolvedClassroomId = data.classroomId 
+                || student.classroomId 
+                || student.classroomEnrollments?.[0]?.classroomId 
+                || null;
+
             const invoice = await StudentInvoice.create(
                 {
                     invoiceNumber,
                     studentId: data.studentId,
-                    classroomId: student.classroomId || null,
+                    classroomId: resolvedClassroomId,
                     academicYearId: data.academicYearId,
                     feeStructureId: data.feeStructureId || null,
                     title: data.title,
@@ -402,13 +414,10 @@ class FeeService {
             );
 
             const invoiceItems = data.items.map((it) => ({
-                invoiceId: invoice.id,
+                studentInvoiceId: invoice.id,
                 feeHeadId: it.feeHeadId,
-                title: it.title,
+                headName: it.title || 'Fee Item',
                 amount: it.amount,
-                discountAmount: it.discountAmount || 0,
-                netAmount: Math.max(0, Number(it.amount) - (Number(it.discountAmount) || 0)),
-                notes: it.notes || null,
             }));
 
             await StudentInvoiceItem.bulkCreate(invoiceItems, { transaction: t });
@@ -895,7 +904,7 @@ class FeeService {
     // FEE COLLECTION & PAYMENTS (Supports Partial, FIFO & Minimum Rules)
     // ══════════════════════════════════════════════════════════════════════════
 
-    async collectPayment(data, userId) {
+    async collectPayment(data, userId, userContext = null) {
         return await sequelize.transaction(async (t) => {
             const paymentAmount = Number(data.amount);
             if (paymentAmount <= 0) {
@@ -937,6 +946,18 @@ class FeeService {
                         422,
                         `Payment amount (₹${paymentAmount}) is below the required minimum of ₹${minPayable}. A valid concession reason code is mandatory.`
                     );
+                }
+
+                // Verify user authority for below-minimum concession override (requires fees:adjust or fees:manage)
+                if (userId) {
+                    const hasAdjust = await hasPermission(userId, 'fees', 'adjust');
+                    const hasManage = await hasPermission(userId, 'fees', 'manage');
+                    if (!hasAdjust && !hasManage) {
+                        throw new ApiError(
+                            403,
+                            'Insufficient privilege: Granting below-minimum payment concession requires fees:adjust or fees:manage permission.'
+                        );
+                    }
                 }
             }
 
@@ -1107,9 +1128,11 @@ class FeeService {
     // ══════════════════════════════════════════════════════════════════════════
 
     async getStudentFeeLedger(studentId) {
+        if (!studentId) throw new ApiError(400, 'Student ID is required');
+
         const student = await Student.findByPk(studentId, {
             include: [
-                { model: User, as: 'account', attributes: ['firstName', 'lastName', 'email', 'phone'] },
+                { model: User, as: 'account', attributes: ['id', 'firstName', 'lastName', 'email', 'phone'] },
                 {
                     model: ClassroomStudent,
                     as: 'classroomEnrollments',
@@ -1120,33 +1143,51 @@ class FeeService {
         if (!student) throw new ApiError(404, 'Student not found');
 
         const invoices = await StudentInvoice.findAll({
-            where: { studentId },
+            where: {
+                studentId,
+                status: { [Op.notIn]: ['CANCELLED', 'VOID'] },
+            },
             include: [
                 { model: StudentInvoiceItem, as: 'items', include: [{ model: FeeHead, as: 'feeHead' }] },
-                { model: AcademicYear, as: 'academicYear', attributes: ['id', 'name'] },
+                { model: AcademicYear, as: 'academicYear', attributes: ['id', 'name', 'startDate', 'endDate'] },
+                { model: Classroom, as: 'classroom', attributes: ['id', 'name', 'section'] },
             ],
-            order: [['createdAt', 'DESC']],
+            order: [['dueDate', 'ASC'], ['createdAt', 'DESC']],
         });
 
         const payments = await FeePayment.findAll({
             where: { studentId },
             include: [
                 { model: User, as: 'collectedBy', attributes: ['id', 'firstName', 'lastName'] },
-                { model: StudentInvoice, as: 'invoice', attributes: ['invoiceNumber', 'title'] },
+                { model: StudentInvoice, as: 'invoice', attributes: ['id', 'invoiceNumber', 'title', 'dueDate'] },
+                { model: FeePaymentReversal, as: 'reversal', attributes: ['id', 'reversalReceiptNumber', 'reversedAmount', 'reason', 'bouncePenaltyAmount', 'createdAt'] },
             ],
             order: [['paymentDate', 'DESC'], ['createdAt', 'DESC']],
         });
 
-        const totalBilled = invoices
-            .filter((inv) => inv.status !== 'CANCELLED')
-            .reduce((sum, inv) => sum + Number(inv.totalAmount), 0);
+        // Safe decimal arithmetic
+        const totalBilled = invoices.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
+        const totalDiscount = invoices.reduce((sum, inv) => sum + Number(inv.discountAmount || 0), 0);
+        const totalLateFine = invoices.reduce((sum, inv) => sum + Number(inv.lateFineAmount || 0), 0);
 
-        const totalPaid = payments.reduce((sum, p) => sum + Number(p.amountPaid || 0), 0);
+        // Filter valid cleared payments (exclude bounced/reversed)
+        const validPayments = payments.filter((p) => !p.reversal);
+        const totalPaid = validPayments.reduce((sum, p) => sum + Number(p.amountPaid || 0), 0);
+        const totalReversed = payments.filter((p) => Boolean(p.reversal)).reduce((sum, p) => sum + Number(p.amountPaid || 0), 0);
+
         const outstandingBalance = Math.max(0, totalBilled - totalPaid);
+        const advanceCredit = Number(student.feeAdvanceCredit || 0);
+
+        // Safe ratio calculation guarding against division by zero
+        const paymentRatio = totalBilled > 0
+            ? Number(Math.min(100, Math.max(0, (totalPaid / totalBilled) * 100)).toFixed(1))
+            : (totalPaid > 0 ? 100 : 0);
 
         // Resolve assigned class fee structure for projection / transparency
         let assignedStructure = null;
-        const activeEnrollment = student.classroomEnrollments?.[0];
+        let availableCycles = [];
+
+        const activeEnrollment = student.classroomEnrollments?.find((e) => !e.leftAt) || student.classroomEnrollments?.[0];
         const studentClassId = activeEnrollment?.classroom?.classId;
         if (studentClassId) {
             const structure = await FeeStructure.findOne({
@@ -1154,6 +1195,7 @@ class FeeService {
                 include: [
                     { model: FeeStructureItem, as: 'items', include: [{ model: FeeHead, as: 'feeHead' }] },
                     { model: FeeStructureDiscount, as: 'discounts' },
+                    { model: AcademicYear, as: 'academicYear' },
                 ],
             });
             if (structure) {
@@ -1169,38 +1211,68 @@ class FeeService {
                     monthlyDues: monthlyCalc.netPayable,
                     quarterlyDues: quarterlyCalc.netPayable,
                     annualDues: annualCalc.netPayable,
-                    headsCount: (structure.items || []).filter(i => Number(i.amount) > 0).length,
+                    headsCount: (structure.items || []).filter(i => Number(i.amount) > 0 && i.isEnabled).length,
                 };
+
+                if (structure.academicYear?.startDate && structure.academicYear?.endDate) {
+                    const startYear = new Date(structure.academicYear.startDate).getFullYear();
+                    const endYear = new Date(structure.academicYear.endDate).getFullYear();
+                    availableCycles = [
+                        { frequency: 'MONTHLY', label: '12 Monthly Installments', cycleCount: 12 },
+                        { frequency: 'QUARTERLY', label: '4 Quarterly Terms (Q1-Q4)', cycleCount: 4 },
+                        { frequency: 'ANNUAL', label: `Annual Session (${startYear}-${endYear})`, cycleCount: 1 },
+                    ];
+                }
             }
         }
 
         return {
-            student,
+            student: {
+                ...student.toJSON(),
+                feeAdvanceCredit: advanceCredit,
+            },
             assignedStructure,
+            billingCycles: availableCycles,
             summary: {
                 totalBilled,
                 totalPaid,
+                totalDiscount,
+                totalLateFine,
+                totalReversed,
                 outstandingBalance,
+                advanceCredit,
+                paymentRatio,
                 invoicesCount: invoices.length,
-                paymentsCount: payments.length,
+                paymentsCount: validPayments.length,
             },
             invoices,
             payments,
         };
     }
 
-    async getFeeSummaryStats() {
+    async getFeeSummaryStats({ academicYearId } = {}) {
         const todayStr = new Date().toISOString().split('T')[0];
+        const replacements = { todayStr };
+
+        let yearFilterInvoices = '';
+        let yearFilterPayments = '';
+        if (academicYearId) {
+            yearFilterInvoices = ' AND academic_year_id = :academicYearId';
+            replacements.academicYearId = academicYearId;
+        }
 
         // Total Billed, Total Collected, Total Balance
-        const [totals] = await sequelize.query(`
+        const [totals] = await sequelize.query(
+            `
             SELECT 
                 COALESCE(SUM(total_amount), 0) AS "totalBilled",
                 COALESCE(SUM(paid_amount), 0) AS "totalCollected",
                 COALESCE(SUM(balance_amount), 0) AS "totalPending"
             FROM student_invoices
-            WHERE status != 'CANCELLED' AND deleted_at IS NULL
-        `);
+            WHERE status != 'CANCELLED' AND deleted_at IS NULL ${yearFilterInvoices}
+        `,
+            { replacements }
+        );
 
         // Today's Collection
         const [todayCollections] = await sequelize.query(
@@ -1217,16 +1289,28 @@ class FeeService {
         );
 
         // Status counts
-        const [statusCounts] = await sequelize.query(`
+        const [statusCounts] = await sequelize.query(
+            `
             SELECT status, COUNT(*) AS count
             FROM student_invoices
-            WHERE deleted_at IS NULL
+            WHERE deleted_at IS NULL ${yearFilterInvoices}
             GROUP BY status
-        `);
+        `,
+            { replacements }
+        );
 
         return {
-            totals: totals[0],
-            today: todayCollections[0],
+            totals: {
+                totalBilled: Number(totals[0]?.totalBilled || 0),
+                totalCollected: Number(totals[0]?.totalCollected || 0),
+                totalPending: Number(totals[0]?.totalPending || 0),
+            },
+            today: {
+                todayTotal: Number(todayCollections[0]?.todayTotal || 0),
+                todayCash: Number(todayCollections[0]?.todayCash || 0),
+                todayUpi: Number(todayCollections[0]?.todayUpi || 0),
+                todayBankTransfer: Number(todayCollections[0]?.todayBankTransfer || 0),
+            },
             statusBreakdown: statusCounts,
         };
     }
@@ -1585,7 +1669,14 @@ class FeeService {
                 {
                     model: Student,
                     as: 'student',
-                    attributes: ['id', 'admissionNumber', 'firstName', 'lastName', 'parentEmail', 'parentPhone'],
+                    attributes: ['id', 'admissionNumber', 'guardianPhone', 'guardianEmail'],
+                    include: [
+                        {
+                            model: User,
+                            as: 'account',
+                            attributes: ['id', 'firstName', 'lastName', 'email', 'phone'],
+                        },
+                    ],
                 },
                 {
                     model: Classroom,
@@ -1595,7 +1686,7 @@ class FeeService {
                 {
                     model: User,
                     as: 'sentBy',
-                    attributes: ['id', 'name', 'email'],
+                    attributes: ['id', 'firstName', 'lastName', 'email'],
                 },
             ],
             order: [['createdAt', 'DESC']],
@@ -1821,14 +1912,16 @@ class FeeService {
         // Sort by highest overdue days and total amount
         defaulters.sort((a, b) => b.maxDaysOverdue - a.maxDaysOverdue || b.totalOutstanding - a.totalOutstanding);
 
+        const safeLimit = Math.min(Math.max(1, Number(limit) || 50), 200);
+        const safeOffset = Math.max(0, Number(offset) || 0);
         const totalCount = defaulters.length;
-        const pagedDefaulters = defaulters.slice(Number(offset), Number(offset) + Number(limit));
+        const pagedDefaulters = defaulters.slice(safeOffset, safeOffset + safeLimit);
 
         return {
             total: totalCount,
             items: pagedDefaulters,
-            limit: Number(limit),
-            offset: Number(offset),
+            limit: safeLimit,
+            offset: safeOffset,
         };
     }
 
@@ -2041,6 +2134,11 @@ class FeeService {
     async updateRefundStatus({ refundId, status, paymentMode, transactionReference, notes }, authorizedUserId) {
         const refund = await FeeRefund.findByPk(refundId);
         if (!refund) throw new ApiError(404, 'Refund voucher not found');
+
+        // Anti-fraud separation of duties: cannot approve or disburse your own refund request
+        if ((status === 'APPROVED' || status === 'PAID') && refund.requestedById && refund.requestedById === authorizedUserId) {
+            throw new ApiError(403, 'Separation of duties violation: You cannot approve or disburse a refund request that you created.');
+        }
 
         const updates = { status };
         if (status === 'APPROVED' || status === 'PAID') {

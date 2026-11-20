@@ -130,7 +130,7 @@ export const PaymentReversalsTab: React.FC = () => {
                   </TableCell>
                   <TableCell className="py-2.5 font-semibold">
                     {r.payment?.student
-                      ? `${(r.payment.student as any).account?.firstName || ''} ${(r.payment.student as any).account?.lastName || ''}`.trim()
+                      ? `${r.payment.student.account?.firstName || ''} ${r.payment.student.account?.lastName || ''}`.trim()
                       : 'Student'}
                     <span className="block text-[10px] text-muted-foreground font-mono font-normal">
                       {r.payment?.student?.admissionNumber || ''}

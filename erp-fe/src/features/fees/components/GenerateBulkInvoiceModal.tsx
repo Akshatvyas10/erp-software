@@ -790,7 +790,7 @@ export const GenerateBulkInvoiceModal: React.FC<GenerateBulkInvoiceModalProps> =
                 variant="outline"
                 size="sm"
                 className="w-full sm:w-auto text-xs gap-1.5 rounded-xl font-semibold"
-                onClick={() => setStep((s) => (s - 1) as any)}
+                onClick={() => setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3 | 4) : s))}
                 disabled={previewMutation.isPending || generateMutation.isPending}
               >
                 <ArrowLeft className="w-3.5 h-3.5" /> Back

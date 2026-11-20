@@ -187,6 +187,31 @@ export const updateRefundStatusSchema = z.object({
     notes: z.string().max(500).optional().nullable(),
 });
 
+export const feeStructureStatusSchema = z.object({
+    status: z.enum(['ACTIVE', 'INACTIVE']),
+});
+
+export const invoiceQuerySchema = z.object({
+    studentId: z.string().uuid().optional(),
+    classroomId: z.string().uuid().optional(),
+    academicYearId: z.string().uuid().optional(),
+    status: z.enum(['DRAFT', 'ISSUED', 'PARTIALLY_PAID', 'PAID', 'CANCELLED', 'ALL']).optional(),
+    search: z.string().max(100).optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const defaultersQuerySchema = z.object({
+    classroomId: z.string().uuid().optional().or(z.literal('ALL')),
+    agingBracket: z.enum(['ALL', '1-30', '31-60', '61-90', '90+']).optional().default('ALL'),
+    minAmount: z.coerce.number().min(0).optional(),
+    maxAmount: z.coerce.number().min(0).optional(),
+    search: z.string().max(100).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+    offset: z.coerce.number().int().min(0).default(0),
+});
+
+
 
 
 

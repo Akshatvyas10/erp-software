@@ -185,10 +185,14 @@ export interface FeeSummaryStats {
 export interface StudentLedgerData {
   student: {
     id: string;
+    studentId?: string;
     admissionNumber: string;
-    rollNumber: string;
+    rollNumber?: string;
+    feeAdvanceCredit?: number;
+    account?: { firstName: string; lastName: string; email: string; phone?: string; avatar?: string };
     user?: { firstName: string; lastName: string; email: string; phone?: string; avatar?: string };
-    classroom?: { id: string; name: string; grade: number; section: string };
+    classroom?: { id: string; name: string; grade?: number; section?: string };
+    classroomEnrollments?: Array<{ classroom?: { id: string; name: string; section?: string } }>;
   };
   assignedStructure?: {
     id: string;
@@ -198,11 +202,23 @@ export interface StudentLedgerData {
     quarterlyDues: number;
     annualDues: number;
     headsCount: number;
+    minimumPaymentAmount?: number;
+    allowBelowMinimum?: boolean;
   } | null;
+  billingCycles?: Array<{
+    frequency: string;
+    label: string;
+    cycleCount: number;
+  }>;
   summary: {
     totalBilled: number;
     totalPaid: number;
+    totalDiscount?: number;
+    totalLateFine?: number;
+    totalReversed?: number;
     outstandingBalance: number;
+    advanceCredit?: number;
+    paymentRatio?: number;
     invoicesCount: number;
     paymentsCount: number;
   };
