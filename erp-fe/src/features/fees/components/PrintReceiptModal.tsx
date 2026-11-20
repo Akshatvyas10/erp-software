@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,9 +10,10 @@ import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import feeApi from '../api/feeApi';
 import queryKeys from '@/lib/queryKeys';
-import { Printer, CheckCircle2 } from 'lucide-react';
+import { Printer, CheckCircle2, Download, FileText } from 'lucide-react';
 import type { StudentInvoiceItem } from '../api/feeApi';
 import { formatMoney, toMoney } from '../utils/moneyUtils';
+import { toast } from 'sonner';
 
 interface PrintReceiptModalProps {
   receiptId: string | null;
@@ -26,6 +27,7 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
   onClose,
 }) => {
   const printRef = useRef<HTMLDivElement>(null);
+  const [downloadingFormat, setDownloadingFormat] = useState<'A4' | '80mm' | null>(null);
 
   const { data: receipt, isLoading } = useQuery({
     queryKey: queryKeys.fees.receiptDetail(receiptId || ''),
@@ -35,6 +37,27 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPdf = async (format: 'A4' | '80mm') => {
+    if (!receiptId) return;
+    try {
+      setDownloadingFormat(format);
+      const blob = await feeApi.downloadReceiptPdf(receiptId, format);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Receipt_${receipt?.receiptNumber || receiptId}_${format}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success(`${format === '80mm' ? '80mm POS Thermal' : 'A4 Voucher'} PDF generated successfully`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to generate receipt PDF');
+    } finally {
+      setDownloadingFormat(null);
+    }
   };
 
   if (!receiptId) return null;
@@ -178,13 +201,38 @@ export const PrintReceiptModal: React.FC<PrintReceiptModalProps> = ({
               </div>
             </div>
 
-            <DialogFooter className="mt-4 pt-3 border-t border-border flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={onClose} className="rounded-xl text-xs font-semibold">
-                Close
-              </Button>
-              <Button size="sm" className="rounded-xl text-xs font-bold gap-1 shadow-xs" onClick={handlePrint}>
-                <Printer className="w-4 h-4" /> Print Receipt
-              </Button>
+            <DialogFooter className="mt-4 pt-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownloadPdf('A4')}
+                  disabled={downloadingFormat !== null}
+                  className="rounded-xl text-xs font-semibold gap-1.5"
+                >
+                  <FileText className="w-3.5 h-3.5 text-primary" />
+                  {downloadingFormat === 'A4' ? 'Generating A4...' : 'A4 PDF Voucher'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownloadPdf('80mm')}
+                  disabled={downloadingFormat !== null}
+                  className="rounded-xl text-xs font-semibold gap-1.5"
+                >
+                  <Download className="w-3.5 h-3.5 text-primary" />
+                  {downloadingFormat === '80mm' ? 'Generating 80mm...' : '80mm Thermal POS'}
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={onClose} className="rounded-xl text-xs font-semibold">
+                  Close
+                </Button>
+                <Button size="sm" className="rounded-xl text-xs font-bold gap-1 shadow-xs" onClick={handlePrint}>
+                  <Printer className="w-4 h-4" /> Print Receipt
+                </Button>
+              </div>
             </DialogFooter>
           </div>
         ) : null}

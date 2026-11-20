@@ -115,6 +115,14 @@ export interface FeePayment {
   collectedBy?: { id: string; firstName: string; lastName: string; email?: string };
   invoice?: StudentInvoice;
   isReversed?: boolean;
+  reversal?: {
+    id: string;
+    reversalReceiptNumber: string;
+    reversedAmount: number;
+    reason: string;
+    bouncePenaltyAmount?: number;
+    createdAt: string;
+  } | null;
   reversedAt?: string | null;
   reversedById?: string | null;
   reversalReason?: string | null;
@@ -131,6 +139,30 @@ export interface FeePayment {
   createdAt: string;
 }
 
+export interface StudentInvoiceInstallment {
+  id: string;
+  studentInvoiceId: string;
+  installmentNumber: number;
+  title: string;
+  dueDate: string;
+  baseAmount: number;
+  lateFineAmount: number;
+  waivedFineAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  balanceAmount: number;
+  status: 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE';
+  isOverdue?: boolean;
+  overdueDays?: number;
+  accruedFine?: number;
+  netFine?: number;
+  effectivePayable?: number;
+  fineWaivedById?: string | null;
+  fineWaivedAt?: string | null;
+  fineWaiveReason?: string | null;
+  notes?: string | null;
+}
+
 export interface StudentInvoice {
   id: string;
   invoiceNumber: string;
@@ -141,13 +173,18 @@ export interface StudentInvoice {
   title: string;
   description?: string | null;
   dueDate: string;
-  subtotalAmount: number;
+  subtotal?: number;
+  subtotalAmount?: number;
   discountAmount: number;
-  fineAmount: number;
+  fineAmount?: number;
+  lateFineAmount?: number;
+  waivedFineAmount?: number;
   totalAmount: number;
   paidAmount: number;
   balanceAmount: number;
   status: 'DRAFT' | 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED';
+  isOverdue?: boolean;
+  overdueDays?: number;
   periodKey?: string | null;
   frequency?: string | null;
   issuedDate: string;
@@ -162,6 +199,7 @@ export interface StudentInvoice {
   classroom?: { id: string; name: string; grade: number; section: string };
   academicYear?: { id: string; name: string; code: string; isCurrent: boolean };
   items?: StudentInvoiceItem[];
+  installments?: StudentInvoiceInstallment[];
   payments?: FeePayment[];
   createdAt: string;
   updatedAt: string;
@@ -224,6 +262,24 @@ export interface StudentLedgerData {
   };
   invoices: StudentInvoice[];
   payments: FeePayment[];
+  academicSessions?: Array<{
+    id: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    isCurrent: boolean;
+    status: string;
+  }>;
+  activeReminders?: Array<{
+    id: string;
+    studentId: string;
+    periodKey: string;
+    dueDate: string;
+    payableAmount: number;
+    channel: string;
+    sentAt: string;
+  }>;
+  selectedAcademicYearId?: string | null;
 }
 
 export interface BulkClassInvoicePreviewStudent {
@@ -267,12 +323,43 @@ export interface BulkClassInvoicePayload {
   academicYearId: string;
   feeStructureId: string;
   frequency: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'TERM' | 'ONE_TIME';
+  installmentsCount?: number;
+  customDueDates?: string[];
   periodLabel?: string;
   title: string;
   description?: string;
   dueDate: string;
   notes?: string;
   selectedStudentIds?: string[];
+}
+
+export interface InstallmentCollectionInterval {
+  installmentNumber: number;
+  title: string;
+  dueDate: string;
+  targetAmount: number;
+  collectedAmount: number;
+  pendingAmount: number;
+  waivedFineAmount: number;
+  collectionPercentage: number;
+  totalStudents: number;
+  paidStudentsCount: number;
+  pendingStudentsCount: number;
+  overdueStudentsCount: number;
+}
+
+export interface InstallmentCollectionTargetResponse {
+  academicYearId: string | null;
+  classroomId: string | null;
+  academicClassId: string | null;
+  intervals: InstallmentCollectionInterval[];
+  sessionSummary: {
+    totalTarget: number;
+    totalCollected: number;
+    totalPending: number;
+    totalWaivedFine: number;
+    overallPercentage: number;
+  };
 }
 
 export interface BulkClassInvoiceResult {
@@ -444,6 +531,12 @@ export const feeApi = {
     belowMinimumReasonText?: string;
     allocationStrategy?: 'SELECTED_INVOICE' | 'FIFO_AUTO';
     studentId?: string;
+    installmentId?: string | null;
+    waiveLateFee?: boolean;
+    waivedFineAmount?: number;
+    fineWaiveReason?: string | null;
+    adjustDueAmount?: number;
+    dueAdjustReason?: string | null;
   }): Promise<FeePayment> => {
     const res = await api.post('/fees/payments/collect', payload);
     return res.data.data;
@@ -454,9 +547,55 @@ export const feeApi = {
     return res.data.data;
   },
 
+  downloadReceiptPdf: async (id: string, format: 'A4' | '80mm' = 'A4'): Promise<Blob> => {
+    const res = await api.get(`/fees/receipts/${id}/pdf`, {
+      params: { format },
+      responseType: 'blob',
+    });
+    return res.data;
+  },
+
   // Ledger
-  getStudentFeeLedger: async (studentId: string): Promise<StudentLedgerData> => {
-    const res = await api.get(`/fees/ledger/${studentId}`);
+  getStudentFeeLedger: async (studentId: string, params?: { academicYearId?: string }): Promise<StudentLedgerData> => {
+    const res = await api.get(`/fees/ledger/${studentId}`, { params });
+    return res.data.data;
+  },
+
+  // Online Payment Checkout (Razorpay Standard)
+  createOnlinePaymentOrder: async (payload: {
+    invoiceId: string;
+    studentId: string;
+    amount: number;
+    customerNotes?: Record<string, string>;
+  }): Promise<{
+    orderId: string;
+    amount: number;
+    amountInPaise: number;
+    currency: string;
+    keyId: string;
+    invoiceId: string;
+    invoiceNumber: string;
+    studentName: string;
+  }> => {
+    const res = await api.post('/fees/online/create-order', payload);
+    return res.data.data;
+  },
+
+  verifyOnlinePayment: async (payload: {
+    orderId: string;
+    paymentId: string;
+    signature: string;
+    invoiceId: string;
+    studentId: string;
+    amount: number;
+  }): Promise<{
+    settled: boolean;
+    receiptNumber: string;
+    paymentId: string;
+    duplicate?: boolean;
+    receipt?: FeePayment;
+  }> => {
+    const res = await api.post('/fees/online/verify-payment', payload);
     return res.data.data;
   },
 
@@ -466,9 +605,31 @@ export const feeApi = {
     periodKey?: string;
     asOfDate?: string;
     academicYearId?: string;
+    installmentNumber?: number;
   }): Promise<EligibleReminderStudent[]> => {
     const res = await api.get('/fees/reminders/eligible', { params });
     return res.data.data;
+  },
+
+  getInstallmentCollectionTargets: async (params?: {
+    academicYearId?: string;
+    classroomId?: string;
+    academicClassId?: string;
+  }): Promise<InstallmentCollectionTargetResponse> => {
+    const res = await api.get('/fees/collection-targets', { params });
+    return res.data.data;
+  },
+
+  exportCollectionTargetsCsv: async (params?: {
+    academicYearId?: string;
+    classroomId?: string;
+    academicClassId?: string;
+  }): Promise<Blob> => {
+    const res = await api.get('/fees/collection-targets/export', {
+      params,
+      responseType: 'blob',
+    });
+    return res.data;
   },
 
   sendBulkReminders: async (payload: {

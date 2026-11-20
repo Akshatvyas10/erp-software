@@ -28,6 +28,18 @@ const FeeReminderLog = sequelize.define('FeeReminderLog', {
         allowNull: true,
         field: 'period_key',
     },
+    installmentNumber: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: 'installment_number',
+    },
+    installmentId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        field: 'installment_id',
+        references: { model: 'student_invoice_installments', key: 'id' },
+        onDelete: 'SET NULL',
+    },
     dueDate: {
         type: DataTypes.DATEONLY,
         allowNull: true,

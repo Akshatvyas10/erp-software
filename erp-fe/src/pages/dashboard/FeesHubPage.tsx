@@ -15,6 +15,7 @@ import InvoicesTable from '@/features/fees/components/InvoicesTable';
 import CollectPaymentDialog from '@/features/fees/components/CollectPaymentDialog';
 import StudentLedgerDrawer from '@/features/fees/components/StudentLedgerDrawer';
 import GenerateBulkInvoiceModal from '@/features/fees/components/GenerateBulkInvoiceModal';
+import CollectionTargetsCard from '@/features/fees/components/CollectionTargetsCard';
 import FeeStructuresTab from '@/features/fees/components/FeeStructuresTab';
 import FeeHeadsTab from '@/features/fees/components/FeeHeadsTab';
 import FeeRemindersTab from '@/features/fees/components/FeeRemindersTab';
@@ -213,6 +214,13 @@ export const FeesHubPage: React.FC = () => {
 
         {/* Tab 1: Invoices */}
         <TabsContent value="invoices" className="space-y-4 mt-4">
+          {/* Interval-Wise Target Tracker Card */}
+          <CollectionTargetsCard
+            academicYears={academicYears}
+            classrooms={classrooms}
+            academicClasses={academicClasses}
+          />
+
           {/* Reusable FilterBar */}
           <FilterBar
             searchQuery={searchTerm}
@@ -271,6 +279,7 @@ export const FeesHubPage: React.FC = () => {
         <TabsContent value="reminders" className="mt-4">
           <FeeRemindersTab
             classrooms={classrooms}
+            academicYears={academicYears}
             onOpenLedger={(sId) => setLedgerStudentId(sId)}
           />
         </TabsContent>

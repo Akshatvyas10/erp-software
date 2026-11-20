@@ -87,6 +87,8 @@ export const singleInvoiceSchema = z.object({
     fineAmount: z.number().min(0).default(0),
     notes: z.string().max(500).optional().nullable(),
     items: z.array(singleInvoiceItemInputSchema).min(1, 'At least one invoice line item is required'),
+    frequency: z.enum(['MONTHLY', 'QUARTERLY', 'ANNUAL', 'TERM', 'ONE_TIME']).optional().default('ONE_TIME'),
+    installmentsCount: z.coerce.number().int().min(1).max(12).optional(),
 });
 
 export const bulkClassInvoicePreviewSchema = z.object({
@@ -108,6 +110,8 @@ export const bulkClassInvoiceSchema = z.object({
     dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Due date must be YYYY-MM-DD'),
     notes: z.string().max(500).optional().nullable(),
     selectedStudentIds: z.array(z.string().uuid()).optional(),
+    installmentsCount: z.coerce.number().int().min(1).max(12).optional(),
+    customDueDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Installment due date must be YYYY-MM-DD')).optional(),
 });
 
 export const collectPaymentSchema = z.object({
@@ -141,6 +145,31 @@ export const collectPaymentSchema = z.object({
     belowMinimumReasonText: z.string().max(500).optional().nullable(),
     allocationStrategy: z.enum(['SELECTED_INVOICE', 'FIFO_AUTO']).optional().default('SELECTED_INVOICE'),
     studentId: z.string().uuid().optional(),
+    installmentId: z.string().uuid().optional().nullable(),
+    waiveLateFee: z.boolean().optional().default(false),
+    waivedFineAmount: z.number().min(0).optional().default(0),
+    fineWaiveReason: z.string().max(255).optional().nullable(),
+    adjustDueAmount: z.number().min(0).optional().default(0),
+    dueAdjustReason: z.string().max(255).optional().nullable(),
+}).superRefine((data, ctx) => {
+    if (data.waiveLateFee || (data.waivedFineAmount && data.waivedFineAmount > 0)) {
+        if (!data.fineWaiveReason || data.fineWaiveReason.trim().length < 5) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['fineWaiveReason'],
+                message: 'A mandatory justification reason (min 5 characters) is required when waiving or removing late fees.',
+            });
+        }
+    }
+    if (data.adjustDueAmount && data.adjustDueAmount > 0) {
+        if (!data.dueAdjustReason || data.dueAdjustReason.trim().length < 5) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['dueAdjustReason'],
+                message: 'A mandatory reason (min 5 characters) is required when applying a due adjustment.',
+            });
+        }
+    }
 });
 
 export const bulkFeeReminderSchema = z.object({

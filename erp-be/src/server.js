@@ -11,6 +11,7 @@ import logger from './utils/logger.js';
 
 import http from 'http';
 import { initSocket } from './config/socket.js';
+import { initFeeReminderScheduler, stopFeeReminderScheduler } from './schedulers/feeReminder.scheduler.js';
 
 const PORT = parseInt(process.env.PORT, 10) || 5000;
 
@@ -51,6 +52,8 @@ const start = async () => {
 
         httpServer = server.listen(PORT, () => {
             logger.info(`ERP server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+            // Initialize automated background schedulers
+            initFeeReminderScheduler();
         });
 
         server.on('error', (err) => {
@@ -70,6 +73,7 @@ const start = async () => {
 // Graceful shutdown
 const shutdown = async (signal) => {
     logger.info(`${signal} received — shutting down gracefully`);
+    stopFeeReminderScheduler();
     if (httpServer) {
         httpServer.close();
     }

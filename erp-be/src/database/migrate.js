@@ -217,13 +217,23 @@ import logger from '../utils/logger.js';
         }
 
         if (db.StudentInvoice) {
-            await db.StudentInvoice.sync({ force: false });
+            await db.StudentInvoice.sync({ force: false, alter: true });
             logger.info('✓ student_invoices');
         }
 
         if (db.StudentInvoiceItem) {
-            await db.StudentInvoiceItem.sync({ force: false });
+            await db.StudentInvoiceItem.sync({ force: false, alter: true });
             logger.info('✓ student_invoice_items');
+        }
+
+        if (db.StudentInvoiceInstallment) {
+            await db.StudentInvoiceInstallment.sync({ force: false, alter: true });
+            logger.info('✓ student_invoice_installments');
+        }
+
+        if (db.FeeReminderLog) {
+            await db.FeeReminderLog.sync({ force: false, alter: true });
+            logger.info('✓ fee_reminder_logs');
         }
 
         if (db.FeePayment) {

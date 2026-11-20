@@ -1,5 +1,9 @@
 import feeService from '../services/fee.service.js';
 import { success } from '../utils/apiResponse.js';
+import { assertStudentOwnership, getAccessibleStudentIdsForUser } from '../utils/studentOwnership.js';
+import { generateReceiptPdfStream } from '../utils/receiptPdf.js';
+import db from '../models/index.js';
+const { SchoolConfig } = db;
 
 // ─── Fee Heads ─────────────────────────────────────────────────────────────────
 export const getFeeHeads = async (req, res, next) => {
@@ -109,10 +113,17 @@ export const getInvoices = async (req, res, next) => {
     try {
         const { studentId, classroomId, academicYearId, status, search, page, limit } = req.query;
 
-        // Zero-IDOR guard: If user is a student, restrict to their own student profile ID
+        // Zero-IDOR guard: Assert ownership for student or parent
+        const accessibleStudentIds = await getAccessibleStudentIdsForUser(req.user, req.userRoles);
         let finalStudentId = studentId;
-        if (req.user?.roles?.some((r) => r.name === 'student') && req.user?.studentProfile?.id) {
-            finalStudentId = req.user.studentProfile.id;
+
+        if (accessibleStudentIds !== null) {
+            if (studentId) {
+                await assertStudentOwnership(req.user, studentId, req.userRoles);
+                finalStudentId = studentId;
+            } else {
+                finalStudentId = accessibleStudentIds[0] || '00000000-0000-0000-0000-000000000000';
+            }
         }
 
         const data = await feeService.getInvoices({
@@ -139,14 +150,8 @@ export const getInvoiceById = async (req, res, next) => {
     try {
         const invoice = await feeService.getInvoiceById(req.params.id);
 
-        // IDOR check for student
-        if (
-            req.user?.roles?.some((r) => r.name === 'student') &&
-            req.user?.studentProfile?.id &&
-            invoice.studentId !== req.user.studentProfile.id
-        ) {
-            return res.status(403).json({ success: false, message: 'Forbidden: You cannot access other students invoices' });
-        }
+        // IDOR check for student / parent
+        await assertStudentOwnership(req.user, invoice.studentId, req.userRoles);
 
         return success(res, invoice, 'Invoice retrieved successfully');
     } catch (err) {
@@ -195,16 +200,40 @@ export const getReceiptById = async (req, res, next) => {
     try {
         const receipt = await feeService.getReceiptById(req.params.id);
 
-        // IDOR check for student
-        if (
-            req.user?.roles?.some((r) => r.name === 'student') &&
-            req.user?.studentProfile?.id &&
-            receipt.studentId !== req.user.studentProfile.id
-        ) {
-            return res.status(403).json({ success: false, message: 'Forbidden: You cannot access this receipt' });
-        }
+        // IDOR check for student / parent
+        await assertStudentOwnership(req.user, receipt.studentId, req.userRoles);
 
         return success(res, receipt, 'Receipt retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const downloadReceiptPdf = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const format = req.query.format === '80mm' ? '80mm' : 'A4';
+
+        const receipt = await feeService.getReceiptById(id);
+
+        // IDOR check for student / parent
+        await assertStudentOwnership(req.user, receipt.studentId, req.userRoles);
+
+        const schoolConfig = (await SchoolConfig.findOne()) || {};
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="Receipt_${receipt.receiptNumber || id}_${format}.pdf"`
+        );
+
+        const docStream = generateReceiptPdfStream({
+            receipt,
+            schoolConfig,
+            format,
+        });
+
+        docStream.pipe(res);
     } catch (err) {
         next(err);
     }
@@ -214,15 +243,19 @@ export const getReceiptById = async (req, res, next) => {
 export const getStudentFeeLedger = async (req, res, next) => {
     try {
         let studentId = req.params.studentId;
+        const { academicYearId } = req.query;
 
-        // IDOR protection: only override if the user exclusively has the student role
-        const roleNames = (req.user?.roles || []).map((r) => (typeof r === 'string' ? r : r.name || '').toLowerCase());
-        const isStudentOnly = roleNames.includes('student') && !roleNames.some((r) => ['admin', 'super_admin', 'superadmin', 'accountant', 'faculty'].includes(r));
-        if (isStudentOnly && req.user?.studentProfile?.id) {
-            studentId = req.user.studentProfile.id;
+        // Zero-IDOR guard: Assert ownership for student or parent
+        const accessibleStudentIds = await getAccessibleStudentIdsForUser(req.user, req.userRoles);
+        if (accessibleStudentIds !== null) {
+            if (studentId) {
+                await assertStudentOwnership(req.user, studentId, req.userRoles);
+            } else {
+                studentId = accessibleStudentIds[0];
+            }
         }
 
-        const ledger = await feeService.getStudentFeeLedger(studentId);
+        const ledger = await feeService.getStudentFeeLedger(studentId, { academicYearId });
         return success(res, ledger, 'Student fee ledger retrieved successfully');
     } catch (err) {
         console.error("getStudentFeeLedger failed:", {
@@ -277,8 +310,22 @@ export const sendBulkFeeReminders = async (req, res, next) => {
 export const getFeeReminderLogs = async (req, res, next) => {
     try {
         const { studentId, periodKey, status, limit, offset } = req.query;
+
+        // Zero-IDOR guard: Assert ownership for student or parent
+        const accessibleStudentIds = await getAccessibleStudentIdsForUser(req.user, req.userRoles);
+        let finalStudentId = studentId;
+
+        if (accessibleStudentIds !== null) {
+            if (studentId) {
+                await assertStudentOwnership(req.user, studentId, req.userRoles);
+                finalStudentId = studentId;
+            } else {
+                finalStudentId = accessibleStudentIds[0] || '00000000-0000-0000-0000-000000000000';
+            }
+        }
+
         const logs = await feeService.getFeeReminderLogs({
-            studentId,
+            studentId: finalStudentId,
             periodKey,
             status,
             limit,
@@ -456,6 +503,41 @@ export const getCounterHistory = async (req, res, next) => {
         );
 
         return success(res, history, 'Counter collection history retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const getInstallmentCollectionTargets = async (req, res, next) => {
+    try {
+        const { academicYearId, classroomId, academicClassId } = req.query;
+        const targets = await feeService.getInstallmentCollectionTargets({
+            academicYearId,
+            classroomId,
+            academicClassId,
+        });
+        return success(res, targets, 'Interval-wise collection targets retrieved successfully');
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const exportCollectionTargetsCsv = async (req, res, next) => {
+    try {
+        const { academicYearId, classroomId, academicClassId } = req.query;
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="Collection_Targets_${new Date().toISOString().split('T')[0]}.csv"`
+        );
+
+        await feeService.streamCollectionTargetsCsv({
+            academicYearId,
+            classroomId,
+            academicClassId,
+            outputStream: res,
+        });
     } catch (err) {
         next(err);
     }

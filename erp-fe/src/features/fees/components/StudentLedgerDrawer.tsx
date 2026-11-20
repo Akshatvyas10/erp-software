@@ -373,6 +373,52 @@ export const StudentLedgerDrawer: React.FC<StudentLedgerDrawerProps> = ({
                               </span>
                             </div>
                           </div>
+
+                          {/* Installments Breakdown (if present) */}
+                          {inv.installments && inv.installments.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-slate-100 bg-slate-50/70 p-2 rounded-lg space-y-1.5">
+                              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
+                                Installment Schedule ({inv.installments.length})
+                              </span>
+                              <div className="space-y-1">
+                                {inv.installments.map((inst) => {
+                                  const instOverdue = inst.status === 'OVERDUE' || Number(inst.lateFineAmount || 0) > 0;
+                                  return (
+                                    <div
+                                      key={inst.id}
+                                      className={`flex justify-between items-center p-1.5 rounded text-[11px] border ${
+                                        inst.status === 'PAID'
+                                          ? 'bg-emerald-50/60 border-emerald-200 text-emerald-800'
+                                          : instOverdue
+                                          ? 'bg-rose-50/60 border-rose-200 text-rose-800'
+                                          : 'bg-white border-slate-200 text-slate-700'
+                                      }`}
+                                    >
+                                      <div>
+                                        <span className="font-semibold">
+                                          Inst #{inst.installmentNumber}: {inst.title}
+                                        </span>
+                                        <span className="text-[10px] text-slate-500 ml-1.5">
+                                          (Due: {inst.dueDate})
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2 font-mono">
+                                        {Number(inst.lateFineAmount) > 0 && (
+                                          <span className="text-[10px] text-rose-600 font-bold">
+                                            +₹{Number(inst.lateFineAmount)} Fine
+                                          </span>
+                                        )}
+                                        <span>Bal: <strong>₹{Number(inst.balanceAmount).toLocaleString('en-IN')}</strong></span>
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0">
+                                          {inst.status}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))
                     )}

@@ -100,6 +100,98 @@ class OnlinePaymentService {
     }
 
     /**
+     * Verifies webhook cryptographic signature against raw request payload buffer.
+     */
+    verifyWebhookSignature(rawBody, signature) {
+        if (!rawBody || !signature) return false;
+        const { webhookSecret } = this.getCredentials();
+        const expectedSignature = crypto
+            .createHmac('sha256', webhookSecret)
+            .update(rawBody)
+            .digest('hex');
+
+        const providedBuffer = Buffer.from(String(signature));
+        const expectedBuffer = Buffer.from(String(expectedSignature));
+
+        if (providedBuffer.length !== expectedBuffer.length) {
+            return false;
+        }
+
+        return crypto.timingSafeEqual(providedBuffer, expectedBuffer);
+    }
+
+    /**
+     * Idempotently handles asynchronous webhook events from Razorpay (e.g. payment.captured).
+     */
+    async handleWebhookEvent(eventPayload, signature, rawBody = null) {
+        const bodyToVerify = rawBody || JSON.stringify(eventPayload);
+        const isValid = this.verifyWebhookSignature(bodyToVerify, signature);
+        if (!isValid) {
+            logger.warn('[ONLINE PAYMENT WEBHOOK] Invalid webhook signature');
+            throw new Error('Invalid webhook signature');
+        }
+
+        const event = eventPayload.event;
+        logger.info(`[ONLINE PAYMENT WEBHOOK] Processing event: ${event}`);
+
+        if (event === 'payment.captured' || event === 'order.paid') {
+            const paymentEntity = eventPayload.payload?.payment?.entity;
+            if (!paymentEntity) {
+                return { processed: false, reason: 'No payment entity found' };
+            }
+
+            const paymentId = paymentEntity.id;
+            const orderId = paymentEntity.order_id;
+            const amountInRupees = Number(paymentEntity.amount) / 100;
+            const invoiceId = paymentEntity.notes?.invoiceId;
+            const studentId = paymentEntity.notes?.studentId;
+
+            if (!invoiceId || !studentId) {
+                logger.info(`[ONLINE PAYMENT WEBHOOK] Payment ${paymentId} has no student/invoice notes; skipping ledger auto-booking.`);
+                return { processed: false, reason: 'Missing invoice/student metadata' };
+            }
+
+            // Verify idempotency
+            const db = (await import('../models/index.js')).default;
+            const { FeePayment } = db;
+            const existing = await FeePayment.findOne({ where: { referenceNumber: paymentId } });
+            if (existing) {
+                logger.info(`[ONLINE PAYMENT WEBHOOK] Payment ${paymentId} already settled. Skipping duplicate.`);
+                return { processed: true, duplicate: true, receiptNumber: existing.receiptNumber };
+            }
+
+            const feeService = (await import('./fee.service.js')).default;
+            const systemCollectorId = await this.getSystemCollectorId();
+
+            const receipt = await feeService.collectPayment(
+                {
+                    invoiceId,
+                    amount: amountInRupees,
+                    amountPaid: amountInRupees,
+                    paymentMode: 'ONLINE',
+                    referenceNumber: paymentId,
+                    paidByName: paymentEntity.notes?.studentName || 'Online Portal (Self/Guardian)',
+                    notes: `Webhook Event: ${event} | Gateway Order: ${orderId} | Txn: ${paymentId}`,
+                    paymentDetails: {
+                        gateway: 'RAZORPAY',
+                        webhookEvent: event,
+                        orderId,
+                        paymentId,
+                        signatureVerified: true,
+                        verifiedAt: new Date().toISOString(),
+                    },
+                },
+                systemCollectorId
+            );
+
+            logger.info(`[ONLINE PAYMENT WEBHOOK] Settled payment ${paymentId} via webhook. Receipt: ${receipt.receiptNumber}`);
+            return { processed: true, settled: true, receiptNumber: receipt.receiptNumber };
+        }
+
+        return { processed: true, event };
+    }
+
+    /**
      * Confirms and settles the payment transaction into the student fee ledger.
      * Uses atomic transactions and prevents duplicate ledger allocations.
      */
@@ -133,22 +225,26 @@ class OnlinePaymentService {
         const collectedById = userAccount?.id || (await this.getSystemCollectorId());
 
         // Process collection through centralized fee service to maintain consistent ledger logic
-        const receipt = await feeService.collectPayment({
-            invoiceId,
-            amountPaid: Number(amount),
-            paymentMode: 'ONLINE',
-            referenceNumber: paymentId,
-            paidByName: userAccount ? `${userAccount.firstName || ''} ${userAccount.lastName || ''}`.trim() : 'Online Portal (Self/Guardian)',
-            notes: `Gateway Order: ${orderId} | Transaction: ${paymentId}`,
-            paymentDetails: {
-                gateway: 'RAZORPAY',
-                orderId,
-                paymentId,
-                signatureVerified: true,
-                verifiedAt: new Date().toISOString(),
+        const receipt = await feeService.collectPayment(
+            {
+                invoiceId,
+                amount: Number(amount),
+                amountPaid: Number(amount),
+                paymentMode: 'ONLINE',
+                referenceNumber: paymentId,
+                paidByName: userAccount ? `${userAccount.firstName || ''} ${userAccount.lastName || ''}`.trim() : 'Online Portal (Self/Guardian)',
+                notes: `Gateway Order: ${orderId} | Transaction: ${paymentId}`,
+                paymentDetails: {
+                    gateway: 'RAZORPAY',
+                    orderId,
+                    paymentId,
+                    signatureVerified: true,
+                    verifiedAt: new Date().toISOString(),
+                },
             },
             collectedById,
-        });
+            userAccount
+        );
 
         logger.info(`[ONLINE PAYMENT] Successfully settled ₹${amount} against invoice ${invoiceId}. Receipt: ${receipt.receiptNumber}`);
 

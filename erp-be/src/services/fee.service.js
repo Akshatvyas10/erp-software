@@ -11,6 +11,7 @@ const {
     FeeStructureDiscount,
     StudentInvoice,
     StudentInvoiceItem,
+    StudentInvoiceInstallment,
     FeePayment,
     Student,
     Classroom,
@@ -22,6 +23,7 @@ const {
     SchoolConfig,
     FeePaymentReversal,
     FeeRefund,
+    TransportRoute,
 } = db;
 import { hasPermission } from './permissionService.js';
 import { enqueueEmailJob } from '../queues/email.queue.js';
@@ -31,6 +33,110 @@ import { sendFeeReminderDirect } from './email.service.js';
  * Service handling Fee Masters, Invoices, and Payment collections
  */
 class FeeService {
+    /**
+     * Splits an invoice's total amount across N installments with exact paise math
+     * ensuring the sum of all installments equals the total with zero rounding drift.
+     * Supports custom explicit due dates (e.g. ['2026-06-15', '2026-09-15', '2026-12-15', '2027-03-15']).
+     */
+    _splitInstallments({ totalAmount, installmentsCount = 1, startDate, frequency = 'MONTHLY', titlePrefix = 'Installment', customDueDates = null }) {
+        const n = Math.max(1, parseInt(installmentsCount, 10) || 1);
+        const totalPaise = Math.round(Number(totalAmount || 0) * 100);
+        const basePaise = Math.floor(totalPaise / n);
+        const remainderPaise = totalPaise - (basePaise * n);
+
+        const installments = [];
+        const baseDate = new Date(startDate || new Date().toISOString().split('T')[0]);
+
+        for (let i = 1; i <= n; i++) {
+            const isLast = (i === n);
+            const installmentPaise = isLast ? (basePaise + remainderPaise) : basePaise;
+            const amount = Number((installmentPaise / 100).toFixed(2));
+
+            // Compute due date per interval or pick custom explicit due date if provided
+            let dueDateStr;
+            if (Array.isArray(customDueDates) && customDueDates[i - 1]) {
+                dueDateStr = customDueDates[i - 1];
+            } else {
+                const instDate = new Date(baseDate);
+                if (frequency === 'MONTHLY') {
+                    instDate.setMonth(instDate.getMonth() + (i - 1));
+                } else if (frequency === 'QUARTERLY') {
+                    instDate.setMonth(instDate.getMonth() + ((i - 1) * 3));
+                } else if (frequency === 'TERM') {
+                    instDate.setMonth(instDate.getMonth() + ((i - 1) * 4));
+                } else if (frequency === 'ANNUAL' || frequency === 'ONE_TIME') {
+                    // Same base date
+                } else {
+                    instDate.setMonth(instDate.getMonth() + (i - 1));
+                }
+                dueDateStr = instDate.toISOString().split('T')[0];
+            }
+
+            installments.push({
+                installmentNumber: i,
+                title: n > 1 ? `${titlePrefix} ${i} of ${n}` : `${titlePrefix}`,
+                dueDate: dueDateStr,
+                baseAmount: amount,
+                lateFineAmount: 0,
+                waivedFineAmount: 0,
+                totalAmount: amount,
+                paidAmount: 0,
+                balanceAmount: amount,
+                status: 'PENDING',
+            });
+        }
+
+        return installments;
+    }
+
+    /**
+     * Calculates and enriches dynamic late fees on installments.
+     * Late fees accrue ONLY on installments that are past their dueDate and have balanceAmount > 0.
+     * Future installments whose dueDate has not arrived NEVER accrue late fees.
+     */
+    _enrichInstallmentsWithLateFines(installments = [], lateFinePerDay = 0, gracePeriodDays = 0) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayDate = new Date(todayStr);
+
+        return (installments || []).map((inst) => {
+            const instObj = inst.toJSON ? inst.toJSON() : { ...inst };
+            const dueDate = new Date(instObj.dueDate);
+            const diffDays = Math.floor((todayDate - dueDate) / (1000 * 60 * 60 * 24));
+            const overdueDays = Math.max(0, diffDays - Number(gracePeriodDays || 0));
+            const isOverdue = Number(instObj.balanceAmount || 0) > 0 && overdueDays > 0;
+
+            let accruedFine = Number(instObj.lateFineAmount || 0);
+            if (isOverdue && Number(lateFinePerDay || 0) > 0 && accruedFine === 0) {
+                // Idempotent accrued fine calculation
+                accruedFine = Number((overdueDays * Number(lateFinePerDay)).toFixed(2));
+            }
+
+            const waivedFine = Number(instObj.waivedFineAmount || 0);
+            const netFine = Math.max(0, accruedFine - waivedFine);
+            const effectivePayable = Number((Number(instObj.balanceAmount || 0) + netFine).toFixed(2));
+
+            let status = instObj.status;
+            if (Number(instObj.balanceAmount || 0) === 0) {
+                status = 'PAID';
+            } else if (Number(instObj.paidAmount || 0) > 0) {
+                status = 'PARTIALLY_PAID';
+            } else if (isOverdue) {
+                status = 'OVERDUE';
+            } else {
+                status = 'PENDING';
+            }
+
+            return {
+                ...instObj,
+                isOverdue,
+                overdueDays,
+                accruedFine,
+                netFine,
+                effectivePayable,
+                status,
+            };
+        });
+    }
     // ══════════════════════════════════════════════════════════════════════════
     // FEE HEADS
     // ══════════════════════════════════════════════════════════════════════════
@@ -422,11 +528,96 @@ class FeeService {
 
             await StudentInvoiceItem.bulkCreate(invoiceItems, { transaction: t });
 
+            // Generate scheduled installments with exact paise math
+            const defaultInstallments = data.frequency === 'MONTHLY' ? 12 : data.frequency === 'QUARTERLY' ? 4 : (data.frequency === 'TERM' ? 3 : 1);
+            const instCount = data.installmentsCount || defaultInstallments;
+            const installmentRows = this._splitInstallments({
+                totalAmount: netAmount,
+                installmentsCount: instCount,
+                startDate: data.dueDate,
+                frequency: data.frequency || 'ONE_TIME',
+                titlePrefix: `${data.title} - Inst.`,
+            }).map((row) => ({
+                ...row,
+                studentInvoiceId: invoice.id,
+            }));
+
+            await StudentInvoiceInstallment.bulkCreate(installmentRows, { transaction: t });
+
+            // ─── Advance Fee Carry-Forward Auto-Application for Single Invoice ───
+            let studentAdvance = Number(student.feeAdvanceCredit || 0);
+            if (studentAdvance > 0 && netAmount > 0) {
+                const advanceToApply = Math.min(studentAdvance, netAmount);
+                const newInvoiceBalance = Number((netAmount - advanceToApply).toFixed(2));
+                const newInvoicePaid = advanceToApply;
+                const newInvoiceStatus = newInvoiceBalance === 0 ? 'PAID' : 'PARTIALLY_PAID';
+
+                await invoice.update(
+                    {
+                        paidAmount: newInvoicePaid,
+                        balanceAmount: newInvoiceBalance,
+                        status: newInvoiceStatus,
+                    },
+                    { transaction: t }
+                );
+
+                const createdInstRows = await StudentInvoiceInstallment.findAll({
+                    where: { studentInvoiceId: invoice.id },
+                    order: [['installmentNumber', 'ASC']],
+                    transaction: t,
+                });
+
+                let remainingCreditToDistribute = advanceToApply;
+                for (const inst of createdInstRows) {
+                    if (remainingCreditToDistribute <= 0) break;
+                    const instDue = Number(inst.balanceAmount || 0);
+                    if (instDue <= 0) continue;
+
+                    const applyToInst = Math.min(remainingCreditToDistribute, instDue);
+                    const newInstBalance = Number((instDue - applyToInst).toFixed(2));
+                    const newInstPaid = Number((Number(inst.paidAmount || 0) + applyToInst).toFixed(2));
+                    const newInstStatus = newInstBalance === 0 ? 'PAID' : 'PARTIALLY_PAID';
+
+                    await inst.update(
+                        {
+                            paidAmount: newInstPaid,
+                            balanceAmount: newInstBalance,
+                            status: newInstStatus,
+                        },
+                        { transaction: t }
+                    );
+
+                    remainingCreditToDistribute = Number((remainingCreditToDistribute - applyToInst).toFixed(2));
+                }
+
+                const updatedStudentAdvance = Number((studentAdvance - advanceToApply).toFixed(2));
+                await student.update({ feeAdvanceCredit: updatedStudentAdvance }, { transaction: t });
+
+                // Record official payment ledger voucher for advance credit consumption
+                const advanceReceiptNo = await this._getNextReceiptNumber(t);
+                await FeePayment.create(
+                    {
+                        receiptNumber: advanceReceiptNo,
+                        studentInvoiceId: invoice.id,
+                        studentId: student.id,
+                        amountPaid: advanceToApply,
+                        paymentMode: 'ADVANCE_CREDIT',
+                        referenceNumber: `ADV-ADJUST-${invoice.invoiceNumber}`,
+                        paymentDate: new Date().toISOString().split('T')[0],
+                        collectedById: userId,
+                        status: 'SUCCESS',
+                        notes: `Automatic deduction of INR ${advanceToApply} from student advance credit balance`,
+                    },
+                    { transaction: t }
+                );
+            }
+
             return await StudentInvoice.findByPk(invoice.id, {
                 include: [
                     { model: Student, as: 'student' },
                     { model: Classroom, as: 'classroom' },
                     { model: StudentInvoiceItem, as: 'items', include: [{ model: FeeHead, as: 'feeHead' }] },
+                    { model: StudentInvoiceInstallment, as: 'installments' },
                 ],
                 transaction: t,
             });
@@ -434,15 +625,16 @@ class FeeService {
     }
 
     /**
-     * Compute calculated items, gross, discount, and net for a student based on a Fee Structure and chosen frequency
+     * Compute calculated items, gross, discount, and net for a student based on a Fee Structure and chosen frequency.
+     * Automatically integrates transport route stop charges when student's transportationMode is SCHOOL_BUS.
      */
-    _calculateStudentFee({ student, feeStructure, frequency = 'MONTHLY' }) {
+    _calculateStudentFee({ student, feeStructure, frequency = 'MONTHLY', transportFeeHead = null, transportRoute = null }) {
         // Filter structure items for the given frequency where amount > 0 and isEnabled
         const freqItems = (feeStructure.items || []).filter(
             (it) => it.frequency === frequency && it.isEnabled && Number(it.amount) > 0
         );
 
-        const subtotal = freqItems.reduce((sum, it) => sum + Number(it.amount), 0);
+        let subtotal = freqItems.reduce((sum, it) => sum + Number(it.amount), 0);
 
         // Resolve matching quota discount rule (e.g. STAFF_CHILD, SCHOLARSHIP_HALF, etc.)
         const studentQuota = (student.feeQuota || 'REGULAR').toUpperCase();
@@ -493,6 +685,49 @@ class FeeService {
             };
         });
 
+        // ─── Transport Surcharge Engine ───────────────────────────────────────
+        // If student uses SCHOOL_BUS, dynamically merge bus route surcharge
+        const isBusUser = student.transportationMode === 'SCHOOL_BUS';
+        let transportSurcharge = 0;
+        let routeDetails = null;
+
+        if (isBusUser) {
+            let monthlyFare = 0;
+            if (transportRoute && Number(transportRoute.monthlyFare) > 0) {
+                monthlyFare = Number(transportRoute.monthlyFare);
+                routeDetails = {
+                    routeId: transportRoute.id,
+                    routeName: transportRoute.routeName,
+                    monthlyFare,
+                };
+            } else {
+                // Default standard monthly bus fare if specific route not assigned
+                monthlyFare = 1500.00;
+                routeDetails = {
+                    routeName: 'School Bus Transit Service',
+                    monthlyFare,
+                };
+            }
+
+            // Scale surcharge according to invoice frequency
+            let multiplier = 1;
+            if (frequency === 'QUARTERLY') multiplier = 3;
+            else if (frequency === 'TERM') multiplier = 4;
+            else if (frequency === 'ANNUAL' || frequency === 'ONE_TIME') multiplier = 12;
+
+            transportSurcharge = Number((monthlyFare * multiplier).toFixed(2));
+            subtotal += transportSurcharge;
+
+            lineItems.push({
+                feeHeadId: transportFeeHead?.id || null,
+                headName: `Transport Fee (${routeDetails.routeName})`,
+                amount: transportSurcharge,
+                discountAmount: 0,
+                netAmount: transportSurcharge,
+                isTransportSurcharge: true,
+            });
+        }
+
         totalDiscount = Math.round(totalDiscount * 100) / 100;
         const netPayable = Math.max(0, subtotal - totalDiscount);
 
@@ -503,6 +738,7 @@ class FeeService {
             matchedQuota: matchedDiscount ? studentQuota : null,
             discountRule: matchedDiscount || null,
             lineItems,
+            transportDetails: isBusUser ? { isBusUser: true, transportSurcharge, route: routeDetails } : null,
         };
     }
 
@@ -520,6 +756,14 @@ class FeeService {
         if (feeStructure.status === 'INACTIVE') {
             throw new ApiError(400, `Cannot generate invoices using inactive Fee Structure template "${feeStructure.name}". Please activate it first.`);
         }
+
+        // Fetch Transport Fee Head if available
+        const transportFeeHead = await FeeHead.findOne({
+            where: {
+                [Op.or]: [{ category: 'TRANSPORT' }, { code: 'TRANSPORT' }],
+                isActive: true,
+            },
+        });
 
         // Check if classroom has enrolled students
         const classroom = await Classroom.findByPk(classroomId);
@@ -581,7 +825,12 @@ class FeeService {
                 };
             }
 
-            const calculation = this._calculateStudentFee({ student, feeStructure, frequency });
+            const calculation = this._calculateStudentFee({
+                student,
+                feeStructure,
+                frequency,
+                transportFeeHead,
+            });
             const fullName = student.account
                 ? `${student.account.firstName || ''} ${student.account.lastName || ''}`.trim()
                 : student.studentId;
@@ -675,6 +924,15 @@ class FeeService {
                 throw new ApiError(400, `Cannot generate invoices using inactive Fee Structure template "${feeStructure.name}". Please activate it first.`);
             }
 
+            // Fetch Transport Fee Head if available
+            const transportFeeHead = await FeeHead.findOne({
+                where: {
+                    [Op.or]: [{ category: 'TRANSPORT' }, { code: 'TRANSPORT' }],
+                    isActive: true,
+                },
+                transaction: t,
+            });
+
             // Find enrolled students in this classroom
             const classroomStudents = await ClassroomStudent.findAll({
                 where: { classroomId },
@@ -731,7 +989,12 @@ class FeeService {
                     continue;
                 }
 
-                const calculation = this._calculateStudentFee({ student, feeStructure, frequency });
+                const calculation = this._calculateStudentFee({
+                student,
+                feeStructure,
+                frequency,
+                transportFeeHead,
+            });
                 if (calculation.subtotal <= 0) {
                     skippedStudents.push({ studentId: student.id, reason: 'Zero fee amount for chosen frequency' });
                     continue;
@@ -772,6 +1035,99 @@ class FeeService {
                 }));
 
                 await StudentInvoiceItem.bulkCreate(invoiceItems, { transaction: t });
+
+                // Automatic Installment Split across N intervals with exact paise math
+                const defaultInstallments = frequency === 'MONTHLY' ? 12 : frequency === 'QUARTERLY' ? 4 : (frequency === 'TERM' ? 3 : 1);
+                const instCount = data.installmentsCount || defaultInstallments;
+                const installmentRows = this._splitInstallments({
+                    totalAmount: calculation.netPayable,
+                    installmentsCount: instCount,
+                    startDate: dueDate,
+                    frequency,
+                    titlePrefix: `${finalTitle} - Inst.`,
+                    customDueDates: Array.isArray(data.customDueDates) ? data.customDueDates : null,
+                }).map((row) => ({
+                    ...row,
+                    studentInvoiceId: invoice.id,
+                }));
+
+                await StudentInvoiceInstallment.bulkCreate(installmentRows, { transaction: t });
+
+                // ─── Advance Fee Carry-Forward Auto-Application ────────────────
+                // Automatically apply Student.feeAdvanceCredit against the invoice & its installments
+                let studentAdvance = Number(student.feeAdvanceCredit || 0);
+                if (studentAdvance > 0 && calculation.netPayable > 0) {
+                    const advanceToApply = Math.min(studentAdvance, calculation.netPayable);
+                    const newInvoiceBalance = Number((calculation.netPayable - advanceToApply).toFixed(2));
+                    const newInvoicePaid = advanceToApply;
+                    const newInvoiceStatus = newInvoiceBalance === 0 ? 'PAID' : 'PARTIALLY_PAID';
+
+                    await invoice.update(
+                        {
+                            paidAmount: newInvoicePaid,
+                            balanceAmount: newInvoiceBalance,
+                            status: newInvoiceStatus,
+                        },
+                        { transaction: t }
+                    );
+
+                    // Distribute advance across installments in chronological order
+                    const createdInstRows = await StudentInvoiceInstallment.findAll({
+                        where: { studentInvoiceId: invoice.id },
+                        order: [['installmentNumber', 'ASC']],
+                        transaction: t,
+                    });
+
+                    let remainingCreditToDistribute = advanceToApply;
+                    for (const inst of createdInstRows) {
+                        if (remainingCreditToDistribute <= 0) break;
+                        const instDue = Number(inst.balanceAmount || 0);
+                        if (instDue <= 0) continue;
+
+                        const applyToInst = Math.min(remainingCreditToDistribute, instDue);
+                        const newInstBalance = Number((instDue - applyToInst).toFixed(2));
+                        const newInstPaid = Number((Number(inst.paidAmount || 0) + applyToInst).toFixed(2));
+                        const newInstStatus = newInstBalance === 0 ? 'PAID' : 'PARTIALLY_PAID';
+
+                        await inst.update(
+                            {
+                                paidAmount: newInstPaid,
+                                balanceAmount: newInstBalance,
+                                status: newInstStatus,
+                            },
+                            { transaction: t }
+                        );
+
+                        remainingCreditToDistribute = Number((remainingCreditToDistribute - applyToInst).toFixed(2));
+                    }
+
+                    // Deduct applied credit from student's advance credit ledger
+                    const updatedStudentAdvance = Number((studentAdvance - advanceToApply).toFixed(2));
+                    await student.update({ feeAdvanceCredit: updatedStudentAdvance }, { transaction: t });
+
+                    // Record official payment ledger voucher for advance credit consumption
+                    const advanceReceiptNo = await this._getNextReceiptNumber(t);
+                    await FeePayment.create(
+                        {
+                            receiptNumber: advanceReceiptNo,
+                            studentInvoiceId: invoice.id,
+                            studentId: student.id,
+                            amountPaid: advanceToApply,
+                            paymentMode: 'ADVANCE_CREDIT',
+                            referenceNumber: `ADV-ADJUST-${invoice.invoiceNumber}`,
+                            paymentDate: new Date().toISOString().split('T')[0],
+                            collectedById: userId,
+                            status: 'SUCCESS',
+                            notes: `Automatic deduction of INR ${advanceToApply} from student advance credit balance`,
+                        },
+                        { transaction: t }
+                    );
+
+                    logger.info(
+                        `[Fee Auto-Advance] Applied INR ${advanceToApply} advance credit to invoice ${invoiceNumber} for student ${student.id}. Remaining advance: INR ${updatedStudentAdvance}`
+                    );
+                }
+
                 createdInvoices.push({ id: invoice.id, invoiceNumber, studentId: student.id, amount: calculation.netPayable });
             }
 
@@ -798,9 +1154,8 @@ class FeeService {
         if (studentId) where.studentId = studentId;
         if (classroomId) where.classroomId = classroomId;
         if (academicYearId) where.academicYearId = academicYearId;
-        if (status) where.status = status;
+        if (status && status !== 'ALL') where.status = status;
 
-        const studentWhere = {};
         if (search) {
             where[Op.or] = [
                 { invoiceNumber: { [Op.iLike]: `%${search}%` } },
@@ -810,57 +1165,61 @@ class FeeService {
 
         const offset = (Number(page) - 1) * Number(limit);
 
-        const { count, rows } = await StudentInvoice.findAndCountAll({
-            where,
-            subQuery: false,
-            distinct: true,
-            include: [
-                {
-                    model: Student,
-                    as: 'student',
-                    attributes: ['id', 'admissionNumber', 'status', 'userId'],
-                    include: [
-                        {
-                            model: User,
-                            as: 'account',
-                            attributes: ['id', 'firstName', 'lastName', 'email'],
-                        },
-                    ],
-                },
-                {
-                    model: Classroom,
-                    as: 'classroom',
-                    attributes: ['id', 'name', 'section'],
-                },
-                {
-                    model: AcademicYear,
-                    as: 'academicYear',
-                    attributes: ['id', 'name', 'isCurrent'],
-                },
-                {
-                    model: StudentInvoiceItem,
-                    as: 'items',
-                    include: [{ model: FeeHead, as: 'feeHead', attributes: ['id', 'code', 'name', 'description'] }],
-                },
-                {
-                    model: FeePayment,
-                    as: 'payments',
-                    attributes: ['id', 'receiptNumber', 'amountPaid', 'paymentMode', 'paymentDate'],
-                },
-            ],
-            order: [['createdAt', 'DESC']],
-            limit: Number(limit),
-            offset,
-            distinct: true,
-        });
+        const [totalCount, rows] = await Promise.all([
+            StudentInvoice.count({ where }),
+            StudentInvoice.findAll({
+                where,
+                include: [
+                    {
+                        model: Student,
+                        as: 'student',
+                        attributes: ['id', 'admissionNumber', 'status', 'userId'],
+                        include: [
+                            {
+                                model: User,
+                                as: 'account',
+                                attributes: ['id', 'firstName', 'lastName', 'email'],
+                            },
+                        ],
+                    },
+                    {
+                        model: Classroom,
+                        as: 'classroom',
+                        attributes: ['id', 'name', 'section'],
+                    },
+                    {
+                        model: AcademicYear,
+                        as: 'academicYear',
+                        attributes: ['id', 'name', 'isCurrent'],
+                    },
+                    {
+                        model: StudentInvoiceItem,
+                        as: 'items',
+                        include: [{ model: FeeHead, as: 'feeHead', attributes: ['id', 'code', 'name', 'description'] }],
+                    },
+                    {
+                        model: StudentInvoiceInstallment,
+                        as: 'installments',
+                    },
+                    {
+                        model: FeePayment,
+                        as: 'payments',
+                        attributes: ['id', 'receiptNumber', 'amountPaid', 'paymentMode', 'paymentDate'],
+                    },
+                ],
+                order: [['createdAt', 'DESC']],
+                limit: Number(limit),
+                offset,
+            }),
+        ]);
 
         return {
             invoices: rows,
             pagination: {
-                total: count,
+                total: totalCount,
                 page: Number(page),
                 limit: Number(limit),
-                totalPages: Math.ceil(count / Number(limit)),
+                totalPages: Math.ceil(totalCount / Number(limit)),
             },
         };
     }
@@ -884,9 +1243,19 @@ class FeeService {
                     attributes: ['id', 'name', 'isCurrent'],
                 },
                 {
+                    model: FeeStructure,
+                    as: 'feeStructure',
+                    attributes: ['id', 'name', 'lateFinePerDay', 'dueDayOfMonth', 'minimumPaymentAmount', 'allowBelowMinimum'],
+                },
+                {
                     model: StudentInvoiceItem,
                     as: 'items',
                     include: [{ model: FeeHead, as: 'feeHead' }],
+                },
+                {
+                    model: StudentInvoiceInstallment,
+                    as: 'installments',
+                    include: [{ model: User, as: 'fineWaivedBy', attributes: ['id', 'firstName', 'lastName'] }],
                 },
                 {
                     model: FeePayment,
@@ -894,10 +1263,19 @@ class FeeService {
                     include: [{ model: User, as: 'collectedBy', attributes: ['id', 'firstName', 'lastName'] }],
                 },
             ],
+            order: [[{ model: StudentInvoiceInstallment, as: 'installments' }, 'installmentNumber', 'ASC']],
         });
 
         if (!invoice) throw new ApiError(404, 'Invoice not found');
-        return invoice;
+
+        // Dynamically enrich installments with strictly current/overdue installment late fees
+        const lateFinePerDay = Number(invoice.feeStructure?.lateFinePerDay || 0);
+        const enrichedInstallments = this._enrichInstallmentsWithLateFines(invoice.installments || [], lateFinePerDay, 0);
+
+        return {
+            ...invoice.toJSON(),
+            installments: enrichedInstallments,
+        };
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -917,6 +1295,30 @@ class FeeService {
             });
             if (!targetInvoice) throw new ApiError(404, 'Invoice not found');
             const studentId = targetInvoice.studentId;
+
+            // ─── WAIVE LATE FEE / DUE ADJUSTMENT GUARDS ───────────────────────
+            const waiveLateFeeRequested = Boolean(data.waiveLateFee || (Number(data.waivedFineAmount || 0) > 0));
+            const fineWaiverAmount = Number(data.waivedFineAmount || 0);
+            const dueAdjustmentAmount = Number(data.adjustDueAmount || 0);
+
+            if (waiveLateFeeRequested || fineWaiverAmount > 0) {
+                if (!data.fineWaiveReason || data.fineWaiveReason.trim().length < 5) {
+                    throw new ApiError(422, 'Mandatory reason (min 5 characters) is required when waiving/removing late fee.');
+                }
+            }
+
+            if (dueAdjustmentAmount > 0) {
+                if (!data.dueAdjustReason || data.dueAdjustReason.trim().length < 5) {
+                    throw new ApiError(422, 'Mandatory reason (min 5 characters) is required when adjusting invoice dues.');
+                }
+                if (userId) {
+                    const hasAdjust = await hasPermission(userId, 'fees', 'adjust');
+                    const hasManage = await hasPermission(userId, 'fees', 'manage');
+                    if (!hasAdjust && !hasManage) {
+                        throw new ApiError(403, 'Insufficient privilege: Adjusting invoice due amount requires fees:adjust or fees:manage permission.');
+                    }
+                }
+            }
 
             // Load Fee Structure policy if attached to check minimum payment requirements
             let minPayable = 0;
@@ -988,13 +1390,93 @@ class FeeService {
                 advanceCreditCreated = paymentAmount - totalOutstanding;
             }
 
-            // Allocate payment across invoices
+            // Allocate payment across invoices and child installments
             for (const inv of invoicesToPay) {
                 if (remainingFund <= 0) break;
-                const invBalance = Number(inv.balanceAmount);
-                const alloc = Math.min(remainingFund, invBalance);
-                const newPaid = Number(inv.paidAmount) + alloc;
-                const newBal = Math.max(0, invBalance - alloc);
+                let invBalance = Number(inv.balanceAmount);
+
+                // Check if specific installment or waiver/adjustment applies to this invoice
+                let invWaivedFine = 0;
+                if (inv.id === targetInvoice.id) {
+                    // 1. Process Due Adjustment if requested
+                    if (dueAdjustmentAmount > 0) {
+                        const adj = Math.min(dueAdjustmentAmount, invBalance);
+                        invBalance = Math.max(0, invBalance - adj);
+                        await inv.update({
+                            totalAmount: Math.max(0, Number(inv.totalAmount || 0) - adj),
+                            balanceAmount: invBalance,
+                            remarks: inv.remarks ? `${inv.remarks} | Due Adjusted: -₹${adj} (${data.dueAdjustReason})` : `Due Adjusted: -₹${adj} (${data.dueAdjustReason})`,
+                        }, { transaction: t });
+                    }
+
+                    // 2. Process Late Fine Waiver if requested
+                    if (waiveLateFeeRequested || fineWaiverAmount > 0) {
+                        const currentFine = Number(inv.fineAmount || 0);
+                        invWaivedFine = fineWaiverAmount > 0 ? Math.min(fineWaiverAmount, currentFine) : currentFine;
+                        if (invWaivedFine > 0) {
+                            await inv.update({
+                                fineAmount: Math.max(0, currentFine - invWaivedFine),
+                                waivedFineAmount: Number(inv.waivedFineAmount || 0) + invWaivedFine,
+                                remarks: inv.remarks ? `${inv.remarks} | Fine Waived: ₹${invWaivedFine} (${data.fineWaiveReason})` : `Fine Waived: ₹${invWaivedFine} (${data.fineWaiveReason})`,
+                            }, { transaction: t });
+                        }
+                    }
+                }
+
+                // Allocate payment to child installments (if present)
+                const targetInstallments = await StudentInvoiceInstallment.findAll({
+                    where: {
+                        studentInvoiceId: inv.id,
+                        status: { [Op.in]: ['PENDING', 'PARTIALLY_PAID', 'OVERDUE'] },
+                    },
+                    order: [['dueDate', 'ASC'], ['installmentNumber', 'ASC']],
+                    lock: t.LOCK.UPDATE,
+                    transaction: t,
+                });
+
+                let invAllocatedPayment = 0;
+                if (targetInstallments.length > 0) {
+                    for (const inst of targetInstallments) {
+                        if (remainingFund <= 0) break;
+
+                        // If waiver requested on installment
+                        if (inv.id === targetInvoice.id && (data.installmentId === inst.id || !data.installmentId) && invWaivedFine > 0) {
+                            const instFine = Number(inst.lateFineAmount || 0);
+                            const instWaive = Math.min(invWaivedFine, instFine);
+                            if (instWaive > 0) {
+                                await inst.update({
+                                    lateFineAmount: Math.max(0, instFine - instWaive),
+                                    waivedFineAmount: Number(inst.waivedFineAmount || 0) + instWaive,
+                                    fineWaivedById: userId,
+                                    fineWaivedAt: new Date(),
+                                    fineWaiveReason: data.fineWaiveReason,
+                                }, { transaction: t });
+                            }
+                        }
+
+                        const instBal = Number(inst.balanceAmount);
+                        const instAlloc = Math.min(remainingFund, instBal);
+                        const newInstPaid = Number(inst.paidAmount) + instAlloc;
+                        const newInstBal = Math.max(0, instBal - instAlloc);
+                        const newInstStatus = newInstBal === 0 ? 'PAID' : 'PARTIALLY_PAID';
+
+                        await inst.update({
+                            paidAmount: newInstPaid,
+                            balanceAmount: newInstBal,
+                            status: newInstStatus,
+                        }, { transaction: t });
+
+                        invAllocatedPayment += instAlloc;
+                        remainingFund -= instAlloc;
+                    }
+                } else {
+                    const alloc = Math.min(remainingFund, invBalance);
+                    invAllocatedPayment += alloc;
+                    remainingFund -= alloc;
+                }
+
+                const newPaid = Number(inv.paidAmount) + invAllocatedPayment;
+                const newBal = Math.max(0, invBalance - invAllocatedPayment);
                 const newStatus = newBal === 0 ? 'PAID' : 'PARTIALLY_PAID';
 
                 await inv.update(
@@ -1005,8 +1487,6 @@ class FeeService {
                     },
                     { transaction: t }
                 );
-
-                remainingFund -= alloc;
             }
 
             // If any advance remains, update student credit
@@ -1127,7 +1607,7 @@ class FeeService {
     // STUDENT FEE LEDGER & FINANCIAL SUMMARY
     // ══════════════════════════════════════════════════════════════════════════
 
-    async getStudentFeeLedger(studentId) {
+    async getStudentFeeLedger(studentId, { academicYearId } = {}) {
         if (!studentId) throw new ApiError(400, 'Student ID is required');
 
         const student = await Student.findByPk(studentId, {
@@ -1142,33 +1622,80 @@ class FeeService {
         });
         if (!student) throw new ApiError(404, 'Student not found');
 
+        const invoiceWhere = {
+            studentId,
+            status: { [Op.notIn]: ['CANCELLED', 'VOID', 'DRAFT'] },
+        };
+        if (academicYearId && academicYearId !== 'ALL') {
+            invoiceWhere.academicYearId = academicYearId;
+        }
+
         const invoices = await StudentInvoice.findAll({
-            where: {
-                studentId,
-                status: { [Op.notIn]: ['CANCELLED', 'VOID'] },
-            },
+            where: invoiceWhere,
             include: [
                 { model: StudentInvoiceItem, as: 'items', include: [{ model: FeeHead, as: 'feeHead' }] },
-                { model: AcademicYear, as: 'academicYear', attributes: ['id', 'name', 'startDate', 'endDate'] },
+                { model: StudentInvoiceInstallment, as: 'installments' },
+                { model: AcademicYear, as: 'academicYear', attributes: ['id', 'name', 'startDate', 'endDate', 'isCurrent'] },
                 { model: Classroom, as: 'classroom', attributes: ['id', 'name', 'section'] },
+                { model: FeeStructure, as: 'feeStructure', attributes: ['id', 'name', 'lateFinePerDay', 'dueDayOfMonth', 'minimumPaymentAmount', 'allowBelowMinimum'] },
             ],
             order: [['dueDate', 'ASC'], ['createdAt', 'DESC']],
         });
 
+        // Collect payment IDs associated with this student
+        const invoiceIds = invoices.map((inv) => inv.id);
+        const paymentWhere = { studentId };
+        if (academicYearId && academicYearId !== 'ALL') {
+            paymentWhere.studentInvoiceId = { [Op.in]: invoiceIds };
+        }
+
         const payments = await FeePayment.findAll({
-            where: { studentId },
+            where: paymentWhere,
             include: [
                 { model: User, as: 'collectedBy', attributes: ['id', 'firstName', 'lastName'] },
-                { model: StudentInvoice, as: 'invoice', attributes: ['id', 'invoiceNumber', 'title', 'dueDate'] },
+                { model: StudentInvoice, as: 'invoice', attributes: ['id', 'invoiceNumber', 'title', 'dueDate', 'academicYearId'] },
                 { model: FeePaymentReversal, as: 'reversal', attributes: ['id', 'reversalReceiptNumber', 'reversedAmount', 'reason', 'bouncePenaltyAmount', 'createdAt'] },
             ],
             order: [['paymentDate', 'DESC'], ['createdAt', 'DESC']],
         });
 
+        // Compute dynamic late fee fines & days overdue on invoices
+        const todayStr = new Date().toISOString().split('T')[0];
+        const enrichedInvoices = invoices.map((inv) => {
+            const dueDate = new Date(inv.dueDate);
+            const todayDate = new Date(todayStr);
+            const balance = Number(inv.balanceAmount || 0);
+            const isOverdue = balance > 0 && todayDate > dueDate;
+            const overdueDays = isOverdue ? Math.max(0, Math.floor((todayDate - dueDate) / (1000 * 60 * 60 * 24))) : 0;
+
+            // Daily fine policy if configured on the fee structure and not already explicitly recorded
+            let recordedFine = Number(inv.fineAmount || 0);
+            const lateFinePerDay = Number(inv.feeStructure?.lateFinePerDay || 0);
+            if (isOverdue && lateFinePerDay > 0 && recordedFine === 0) {
+                recordedFine = Number((overdueDays * lateFinePerDay).toFixed(2));
+            }
+
+            const waivedFine = Number(inv.waivedFineAmount || 0);
+            const netFine = Math.max(0, recordedFine - waivedFine);
+
+            // Enrich installments with current-installment-only late fine rules
+            const enrichedInstallments = this._enrichInstallmentsWithLateFines(inv.installments || [], lateFinePerDay, 0);
+
+            return {
+                ...inv.toJSON(),
+                isOverdue,
+                overdueDays,
+                fineAmount: recordedFine,
+                netFineAmount: netFine,
+                waivedFineAmount: waivedFine,
+                installments: enrichedInstallments,
+            };
+        });
+
         // Safe decimal arithmetic
-        const totalBilled = invoices.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
-        const totalDiscount = invoices.reduce((sum, inv) => sum + Number(inv.discountAmount || 0), 0);
-        const totalLateFine = invoices.reduce((sum, inv) => sum + Number(inv.lateFineAmount || 0), 0);
+        const totalBilled = enrichedInvoices.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
+        const totalDiscount = enrichedInvoices.reduce((sum, inv) => sum + Number(inv.discountAmount || 0), 0);
+        const totalLateFine = enrichedInvoices.reduce((sum, inv) => sum + Number(inv.fineAmount || 0), 0);
 
         // Filter valid cleared payments (exclude bounced/reversed)
         const validPayments = payments.filter((p) => !p.reversal);
@@ -1182,6 +1709,22 @@ class FeeService {
         const paymentRatio = totalBilled > 0
             ? Number(Math.min(100, Math.max(0, (totalPaid / totalBilled) * 100)).toFixed(1))
             : (totalPaid > 0 ? 100 : 0);
+
+        // Query available academic sessions for historical switching
+        const allSessions = await AcademicYear.findAll({
+            attributes: ['id', 'name', 'startDate', 'endDate', 'isCurrent', 'status'],
+            order: [['startDate', 'DESC']],
+        });
+
+        // Fetch active reminders for student
+        const activeReminders = await FeeReminderLog.findAll({
+            where: {
+                studentId,
+                status: 'SENT',
+            },
+            order: [['createdAt', 'DESC']],
+            limit: 5,
+        });
 
         // Resolve assigned class fee structure for projection / transparency
         let assignedStructure = null;
@@ -1233,6 +1776,9 @@ class FeeService {
             },
             assignedStructure,
             billingCycles: availableCycles,
+            academicSessions: allSessions,
+            activeReminders,
+            selectedAcademicYearId: academicYearId || null,
             summary: {
                 totalBilled,
                 totalPaid,
@@ -1242,10 +1788,10 @@ class FeeService {
                 outstandingBalance,
                 advanceCredit,
                 paymentRatio,
-                invoicesCount: invoices.length,
+                invoicesCount: enrichedInvoices.length,
                 paymentsCount: validPayments.length,
             },
-            invoices,
+            invoices: enrichedInvoices,
             payments,
         };
     }
@@ -1323,8 +1869,9 @@ class FeeService {
      * Resolves installment-wise dues with arrears carry-forward for students
      * and evaluates eligibility for reminders with strict skip reasoning.
      */
-    async getEligibleReminderStudents({ classroomId, periodKey, asOfDate, academicYearId } = {}) {
+    async getEligibleReminderStudents({ classroomId, periodKey, asOfDate, academicYearId, installmentNumber } = {}) {
         const targetDate = asOfDate || new Date().toISOString().split('T')[0];
+        const instNumFilter = installmentNumber ? parseInt(installmentNumber, 10) : null;
 
         // 1. Fetch Students with active classroom enrollment
         const studentWhere = {};
@@ -1374,6 +1921,12 @@ class FeeService {
 
         const allInvoices = await StudentInvoice.findAll({
             where: invoiceWhere,
+            include: [
+                {
+                    model: StudentInvoiceInstallment,
+                    as: 'installments',
+                },
+            ],
             order: [['dueDate', 'ASC'], ['createdAt', 'ASC']],
         });
 
@@ -1389,13 +1942,16 @@ class FeeService {
         // 3. Check reminders dispatched today to prevent spam
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
+        const reminderWhere = {
+            studentId: { [Op.in]: studentIds },
+            createdAt: { [Op.gte]: todayStart },
+            status: { [Op.in]: ['SENT', 'QUEUED'] },
+        };
+        if (periodKey) reminderWhere.periodKey = periodKey;
+        if (instNumFilter) reminderWhere.installmentNumber = instNumFilter;
+
         const todayReminders = await FeeReminderLog.findAll({
-            where: {
-                studentId: { [Op.in]: studentIds },
-                createdAt: { [Op.gte]: todayStart },
-                status: { [Op.in]: ['SENT', 'QUEUED'] },
-                ...(periodKey ? { periodKey } : {}),
-            },
+            where: reminderWhere,
         });
         const remindedTodayStudentIds = new Set(todayReminders.map((r) => r.studentId));
 
@@ -1411,8 +1967,9 @@ class FeeService {
                 ? `${student.account.firstName} ${student.account.lastName || ''}`.trim()
                 : `Student (${student.admissionNumber || student.id.slice(0, 8)})`;
 
-            // Arrears vs Target Period Due
+            // Arrears vs Target Period Due / Target Installment Due
             let targetInvoice = null;
+            let targetInstallment = null;
             let installmentDue = 0;
             let arrears = 0;
             let totalOutstanding = 0;
@@ -1421,15 +1978,23 @@ class FeeService {
                 const balance = Number(inv.balanceAmount || 0);
                 totalOutstanding += balance;
 
-                const isTargetPeriod = periodKey
-                    ? inv.periodKey === periodKey
-                    : inv.dueDate && inv.dueDate <= targetDate;
+                const invInstallments = inv.installments || [];
 
-                if (periodKey && inv.periodKey === periodKey) {
+                if (instNumFilter) {
+                    const matchingInst = invInstallments.find((inst) => inst.installmentNumber === instNumFilter);
+                    if (matchingInst) {
+                        targetInvoice = inv;
+                        targetInstallment = matchingInst;
+                        const instBal = Number(matchingInst.balanceAmount || 0);
+                        const instFine = Math.max(0, Number(matchingInst.lateFineAmount || 0) - Number(matchingInst.waivedFineAmount || 0));
+                        installmentDue += (instBal + instFine);
+                    } else if (balance > 0) {
+                        arrears += balance;
+                    }
+                } else if (periodKey && inv.periodKey === periodKey) {
                     targetInvoice = inv;
                     installmentDue += balance;
                 } else if (!periodKey && inv.dueDate && inv.dueDate <= targetDate && !targetInvoice) {
-                    // Default to latest matching invoice within target date
                     targetInvoice = inv;
                     installmentDue += balance;
                 } else {
@@ -1449,6 +2014,9 @@ class FeeService {
             if (student.status !== 'ACTIVE') {
                 isEligible = false;
                 skipReason = 'INACTIVE';
+            } else if (instNumFilter && targetInstallment && Number(targetInstallment.balanceAmount || 0) <= 0) {
+                isEligible = false;
+                skipReason = 'CURRENT_PAID';
             } else if (totalOutstanding <= 0) {
                 isEligible = false;
                 skipReason = 'FULLY_PAID';
@@ -1477,10 +2045,12 @@ class FeeService {
                 classroomName: classroom?.name || 'Unassigned',
                 academicClassName: classroom?.academicClass?.name || '',
                 feeQuota: student.feeQuota || 'REGULAR',
-                periodKey: periodKey || targetInvoice?.periodKey || 'OVERDUE',
+                periodKey: periodKey || (targetInstallment ? `Inst #${targetInstallment.installmentNumber}` : (targetInvoice?.periodKey || 'OVERDUE')),
+                installmentNumber: targetInstallment?.installmentNumber || instNumFilter || null,
+                installmentId: targetInstallment?.id || null,
                 targetInvoiceId: targetInvoice?.id || null,
                 targetInvoiceNumber: targetInvoice?.invoiceNumber || null,
-                dueDate: targetInvoice?.dueDate || targetDate,
+                dueDate: targetInstallment?.dueDate || targetInvoice?.dueDate || targetDate,
                 installmentDue,
                 arrears,
                 advanceCredit,
@@ -1582,6 +2152,8 @@ class FeeService {
                 studentId,
                 classroomId: studentInfo.classroomId,
                 periodKey: periodKey || studentInfo.periodKey,
+                installmentNumber: studentInfo.installmentNumber || null,
+                installmentId: studentInfo.installmentId || null,
                 dueDate: dueDate || studentInfo.dueDate,
                 installmentDue: studentInfo.installmentDue,
                 arrears: studentInfo.arrears,
@@ -1595,6 +2167,8 @@ class FeeService {
                 metadata: {
                     note: effectiveNote,
                     administrativeNote: effectiveNote,
+                    installmentNumber: studentInfo.installmentNumber || null,
+                    installmentId: studentInfo.installmentId || null,
                 },
             });
 
@@ -1606,6 +2180,7 @@ class FeeService {
                     admissionNumber: studentInfo.admissionNumber,
                     classroomName: studentInfo.classroomName,
                     periodKey: periodKey || studentInfo.periodKey,
+                    installmentNumber: studentInfo.installmentNumber || null,
                     dueDate: dueDate || studentInfo.dueDate,
                     installmentDue: studentInfo.installmentDue,
                     arrears: studentInfo.arrears,
@@ -2454,6 +3029,269 @@ class FeeService {
             limit: Number(limit),
             offset: Number(offset),
         };
+    }
+
+    /**
+     * Aggregates interval-wise collection targets and actual collections.
+     * Groups StudentInvoiceInstallment by academicYear, class, and installmentNumber.
+     */
+    async getInstallmentCollectionTargets({ academicYearId, classroomId, academicClassId } = {}) {
+        const invoiceWhere = {
+            status: { [Op.ne]: 'CANCELLED' },
+        };
+        if (academicYearId) {
+            invoiceWhere.academicYearId = academicYearId;
+        }
+        if (classroomId) {
+            invoiceWhere.classroomId = classroomId;
+        }
+
+        // Include invoices linked to target academicClass if requested
+        const classroomInclude = {
+            model: Classroom,
+            as: 'classroom',
+            attributes: ['id', 'name', 'section', 'classId'],
+            include: [
+                {
+                    model: AcademicClass,
+                    as: 'academicClass',
+                    attributes: ['id', 'name'],
+                },
+            ],
+        };
+        if (academicClassId) {
+            classroomInclude.where = { classId: academicClassId };
+        }
+
+        const installmentRows = await StudentInvoiceInstallment.findAll({
+            include: [
+                {
+                    model: StudentInvoice,
+                    as: 'invoice',
+                    where: invoiceWhere,
+                    attributes: ['id', 'academicYearId', 'classroomId', 'status', 'studentId'],
+                    include: [classroomInclude],
+                },
+            ],
+            order: [['installmentNumber', 'ASC'], ['dueDate', 'ASC']],
+        });
+
+        // Group rows by installmentNumber
+        const targetMap = new Map();
+
+        for (const inst of installmentRows) {
+            const instNum = inst.installmentNumber || 1;
+            if (!targetMap.has(instNum)) {
+                targetMap.set(instNum, {
+                    installmentNumber: instNum,
+                    title: inst.title || `Installment ${instNum}`,
+                    dueDate: inst.dueDate,
+                    targetAmount: 0,
+                    collectedAmount: 0,
+                    pendingAmount: 0,
+                    waivedFineAmount: 0,
+                    totalStudents: 0,
+                    paidStudentsCount: 0,
+                    pendingStudentsCount: 0,
+                    overdueStudentsCount: 0,
+                    studentIds: new Set(),
+                });
+            }
+
+            const item = targetMap.get(instNum);
+            const base = Number(inst.baseAmount || 0);
+            const lateFine = Number(inst.lateFineAmount || 0);
+            const waived = Number(inst.waivedFineAmount || 0);
+            const paid = Number(inst.paidAmount || 0);
+            const balance = Number(inst.balanceAmount || 0);
+
+            // Target Amount = base + (lateFine - waived)
+            const effectiveTarget = base + Math.max(0, lateFine - waived);
+            item.targetAmount += effectiveTarget;
+            item.collectedAmount += paid;
+            item.pendingAmount += balance;
+            item.waivedFineAmount += waived;
+
+            if (inst.invoice?.studentId) {
+                item.studentIds.add(inst.invoice.studentId);
+            }
+
+            if (inst.status === 'PAID' || balance <= 0) {
+                item.paidStudentsCount++;
+            } else {
+                item.pendingStudentsCount++;
+                if (inst.status === 'OVERDUE' || (inst.dueDate && new Date(inst.dueDate) < new Date())) {
+                    item.overdueStudentsCount++;
+                }
+            }
+        }
+
+        // ── Fallback for Legacy/Existing Invoices without StudentInvoiceInstallment rows ──
+        if (targetMap.size === 0) {
+            const rawInvoices = await StudentInvoice.findAll({
+                where: invoiceWhere,
+                include: [classroomInclude],
+                attributes: [
+                    'id',
+                    'studentId',
+                    'invoiceNumber',
+                    'title',
+                    'dueDate',
+                    'totalAmount',
+                    'paidAmount',
+                    'balanceAmount',
+                    'status',
+                    'createdAt',
+                ],
+                order: [['dueDate', 'ASC'], ['createdAt', 'ASC']],
+            });
+
+            if (rawInvoices.length > 0) {
+                // Group invoices by dueDate (or default to 1 schedule per due date)
+                const dateGroupMap = new Map();
+                for (const inv of rawInvoices) {
+                    const dKey = inv.dueDate || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '2026-11-28');
+                    if (!dateGroupMap.has(dKey)) {
+                        dateGroupMap.set(dKey, []);
+                    }
+                    dateGroupMap.get(dKey).push(inv);
+                }
+
+                let fallbackIdx = 1;
+                for (const [dueDateVal, invList] of dateGroupMap.entries()) {
+                    const fallbackTarget = {
+                        installmentNumber: fallbackIdx,
+                        title: `Term ${fallbackIdx} Schedule`,
+                        dueDate: dueDateVal,
+                        targetAmount: 0,
+                        collectedAmount: 0,
+                        pendingAmount: 0,
+                        waivedFineAmount: 0,
+                        totalStudents: 0,
+                        paidStudentsCount: 0,
+                        pendingStudentsCount: 0,
+                        overdueStudentsCount: 0,
+                        studentIds: new Set(),
+                    };
+
+                    for (const inv of invList) {
+                        const tot = Number(inv.totalAmount || 0);
+                        const pd = Number(inv.paidAmount || 0);
+                        const bal = Number(inv.balanceAmount || 0);
+
+                        fallbackTarget.targetAmount += tot;
+                        fallbackTarget.collectedAmount += pd;
+                        fallbackTarget.pendingAmount += bal;
+                        if (inv.studentId) fallbackTarget.studentIds.add(inv.studentId);
+
+                        if (inv.status === 'PAID' || bal <= 0) {
+                            fallbackTarget.paidStudentsCount++;
+                        } else {
+                            fallbackTarget.pendingStudentsCount++;
+                            if (inv.status === 'OVERDUE' || (inv.dueDate && new Date(inv.dueDate) < new Date())) {
+                                fallbackTarget.overdueStudentsCount++;
+                            }
+                        }
+                    }
+
+                    targetMap.set(fallbackIdx, fallbackTarget);
+                    fallbackIdx++;
+                }
+            }
+        }
+
+        const intervals = Array.from(targetMap.values()).map((t) => {
+            const totalCount = t.studentIds.size || (t.paidStudentsCount + t.pendingStudentsCount);
+            const pct = t.targetAmount > 0
+                ? Math.min(100, Math.round((t.collectedAmount / t.targetAmount) * 10000) / 100)
+                : 0;
+
+            return {
+                installmentNumber: t.installmentNumber,
+                title: t.title,
+                dueDate: t.dueDate,
+                targetAmount: Number(t.targetAmount.toFixed(2)),
+                collectedAmount: Number(t.collectedAmount.toFixed(2)),
+                pendingAmount: Number(t.pendingAmount.toFixed(2)),
+                waivedFineAmount: Number(t.waivedFineAmount.toFixed(2)),
+                collectionPercentage: pct,
+                totalStudents: totalCount,
+                paidStudentsCount: t.paidStudentsCount,
+                pendingStudentsCount: t.pendingStudentsCount,
+                overdueStudentsCount: t.overdueStudentsCount,
+            };
+        });
+
+        // Compute session-wide totals
+        const sessionTotals = intervals.reduce(
+            (acc, curr) => {
+                acc.targetAmount += curr.targetAmount;
+                acc.collectedAmount += curr.collectedAmount;
+                acc.pendingAmount += curr.pendingAmount;
+                acc.waivedFineAmount += curr.waivedFineAmount;
+                return acc;
+            },
+            { targetAmount: 0, collectedAmount: 0, pendingAmount: 0, waivedFineAmount: 0 }
+        );
+
+        const overallPct = sessionTotals.targetAmount > 0
+            ? Math.min(100, Math.round((sessionTotals.collectedAmount / sessionTotals.targetAmount) * 10000) / 100)
+            : 0;
+
+        return {
+            academicYearId: academicYearId || null,
+            classroomId: classroomId || null,
+            academicClassId: academicClassId || null,
+            intervals,
+            sessionSummary: {
+                totalTarget: Number(sessionTotals.targetAmount.toFixed(2)),
+                totalCollected: Number(sessionTotals.collectedAmount.toFixed(2)),
+                totalPending: Number(sessionTotals.pendingAmount.toFixed(2)),
+                totalWaivedFine: Number(sessionTotals.waivedFineAmount.toFixed(2)),
+                overallPercentage: overallPct,
+            },
+        };
+    }
+
+    /**
+     * Streams collection targets report as CSV to avoid memory spikes with large datasets.
+     */
+    async streamCollectionTargetsCsv({ academicYearId, classroomId, academicClassId, outputStream }) {
+        const report = await this.getInstallmentCollectionTargets({
+            academicYearId,
+            classroomId,
+            academicClassId,
+        });
+
+        // Write CSV Header
+        outputStream.write(
+            'Installment Number,Interval Title,Due Date,Target Amount (INR),Collected Amount (INR),Pending Amount (INR),Waived Fine (INR),Completion Rate (%),Total Students,Paid Count,Pending Count,Overdue Count\r\n'
+        );
+
+        for (const interval of report.intervals) {
+            const row = [
+                interval.installmentNumber,
+                `"${(interval.title || '').replace(/"/g, '""')}"`,
+                interval.dueDate || 'N/A',
+                interval.targetAmount,
+                interval.collectedAmount,
+                interval.pendingAmount,
+                interval.waivedFineAmount,
+                `${interval.collectionPercentage}%`,
+                interval.totalStudents,
+                interval.paidStudentsCount,
+                interval.pendingStudentsCount,
+                interval.overdueStudentsCount,
+            ].join(',');
+            outputStream.write(`${row}\r\n`);
+        }
+
+        // Summary row
+        outputStream.write('\r\n');
+        outputStream.write(
+            `"SESSION TOTAL","All Intervals","-",${report.sessionSummary.totalTarget},${report.sessionSummary.totalCollected},${report.sessionSummary.totalPending},${report.sessionSummary.totalWaivedFine},"${report.sessionSummary.overallPercentage}%","-","-","-","-"\r\n`
+        );
+        outputStream.end();
     }
 }
 

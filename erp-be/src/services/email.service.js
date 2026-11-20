@@ -910,6 +910,7 @@ export const sendFeeReminderDirect = async ({
     admissionNumber,
     classroomName,
     periodKey,
+    installmentNumber,
     dueDate,
     installmentDue,
     arrears,
@@ -922,7 +923,8 @@ export const sendFeeReminderDirect = async ({
     const ctx = await getSchoolContext();
     const effectiveSchoolName = schoolNameOverride || ctx.schoolName;
     const headerColor = '#2563EB'; // Primary indigo/blue
-    const subject = `Fee Payment Reminder: ${studentName} - Due ₹${Number(payableAmount).toLocaleString('en-IN')}`;
+    const instTag = installmentNumber ? ` - Installment ${installmentNumber}` : '';
+    const subject = `Fee Payment Reminder: ${studentName}${instTag} - Due ₹${Number(payableAmount).toLocaleString('en-IN')}`;
 
     const formattedInstallment = Number(installmentDue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
     const formattedArrears = Number(arrears || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });

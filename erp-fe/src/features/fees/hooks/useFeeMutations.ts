@@ -26,7 +26,8 @@ export const useFeeMutations = () => {
   const invalidateStudent = async (studentId: string) => {
     if (!studentId) return;
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.fees.studentLedger(studentId) }),
+      queryClient.invalidateQueries({ queryKey: ['fees', 'ledger'] }),
+      queryClient.invalidateQueries({ queryKey: ['portal', 'student', 'fees'] }),
       queryClient.invalidateQueries({ queryKey: ['fees', 'invoices'] }),
       queryClient.invalidateQueries({ queryKey: queryKeys.fees.summary() }),
       queryClient.invalidateQueries({ queryKey: ['fees', 'defaulters'] }),

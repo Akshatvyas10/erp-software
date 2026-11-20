@@ -91,6 +91,8 @@ export const GenerateBulkInvoiceModal: React.FC<GenerateBulkInvoiceModalProps> =
   const [academicYearId, setAcademicYearId] = useState('');
   const [classroomId, setClassroomId] = useState('');
   const [frequency, setFrequency] = useState<FrequencyOption>('MONTHLY');
+  const [installmentsCount, setInstallmentsCount] = useState<number>(1);
+  const [customDueDates, setCustomDueDates] = useState<string[]>([]);
   const [periodLabel, setPeriodLabel] = useState('');
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -112,13 +114,38 @@ export const GenerateBulkInvoiceModal: React.FC<GenerateBulkInvoiceModalProps> =
     totalAmount: number;
   } | null>(null);
 
-  // Reset & initialize defaults when dialog opens
+  // Helper to compute default due dates across installments
+  const computeDefaultDates = (count: number, baseDueDate: string, freq: FrequencyOption) => {
+    const dates: string[] = [];
+    const base = new Date(baseDueDate || new Date().toISOString().split('T')[0]);
+    for (let i = 0; i < count; i++) {
+      const d = new Date(base);
+      if (freq === 'MONTHLY') d.setMonth(d.getMonth() + i);
+      else if (freq === 'QUARTERLY') d.setMonth(d.getMonth() + i * 3);
+      else if (freq === 'ANNUAL') d.setFullYear(d.getFullYear() + i);
+      dates.push(d.toISOString().split('T')[0]);
+    }
+    return dates;
+  };
+
+  // Sync customDueDates whenever installmentsCount or base dueDate or frequency changes
+  useEffect(() => {
+    if (installmentsCount > 1) {
+      setCustomDueDates((prev) => {
+        const computed = computeDefaultDates(installmentsCount, dueDate, frequency);
+        return computed.map((date, idx) => prev[idx] || date);
+      });
+    } else {
+      setCustomDueDates([]);
+    }
+  }, [installmentsCount, dueDate, frequency]);
   useEffect(() => {
     if (isOpen) {
       setStep(1);
       setAcademicYearId(currentAcademicYear?.id || '');
       setClassroomId(classrooms[0]?.id || '');
       setFrequency('MONTHLY');
+      setInstallmentsCount(1);
       const now = new Date();
       const currentMonth = now.toLocaleString('en-US', { month: 'short', year: 'numeric' });
       setPeriodLabel(currentMonth);
@@ -197,6 +224,8 @@ export const GenerateBulkInvoiceModal: React.FC<GenerateBulkInvoiceModalProps> =
         academicYearId,
         feeStructureId,
         frequency,
+        installmentsCount: installmentsCount > 1 ? installmentsCount : undefined,
+        customDueDates: installmentsCount > 1 && customDueDates.length === installmentsCount ? customDueDates : undefined,
         periodLabel,
         title,
         dueDate,
@@ -382,7 +411,12 @@ export const GenerateBulkInvoiceModal: React.FC<GenerateBulkInvoiceModalProps> =
                         <button
                           key={f}
                           type="button"
-                          onClick={() => setFrequency(f)}
+                          onClick={() => {
+                            setFrequency(f);
+                            if (f === 'MONTHLY') setInstallmentsCount(1);
+                            else if (f === 'QUARTERLY') setInstallmentsCount(3);
+                            else setInstallmentsCount(1);
+                          }}
                           className={`p-2.5 rounded-lg border text-left transition flex flex-col gap-0.5 ${
                             frequency === f
                               ? 'bg-primary/10 border-primary text-foreground font-semibold shadow-xs'
@@ -396,6 +430,67 @@ export const GenerateBulkInvoiceModal: React.FC<GenerateBulkInvoiceModalProps> =
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Installments Division Option */}
+                  <div className="p-3 bg-muted/20 border border-border/70 rounded-xl space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <Label className="text-xs font-semibold text-foreground">Automatic Installment Split</Label>
+                        <p className="text-[11px] text-muted-foreground">
+                          Divide net payable amount into scheduled installments with zero-drift paise math.
+                        </p>
+                      </div>
+                      <Select
+                        value={String(installmentsCount)}
+                        onValueChange={(val) => setInstallmentsCount(Number(val))}
+                      >
+                        <SelectTrigger className="w-36 h-8 text-xs bg-background">
+                          <SelectValue placeholder="Installments" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1 (Single Bill)</SelectItem>
+                          <SelectItem value="2">2 Installments</SelectItem>
+                          <SelectItem value="3">3 Installments</SelectItem>
+                          <SelectItem value="4">4 Installments</SelectItem>
+                          <SelectItem value="6">6 Installments</SelectItem>
+                          <SelectItem value="10">10 Installments</SelectItem>
+                          <SelectItem value="12">12 Installments</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {installmentsCount > 1 && (
+                      <div className="space-y-2 pt-2 border-t border-border/60">
+                        <div className="flex justify-between items-center">
+                          <Label className="text-xs font-semibold text-foreground">
+                            Explicit Installment Due Dates ({installmentsCount} Terms)
+                          </Label>
+                          <span className="text-[10px] text-muted-foreground">Admin-confirmed schedule</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {Array.from({ length: installmentsCount }).map((_, idx) => (
+                            <div key={idx} className="flex items-center justify-between gap-2 p-1.5 bg-background rounded-lg border border-border">
+                              <span className="text-[11px] font-semibold text-foreground whitespace-nowrap">
+                                Inst #{idx + 1}:
+                              </span>
+                              <DatePicker
+                                value={customDueDates[idx] || ''}
+                                onChange={(val) => {
+                                  const updated = [...customDueDates];
+                                  updated[idx] = val;
+                                  setCustomDueDates(updated);
+                                }}
+                                placeholder={`Due date ${idx + 1}`}
+                                className="h-7 text-xs"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-primary font-medium">
+                          Each student will receive 1 parent invoice with {installmentsCount} child installment schedules. Late fees accrue only on past-due installments.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">

@@ -39,7 +39,7 @@ export const queryKeys = {
     invoices: (params?: Record<string, unknown>) => ['fees', 'invoices', params] as const,
     invoiceDetail: (id: string) => ['fees', 'invoices', id] as const,
     receiptDetail: (id: string) => ['fees', 'receipts', id] as const,
-    studentLedger: (studentId: string) => ['fees', 'ledger', studentId] as const,
+    studentLedger: (studentId: string, params?: Record<string, unknown>) => ['fees', 'ledger', studentId, params] as const,
     remindersEligible: (params?: Record<string, unknown>) => ['fees', 'reminders', 'eligible', params] as const,
     reminderLogs: (params?: Record<string, unknown>) => ['fees', 'reminders', 'logs', params] as const,
     reminderSettings: () => ['fees', 'reminders', 'settings'] as const,
@@ -48,6 +48,7 @@ export const queryKeys = {
     refunds: (params?: Record<string, unknown>) => ['fees', 'refunds', params] as const,
     reports: (params?: Record<string, unknown>) => ['fees', 'reports', params] as const,
     counterHistory: (params?: Record<string, unknown>) => ['fees', 'counter-history', params] as const,
+    collectionTargets: (params?: Record<string, unknown>) => ['fees', 'collection-targets', params] as const,
   },
 } as const;
 

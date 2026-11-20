@@ -158,10 +158,21 @@ router.post(
     onlinePaymentController.verifyPayment
 );
 
+router.post(
+    '/online/webhook',
+    onlinePaymentController.handleWebhook
+);
+
 router.get(
     '/receipts/:id',
     requirePermission('fees', 'read'),
     feeController.getReceiptById
+);
+
+router.get(
+    '/receipts/:id/pdf',
+    requirePermission('fees', 'read'),
+    feeController.downloadReceiptPdf
 );
 
 // ─── Student Fee Ledger ───────────────────────────────────────────────────────
@@ -268,6 +279,19 @@ router.get(
     '/counter-history',
     requirePermission('fees', 'read'),
     feeController.getCounterHistory
+);
+
+// ─── Interval-Wise Collection Target Tracking ────────────────────────────────
+router.get(
+    '/collection-targets',
+    requirePermission('fees', 'read'),
+    feeController.getInstallmentCollectionTargets
+);
+
+router.get(
+    '/collection-targets/export',
+    requirePermission('fees', 'read'),
+    feeController.exportCollectionTargetsCsv
 );
 
 export default router;

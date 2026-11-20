@@ -39,7 +39,7 @@ const FeePayment = sequelize.define('FeePayment', {
         allowNull: false,
         field: 'payment_mode',
         defaultValue: 'CASH',
-        validate: { isIn: [['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'CARD', 'ONLINE']] },
+        validate: { isIn: [['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'CARD', 'ONLINE', 'ADVANCE_CREDIT']] },
     },
     referenceNumber: {
         type: DataTypes.STRING(100),

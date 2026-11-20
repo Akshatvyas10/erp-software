@@ -3,6 +3,7 @@
 import onlinePaymentService from '../services/onlinePayment.service.js';
 import { success, error } from '../utils/apiResponse.js';
 import logger from '../utils/logger.js';
+import { assertStudentOwnership } from '../utils/studentOwnership.js';
 
 /**
  * POST /api/fees/online/create-order
@@ -12,11 +13,8 @@ export const createPaymentOrder = async (req, res, next) => {
     try {
         const { invoiceId, studentId, amount, customerNotes } = req.body;
         
-        // Scope guard: Students can only create orders for their own invoices
-        const isStudent = req.userRoles?.some(r => r.toUpperCase() === 'STUDENT');
-        if (isStudent && req.user.studentProfile?.id && req.user.studentProfile.id !== studentId) {
-            return error(res, 'Access denied: You can only pay your own invoices.', 403);
-        }
+        // Scope guard: Students & parents can only create orders for their own ward's invoices
+        await assertStudentOwnership(req.user, studentId, req.userRoles);
 
         const orderData = await onlinePaymentService.createOrder({
             invoiceId,
@@ -31,7 +29,8 @@ export const createPaymentOrder = async (req, res, next) => {
         return success(res, orderData, 'Payment order created successfully', 201);
     } catch (err) {
         logger.error('[ONLINE PAYMENT] createPaymentOrder error:', err);
-        return error(res, err.message, 400);
+        const statusCode = err.statusCode || 400;
+        return error(res, err.message, statusCode);
     }
 };
 
@@ -43,10 +42,8 @@ export const verifyPayment = async (req, res, next) => {
     try {
         const { orderId, paymentId, signature, invoiceId, studentId, amount } = req.body;
 
-        const isStudent = req.userRoles?.some(r => r.toUpperCase() === 'STUDENT');
-        if (isStudent && req.user.studentProfile?.id && req.user.studentProfile.id !== studentId) {
-            return error(res, 'Access denied: You cannot verify payments for another student.', 403);
-        }
+        // Scope guard: Verify ownership before booking settlement
+        await assertStudentOwnership(req.user, studentId, req.userRoles);
 
         const result = await onlinePaymentService.verifyAndSettlePayment({
             orderId,
@@ -61,7 +58,30 @@ export const verifyPayment = async (req, res, next) => {
         return success(res, result, 'Payment verified and credited to student fee ledger successfully');
     } catch (err) {
         logger.error('[ONLINE PAYMENT] verifyPayment error:', err);
-        return error(res, err.message, 400);
+        const statusCode = err.statusCode || 400;
+        return error(res, err.message, statusCode);
+    }
+};
+
+/**
+ * POST /api/fees/online/webhook
+ * Receives server-to-server webhook notifications from Razorpay with signature verification.
+ */
+export const handleWebhook = async (req, res) => {
+    try {
+        const signature = req.headers['x-razorpay-signature'];
+        if (!signature) {
+            return res.status(400).json({ success: false, message: 'Missing x-razorpay-signature header' });
+        }
+
+        const rawBody = req.rawBody || (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
+        const payload = typeof req.body === 'object' ? req.body : JSON.parse(req.body);
+
+        const result = await onlinePaymentService.handleWebhookEvent(payload, signature, rawBody);
+        return res.status(200).json({ success: true, message: 'Webhook processed', data: result });
+    } catch (err) {
+        logger.error('[ONLINE PAYMENT] handleWebhook error:', err.message);
+        return res.status(400).json({ success: false, message: err.message });
     }
 };
 

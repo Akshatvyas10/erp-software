@@ -51,10 +51,12 @@ import FeeStructureItem from './FeeStructureItem.js';
 import FeeStructureDiscount from './FeeStructureDiscount.js';
 import StudentInvoice from './StudentInvoice.js';
 import StudentInvoiceItem from './StudentInvoiceItem.js';
+import StudentInvoiceInstallment from './StudentInvoiceInstallment.js';
 import FeePayment from './FeePayment.js';
 import FeePaymentReversal from './FeePaymentReversal.js';
 import FeeRefund from './FeeRefund.js';
 import FeeReminderLog from './FeeReminderLog.js';
+import { Vehicle, TransportRoute } from './Transport.js';
 
 const PermissionAuditLog = PermissionAuditLogInit(sequelize);
 
@@ -380,6 +382,12 @@ StudentInvoice.hasMany(StudentInvoiceItem, { foreignKey: 'studentInvoiceId', as:
 StudentInvoiceItem.belongsTo(StudentInvoice, { foreignKey: 'studentInvoiceId', as: 'invoice' });
 StudentInvoiceItem.belongsTo(FeeHead, { foreignKey: 'feeHeadId', as: 'feeHead' });
 
+StudentInvoice.hasMany(StudentInvoiceInstallment, { foreignKey: 'studentInvoiceId', as: 'installments', onDelete: 'CASCADE' });
+StudentInvoiceInstallment.belongsTo(StudentInvoice, { foreignKey: 'studentInvoiceId', as: 'invoice' });
+StudentInvoiceInstallment.belongsTo(User, { foreignKey: 'fineWaivedById', as: 'fineWaivedBy' });
+StudentInvoiceInstallment.hasMany(FeeReminderLog, { foreignKey: 'installmentId', as: 'reminderLogs' });
+FeeReminderLog.belongsTo(StudentInvoiceInstallment, { foreignKey: 'installmentId', as: 'installment' });
+
 StudentInvoice.hasMany(FeePayment, { foreignKey: 'studentInvoiceId', as: 'payments', onDelete: 'CASCADE' });
 FeePayment.belongsTo(StudentInvoice, { foreignKey: 'studentInvoiceId', as: 'invoice' });
 FeePayment.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
@@ -452,10 +460,13 @@ const db = {
     FeeStructureDiscount,
     StudentInvoice,
     StudentInvoiceItem,
+    StudentInvoiceInstallment,
     FeePayment,
     FeePaymentReversal,
     FeeRefund,
-    FeeReminderLog
+    FeeReminderLog,
+    Vehicle,
+    TransportRoute,
 };
 
 export default db;
@@ -511,8 +522,11 @@ export {
     FeeStructureDiscount,
     StudentInvoice,
     StudentInvoiceItem,
+    StudentInvoiceInstallment,
     FeePayment,
     FeePaymentReversal,
     FeeRefund,
-    FeeReminderLog
+    FeeReminderLog,
+    Vehicle,
+    TransportRoute,
 };

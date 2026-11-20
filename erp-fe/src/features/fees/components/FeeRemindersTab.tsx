@@ -56,11 +56,13 @@ import { Switch } from '@/components/ui/switch';
 
 interface FeeRemindersTabProps {
   classrooms?: Array<{ id: string; name: string }>;
+  academicYears?: Array<{ id: string; name: string; isCurrent: boolean }>;
   onOpenLedger?: (studentId: string) => void;
 }
 
 export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
   classrooms = [],
+  academicYears = [],
   onOpenLedger,
 }) => {
   const queryClient = useQueryClient();
@@ -69,6 +71,8 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
 
   // Filters
   const [selectedClassroom, setSelectedClassroom] = useState<string>('ALL');
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>('');
+  const [installmentNumber, setInstallmentNumber] = useState<string>('ALL');
   const [periodKey, setPeriodKey] = useState<string>('');
   const [asOfDate, setAsOfDate] = useState<string>('');
   const [eligibilityFilter, setEligibilityFilter] = useState<'ALL' | 'ELIGIBLE_ONLY' | 'SKIPPED_ONLY'>('ELIGIBLE_ONLY');
@@ -92,12 +96,16 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
   } = useQuery({
     queryKey: queryKeys.fees.remindersEligible({
       classroomId: selectedClassroom !== 'ALL' ? selectedClassroom : undefined,
+      academicYearId: selectedAcademicYear || undefined,
+      installmentNumber: installmentNumber !== 'ALL' ? Number(installmentNumber) : undefined,
       periodKey: periodKey || undefined,
       asOfDate: asOfDate || undefined,
     }),
     queryFn: () =>
       feeApi.getEligibleReminders({
         classroomId: selectedClassroom !== 'ALL' ? selectedClassroom : undefined,
+        academicYearId: selectedAcademicYear || undefined,
+        installmentNumber: installmentNumber !== 'ALL' ? Number(installmentNumber) : undefined,
         periodKey: periodKey || undefined,
         asOfDate: asOfDate || undefined,
       }),
@@ -402,7 +410,7 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
 
       {/* 3. Filter Controls */}
       <div className="p-3.5 bg-muted/30 border border-border/70 rounded-xl space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 items-end">
           {/* Search */}
           <div className="space-y-1">
             <label className="text-[11px] font-semibold text-muted-foreground">Search Student / Parent</label>
@@ -416,6 +424,26 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
               />
             </div>
           </div>
+
+          {/* Academic Year */}
+          {academicYears.length > 0 && (
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-muted-foreground">Session</label>
+              <Select value={selectedAcademicYear} onValueChange={setSelectedAcademicYear}>
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue placeholder="All Sessions" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Sessions</SelectItem>
+                  {academicYears.map((y) => (
+                    <SelectItem key={y.id} value={y.id} className="text-xs">
+                      {y.name} {y.isCurrent ? '(Current)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Classroom */}
           <div className="space-y-1">
@@ -444,6 +472,23 @@ export const FeeRemindersTab: React.FC<FeeRemindersTabProps> = ({
               onChange={(e) => setPeriodKey(e.target.value)}
               className="h-8 text-xs bg-background"
             />
+          </div>
+
+          {/* Installment Interval Filter */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-muted-foreground">Installment Interval</label>
+            <Select value={installmentNumber} onValueChange={setInstallmentNumber}>
+              <SelectTrigger className="h-8 text-xs bg-background">
+                <SelectValue placeholder="All Terms" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Installments</SelectItem>
+                <SelectItem value="1">Inst 1 (e.g. 15 Jun)</SelectItem>
+                <SelectItem value="2">Inst 2 (e.g. 15 Sep)</SelectItem>
+                <SelectItem value="3">Inst 3 (e.g. 15 Dec)</SelectItem>
+                <SelectItem value="4">Inst 4 (e.g. 15 Mar)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Date Picker using Shared ERP Component */}

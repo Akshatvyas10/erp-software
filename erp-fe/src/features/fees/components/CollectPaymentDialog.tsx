@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
-import feeApi, { type StudentInvoice } from '../api/feeApi';
+import feeApi, { type StudentInvoice, type StudentInvoiceInstallment } from '../api/feeApi';
 import queryKeys from '@/lib/queryKeys';
 import {
   IndianRupee,
@@ -29,6 +29,9 @@ import {
   Building2,
   FileCheck2,
   Sparkles,
+  ShieldAlert,
+  Calendar,
+  CheckCircle,
 } from 'lucide-react';
 import { DatePicker } from '@/components/common/DatePicker';
 
@@ -37,6 +40,12 @@ const paymentFormSchema = z.object({
   paymentMode: z.enum(['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'CARD', 'DEMAND_DRAFT', 'OTHER']),
   paymentDate: z.string().min(1, 'Date is required'),
   allocationStrategy: z.enum(['SELECTED_INVOICE', 'FIFO_AUTO']),
+  installmentId: z.string().optional(),
+  waiveLateFee: z.boolean().default(false),
+  waivedFineAmount: z.number().min(0).default(0),
+  fineWaiveReason: z.string().optional(),
+  adjustDueAmount: z.number().min(0).default(0),
+  dueAdjustReason: z.string().optional(),
   transactionReference: z.string().optional(),
   upiId: z.string().optional(),
   payerName: z.string().optional(),
@@ -50,6 +59,25 @@ const paymentFormSchema = z.object({
   isBelowMinimum: z.boolean(),
   belowMinimumReasonCode: z.string().optional(),
   belowMinimumReasonText: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.waiveLateFee || (data.waivedFineAmount && data.waivedFineAmount > 0)) {
+    if (!data.fineWaiveReason || data.fineWaiveReason.trim().length < 5) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['fineWaiveReason'],
+        message: 'Reason for waiving late fee must be at least 5 characters.',
+      });
+    }
+  }
+  if (data.adjustDueAmount && data.adjustDueAmount > 0) {
+    if (!data.dueAdjustReason || data.dueAdjustReason.trim().length < 5) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dueAdjustReason'],
+        message: 'Reason for adjusting due amount must be at least 5 characters.',
+      });
+    }
+  }
 });
 
 type PaymentFormValues = z.infer<typeof paymentFormSchema>;
@@ -71,6 +99,16 @@ export const CollectPaymentDialog: React.FC<CollectPaymentDialogProps> = ({
 }) => {
   const queryClient = useQueryClient();
 
+  const installments = invoice?.installments || [];
+  const hasInstallments = installments.length > 0;
+
+  // Auto-find earliest pending or overdue installment
+  const firstUnpaidInstallment = React.useMemo(() => {
+    return installments.find(
+      (inst) => Number(inst.balanceAmount) > 0 || Number(inst.lateFineAmount) > 0
+    ) || installments[0];
+  }, [installments]);
+
   const balance = Number(invoice?.balanceAmount || 0);
 
   const {
@@ -81,12 +119,18 @@ export const CollectPaymentDialog: React.FC<CollectPaymentDialogProps> = ({
     reset,
     formState: { errors },
   } = useForm<PaymentFormValues>({
-    resolver: zodResolver(paymentFormSchema),
+    resolver: zodResolver(paymentFormSchema) as any,
     defaultValues: {
       amount: balance,
       paymentMode: 'CASH',
       paymentDate: new Date().toISOString().split('T')[0],
       allocationStrategy: 'SELECTED_INVOICE',
+      installmentId: firstUnpaidInstallment?.id || '',
+      waiveLateFee: false,
+      waivedFineAmount: 0,
+      fineWaiveReason: '',
+      adjustDueAmount: 0,
+      dueAdjustReason: '',
       transactionReference: '',
       upiId: '',
       payerName: '',
@@ -103,13 +147,31 @@ export const CollectPaymentDialog: React.FC<CollectPaymentDialogProps> = ({
     },
   });
 
-  // Keep form amount synced when opening invoice
+  const selectedInstallmentId = watch('installmentId');
+  const waiveLateFee = watch('waiveLateFee');
+  const waivedFineAmount = Number(watch('waivedFineAmount') || 0);
+  const adjustDueAmount = Number(watch('adjustDueAmount') || 0);
+
+  const selectedInstallment: StudentInvoiceInstallment | undefined = React.useMemo(() => {
+    if (!hasInstallments) return undefined;
+    return installments.find((inst) => inst.id === selectedInstallmentId) || firstUnpaidInstallment;
+  }, [installments, selectedInstallmentId, hasInstallments, firstUnpaidInstallment]);
+
+  // Keep form amount synced when opening invoice or switching installment
   React.useEffect(() => {
     if (invoice) {
-      setValue('amount', Number(invoice.balanceAmount));
+      if (hasInstallments && selectedInstallment) {
+        const instBal = Number(selectedInstallment.balanceAmount || 0);
+        const instFine = Math.max(0, Number(selectedInstallment.lateFineAmount || 0) - Number(selectedInstallment.waivedFineAmount || 0));
+        const effective = Math.max(0, instBal + instFine - adjustDueAmount - waivedFineAmount);
+        setValue('amount', effective, { shouldValidate: true });
+        setValue('installmentId', selectedInstallment.id);
+      } else {
+        setValue('amount', Number(invoice.balanceAmount));
+      }
       setValue('paymentDate', new Date().toISOString().split('T')[0]);
     }
-  }, [invoice, setValue]);
+  }, [invoice, selectedInstallment, hasInstallments, setValue, adjustDueAmount, waivedFineAmount]);
 
   const selectedMode = watch('paymentMode');
   const enteredAmount = Number(watch('amount') || 0);
@@ -132,6 +194,12 @@ export const CollectPaymentDialog: React.FC<CollectPaymentDialogProps> = ({
         paymentMode: values.paymentMode,
         paymentDate: values.paymentDate,
         allocationStrategy: values.allocationStrategy,
+        installmentId: values.installmentId || undefined,
+        waiveLateFee: values.waiveLateFee,
+        waivedFineAmount: values.waivedFineAmount || undefined,
+        fineWaiveReason: values.fineWaiveReason || undefined,
+        adjustDueAmount: values.adjustDueAmount || undefined,
+        dueAdjustReason: values.dueAdjustReason || undefined,
         transactionReference: values.transactionReference || undefined,
         upiId: values.upiId || undefined,
         payerName: values.payerName || undefined,
@@ -182,6 +250,8 @@ export const CollectPaymentDialog: React.FC<CollectPaymentDialogProps> = ({
     { id: 'CHEQUE', label: 'Cheque', icon: FileCheck2 },
     { id: 'BANK_TRANSFER', label: 'Bank Transfer', icon: Building2 },
   ];
+
+  const currentLateFine = Number(selectedInstallment ? selectedInstallment.lateFineAmount : invoice.lateFineAmount || 0);
 
   return (
     <ResponsiveModal
@@ -236,7 +306,7 @@ export const CollectPaymentDialog: React.FC<CollectPaymentDialogProps> = ({
         </div>
       }
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-1">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-1 max-h-[75vh] overflow-y-auto px-0.5">
         {/* Compact Student & Invoice Financial Summary Card */}
         <div className="p-3 bg-muted/40 border border-border/80 rounded-xl space-y-2">
           <div className="flex justify-between items-start text-xs">
@@ -288,6 +358,160 @@ export const CollectPaymentDialog: React.FC<CollectPaymentDialogProps> = ({
                 Min (₹{minimumAmount})
               </Button>
             )}
+          </div>
+        </div>
+
+        {/* Installment Selection (if invoice has installments) */}
+        {hasInstallments && (
+          <div className="p-3 bg-card border border-border rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-primary" />
+                Select Installment Schedule
+              </Label>
+              <span className="text-[10px] text-muted-foreground">{installments.length} Installments</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {installments.map((inst) => {
+                const isSelected = selectedInstallmentId === inst.id;
+                const isOverdue = inst.status === 'OVERDUE' || (Number(inst.lateFineAmount || 0) > 0);
+                const isPaid = inst.status === 'PAID';
+                return (
+                  <button
+                    key={inst.id}
+                    type="button"
+                    onClick={() => {
+                      setValue('installmentId', inst.id);
+                      const instBal = Number(inst.balanceAmount || 0);
+                      const instFine = Math.max(0, Number(inst.lateFineAmount || 0) - Number(inst.waivedFineAmount || 0));
+                      setValue('amount', Math.max(0, instBal + instFine));
+                    }}
+                    className={`p-2 rounded-lg border text-left transition flex flex-col justify-between text-xs ${
+                      isSelected
+                        ? 'border-primary bg-primary/10 shadow-xs'
+                        : isPaid
+                        ? 'border-border/60 bg-muted/20 opacity-70'
+                        : isOverdue
+                        ? 'border-rose-300 dark:border-rose-900 bg-rose-50/40 dark:bg-rose-950/20'
+                        : 'border-border bg-background hover:bg-muted/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-foreground">
+                        Inst #{inst.installmentNumber}
+                      </span>
+                      {isPaid ? (
+                        <CheckCircle className="w-3 h-3 text-emerald-600" />
+                      ) : isOverdue ? (
+                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-rose-300 text-rose-700 bg-rose-50">
+                          Overdue
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[9px] px-1 py-0">
+                          {inst.status}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="mt-1 flex items-baseline justify-between font-mono text-[11px]">
+                      <span className="text-muted-foreground">Due: {inst.dueDate}</span>
+                      <span className={`font-bold ${Number(inst.balanceAmount) > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-600'}`}>
+                        ₹{Number(inst.balanceAmount).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    {Number(inst.lateFineAmount) > 0 && (
+                      <span className="text-[10px] text-rose-600 font-semibold mt-0.5">
+                        +₹{Number(inst.lateFineAmount)} Late Fine
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Late Fee Waiver & Due Adjustment Panel */}
+        <div className="p-3 bg-muted/20 border border-border/80 rounded-xl space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+              Late Fee & Due Adjustment (Requires Reason)
+            </span>
+            {currentLateFine > 0 && (
+              <Badge variant="outline" className="text-[10px] text-rose-700 bg-rose-50 border-rose-200">
+                Accrued Fine: ₹{currentLateFine}
+              </Badge>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {/* Waive Fine Section */}
+            <div className="space-y-1.5 p-2 bg-background rounded-lg border border-border/60">
+              <div className="flex items-center justify-between">
+                <Label className="text-[11px] font-semibold text-foreground">Waive Late Fine (₹)</Label>
+                {currentLateFine > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValue('waiveLateFee', true);
+                      setValue('waivedFineAmount', currentLateFine, { shouldValidate: true });
+                    }}
+                    className="text-[10px] text-primary hover:underline font-medium"
+                  >
+                    Waive Full Fine
+                  </button>
+                )}
+              </div>
+              <Input
+                type="number"
+                min={0}
+                max={currentLateFine || 99999}
+                placeholder="0"
+                className="h-8 text-xs font-mono font-bold"
+                {...register('waivedFineAmount', { valueAsNumber: true })}
+                onChange={(e) => {
+                  const val = Number(e.target.value) || 0;
+                  setValue('waiveLateFee', val > 0);
+                  setValue('waivedFineAmount', val, { shouldValidate: true });
+                }}
+              />
+              {(waiveLateFee || waivedFineAmount > 0) && (
+                <div className="mt-1">
+                  <Input
+                    placeholder="Mandatory reason for fine waiver (min 5 chars)..."
+                    className="h-8 text-xs"
+                    {...register('fineWaiveReason')}
+                  />
+                  {errors.fineWaiveReason && (
+                    <p className="text-[10px] text-destructive mt-0.5">{errors.fineWaiveReason.message}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Adjust Due Section */}
+            <div className="space-y-1.5 p-2 bg-background rounded-lg border border-border/60">
+              <Label className="text-[11px] font-semibold text-foreground block">Adjust / Concession Dues (₹)</Label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="0"
+                className="h-8 text-xs font-mono font-bold"
+                {...register('adjustDueAmount', { valueAsNumber: true })}
+              />
+              {adjustDueAmount > 0 && (
+                <div className="mt-1">
+                  <Input
+                    placeholder="Mandatory reason for due adjustment (min 5 chars)..."
+                    className="h-8 text-xs"
+                    {...register('dueAdjustReason')}
+                  />
+                  {errors.dueAdjustReason && (
+                    <p className="text-[10px] text-destructive mt-0.5">{errors.dueAdjustReason.message}</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
